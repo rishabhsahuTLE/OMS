@@ -123,7 +123,7 @@ function App() {
   function renderPage() {
     if (activeTab === "dashboard") return <Dashboard />;
     if (activeTab === "report") {
-      return activeReportSubTab === "approval" ? <Approval orders={orders} /> : <Billing />;
+      return activeReportSubTab === "approval" ? <Approval orders={orders} /> : <Billing orders={orders} />;
     }
     if (activeTab === "orders") {
       if (activeOrdersSubTab === "approvalSetting") return <ApprovalSetting />;

@@ -103,7 +103,7 @@ clients.forEach((client, cliIdx) => {
         gstProcess: "",
         selectGst: client.gstNo || "NA",
         ...product.mockDetails(orderIndex),
-        firstBillingMonth: "",
+        firstBillingMonth: createdOn.slice(0, 7),
         billingCycle,
         agreement: 12,
         advance: null,

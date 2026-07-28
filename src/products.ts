@@ -59,8 +59,8 @@ export abstract class Product {
 const BILLED_ON_OPTIONS = ["No. of Users", "No. of Assessments"];
 const DEVICE_TYPES = ["Desktop", "Mobile", "Tablet", "All Devices"];
 
-class PaasProduct extends Product {
-  readonly name = "PaaS(LMS)";
+class LmsProduct extends Product {
+  readonly name = "LMS";
   readonly fields: ProductField[] = [
     { key: "numUsers", label: "No. of Users", type: "number", required: true },
     { key: "feePerUser", label: "Fee per User (₹)", type: "number", required: true },
@@ -121,7 +121,7 @@ class QuirioProduct extends Product {
   }
 }
 
-export const PRODUCTS: Product[] = [new PaasProduct(), new QuirioProduct()];
+export const PRODUCTS: Product[] = [new LmsProduct(), new QuirioProduct()];
 
 export const PRODUCT_NAMES = PRODUCTS.map((p) => p.name);
 
