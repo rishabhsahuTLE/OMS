@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import Modal from "../../components/Modal";
 import type { BillingCycle, Client, OrderRecord, OrderRecordDetails, Spoc } from "../../types";
-import { getProduct, PRODUCTS } from "../../products";
+import { getProduct, PRODUCT_NAMES } from "../../products";
 import type { ProductFormValues } from "../../products";
-import { todayISO } from "../../utils";
+import { nextOrderNumber, todayISO } from "../../utils";
 
 interface CreateOrderModalProps {
   open: boolean;
   onClose: () => void;
-  client: Client | null;
-  product: string;
-  nextOrderNo: string;
+  clients: Client[];
+  orders: OrderRecord[];
   editingOrder?: OrderRecord | null;
+  prefillClientId?: string;
+  prefillProduct?: string;
   onCreate: (record: OrderRecord) => void;
   onUpdate: (record: OrderRecord) => void;
 }
@@ -130,26 +131,42 @@ function toFieldString(v: number | string | null | undefined): string {
 export default function CreateOrderModal({
   open,
   onClose,
-  client,
-  product,
-  nextOrderNo,
+  clients,
+  orders,
   editingOrder,
+  prefillClientId,
+  prefillProduct,
   onCreate,
   onUpdate,
 }: CreateOrderModalProps) {
+  const [selectedClientId, setSelectedClientId] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm);
   const [spocs, setSpocs] = useState<Spoc[]>([]);
   const [documents, setDocuments] = useState<{ name: string; fileName: string }[]>([]);
   const [productValues, setProductValues] = useState<ProductFormValues>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const currentProduct = useMemo(() => getProduct(product) ?? PRODUCTS[0], [product]);
+  const isEditing = editingOrder != null;
+  const client = clients.find((c) => c.id === selectedClientId) ?? null;
+  const currentProduct = useMemo(() => (selectedProduct ? getProduct(selectedProduct) ?? null : null), [
+    selectedProduct,
+  ]);
 
-  // Re-sync the form whenever the modal opens — blank for a new order,
-  // prefilled from editingOrder when editing an existing one.
+  const nextOrderNo = useMemo(() => {
+    if (editingOrder) return editingOrder.orderNo;
+    if (!selectedClientId) return "";
+    return nextOrderNumber(orders, selectedClientId);
+  }, [editingOrder, selectedClientId, orders]);
+
+  // Re-sync the form whenever the modal opens — blank for a new order (with
+  // an optional client/product prefill), prefilled from editingOrder when
+  // editing an existing one.
   useEffect(() => {
     if (!open) return;
     if (editingOrder) {
+      setSelectedClientId(editingOrder.clientId);
+      setSelectedProduct(editingOrder.product);
       setForm({
         dateOfSign: editingOrder.dateOfSign,
         plan: editingOrder.details.plan,
@@ -165,19 +182,41 @@ export default function CreateOrderModal({
       });
       setSpocs(editingOrder.details.spocs);
       setDocuments(editingOrder.details.documents);
+    } else {
+      setSelectedClientId(prefillClientId ?? "");
+      setSelectedProduct(prefillProduct ?? "");
+      setForm(emptyForm);
+      setSpocs([]);
+      setDocuments([]);
+    }
+    setErrors({});
+  }, [open, editingOrder, prefillClientId, prefillProduct]);
+
+  // Whenever the chosen product changes, reset its product-specific fields —
+  // prefilled from editingOrder if it's the order's original product, blank
+  // otherwise (e.g. the user picked a different product for a new order).
+  useEffect(() => {
+    if (!open || !currentProduct) {
+      setProductValues({});
+      return;
+    }
+    if (editingOrder && editingOrder.product === currentProduct.name) {
       const values: ProductFormValues = {};
       for (const field of currentProduct.fields) {
         values[field.key] = toFieldString(editingOrder.details[field.key] as string | number | null | undefined);
       }
       setProductValues(values);
     } else {
-      setForm(emptyForm);
-      setSpocs([]);
-      setDocuments([]);
       setProductValues(currentProduct.emptyValues());
     }
-    setErrors({});
-  }, [open, editingOrder, currentProduct]);
+  }, [open, currentProduct, editingOrder]);
+
+  // Reset SPOCs when the client changes on a new (non-editing) order, so a
+  // previously-picked client's contacts don't linger after switching clients.
+  useEffect(() => {
+    if (!open || editingOrder) return;
+    setSpocs([]);
+  }, [selectedClientId, open, editingOrder]);
 
   const effectiveSpocs = spocs.length > 0 ? spocs : client?.spocs.length ? [client.spocs[0]] : [{ ...emptySpoc }];
 
@@ -220,7 +259,7 @@ export default function CreateOrderModal({
     const oneTime = toNumber(form.oneTime) ?? 0;
     const advance = toNumber(form.advance) ?? 0;
     const tds = toNumber(form.tds) ?? 0;
-    const base = oneTime + currentProduct.productAmount(productValues);
+    const base = oneTime + (currentProduct?.productAmount(productValues) ?? 0);
     return Math.max(0, base - advance - tds);
   }, [form.oneTime, form.advance, form.tds, productValues, currentProduct]);
 
@@ -229,7 +268,7 @@ export default function CreateOrderModal({
   }
 
   function handleSave() {
-    if (!client) return;
+    if (!client || !currentProduct) return;
     const nextErrors: Record<string, string> = {};
     if (!form.dateOfSign) nextErrors.dateOfSign = "Date of sign is required";
     if (!form.plan) nextErrors.plan = "Plan is required";
@@ -259,7 +298,7 @@ export default function CreateOrderModal({
       deliveryCity: client.deliveryCity,
       gstNo: client.gstNo,
       spocs: effectiveSpocs,
-      product,
+      product: selectedProduct,
       dateOfSign: form.dateOfSign,
       plan: form.plan,
       oneTime: toNumber(form.oneTime),
@@ -291,7 +330,7 @@ export default function CreateOrderModal({
       onCreate({
         id: `ord-${Math.random().toString(36).slice(2, 10)}`,
         orderNo: nextOrderNo,
-        product,
+        product: selectedProduct,
         clientId: client.id,
         client: client.name,
         clientManager: client.clientManager,
@@ -311,17 +350,73 @@ export default function CreateOrderModal({
     onClose();
   }
 
-  if (!client) return null;
-
   const sameAsBilling =
+    !!client &&
     client.deliveryAddress === client.billingAddress &&
     client.deliveryState === client.billingState &&
     client.deliveryCity === client.billingCity;
+
+  const ready = client !== null && currentProduct !== null;
 
   return (
     <Modal open={open} onClose={handleCancel} widthClassName="max-w-4xl">
       <div className="max-h-[85vh] overflow-y-auto">
         <div className="flex items-center gap-2 border-b border-slate-200 px-6 py-4">
+          <svg className="h-5 w-5 text-teal-600" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M2.5 3a.5.5 0 000 1h1.04l1.7 8.02A2 2 0 007.2 13.5h6.1a2 2 0 001.96-1.6l1.05-5.4a.5.5 0 00-.49-.6H5.02l-.3-1.42A1.5 1.5 0 003.26 3H2.5zM7 17a1.25 1.25 0 100-2.5A1.25 1.25 0 007 17zm7 0a1.25 1.25 0 100-2.5 1.25 1.25 0 000 2.5z" />
+          </svg>
+          <h2 className="text-sm font-semibold tracking-wide text-slate-700">CREATE ORDER</h2>
+        </div>
+
+        <div className="space-y-4 px-6 py-6">
+          <FieldRow label="Select Client" required>
+            <select
+              className={inputClass}
+              value={selectedClientId}
+              disabled={isEditing}
+              onChange={(e) => setSelectedClientId(e.target.value)}
+            >
+              <option value="">--Select Client--</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </FieldRow>
+
+          <FieldRow label="Select Product" required>
+            <select
+              className={inputClass}
+              value={selectedProduct}
+              disabled={isEditing}
+              onChange={(e) => setSelectedProduct(e.target.value)}
+            >
+              <option value="">--Select Product--</option>
+              {PRODUCT_NAMES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </FieldRow>
+        </div>
+
+        {!ready && (
+          <div className="flex items-center justify-between border-t border-slate-200 px-6 py-8">
+            <p className="text-sm text-slate-400">Select a client and product to continue.</p>
+            <button
+              onClick={handleCancel}
+              className="rounded-md bg-slate-200 px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {ready && client && currentProduct && (
+        <>
+        <div className="flex items-center gap-2 border-y border-slate-200 px-6 py-4">
           <svg className="h-5 w-5 text-teal-600" viewBox="0 0 20 20" fill="currentColor">
             <path d="M10 2a3 3 0 00-3 3v2H6a2 2 0 00-2 2v7a2 2 0 002 2h8a2 2 0 002-2V9a2 2 0 00-2-2h-1V5a3 3 0 00-3-3zm-1 5V5a1 1 0 112 0v2H9z" />
           </svg>
@@ -466,7 +561,7 @@ export default function CreateOrderModal({
 
         <div className="space-y-4 px-6 py-6">
           <FieldRow label="Product" required>
-            <input className={readonlyInputClass} value={product} disabled />
+            <input className={readonlyInputClass} value={selectedProduct} disabled />
           </FieldRow>
 
           <FieldRow label="Date Of Sign" required>
@@ -730,6 +825,8 @@ export default function CreateOrderModal({
             {editingOrder ? "Update" : "Save"}
           </button>
         </div>
+        </>
+        )}
       </div>
     </Modal>
   );

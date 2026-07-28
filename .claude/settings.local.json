@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(npm -v)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(lsof -ti:5173 -sTCP:LISTEN)",
+      "Bash(xargs -r kill)"
     ]
   }
 }

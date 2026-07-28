@@ -1,25 +1,15 @@
 import { useMemo, useState } from "react";
 import { BILLING_CYCLE_LABELS } from "../../types";
-import type { OrderRecord, OrderStatusFilter, StageStatus } from "../../types";
+import type { OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
 import DateRangePicker, { type DateRange } from "../../components/DateRangePicker";
+import AmountRangeSlider from "../../components/AmountRangeSlider";
 
 interface ApprovalProps {
   orders: OrderRecord[];
 }
 
-type SortableKey =
-  | "orderNo"
-  | "client"
-  | "product"
-  | "clientManager"
-  | "dateOfSign"
-  | "ocd"
-  | "tc"
-  | "fc"
-  | "total"
-  | "billingCycle"
-  | "amount";
+type SortableKey = "orderNo" | "client" | "clientManager" | "dateOfSign" | "ocd" | "tc" | "fc" | "total" | "billingCycle" | "amount";
 
 type SortDirection = "asc" | "desc";
 
@@ -35,9 +25,8 @@ interface LeafColumn {
 
 const leftColumns: LeafColumn[] = [
   { key: "orderNo", label: "Order #" },
-  { key: "client", label: "Client" },
-  { key: "product", label: "Product" },
-  { key: "clientManager", label: "Client Manager" },
+  { key: "client", label: "Account" },
+  { key: "clientManager", label: "A/C Manager" },
   { key: "dateOfSign", label: "Date of Sign" },
 ];
 
@@ -52,6 +41,8 @@ const rightColumns: LeafColumn[] = [
   { key: "billingCycle", label: "BC" },
   { key: "amount", label: "Amt (₹)" },
 ];
+
+const AMOUNT_MAX_LAKH = 50;
 
 function parseISO(d: string) {
   const [y, m, day] = d.split("-").map(Number);
@@ -68,7 +59,9 @@ function daysBetween(a: string, b: string) {
   return Math.round((parseISO(b).getTime() - parseISO(a).getTime()) / 86_400_000);
 }
 
-function isClosed(order: OrderRecord) {
+// Only orders that have cleared both stages ever show up in this report, so
+// every row here has non-null technical/financial dates.
+function isFullyCleared(order: OrderRecord) {
   return order.technical.status === "confirmed" && order.financial.status === "confirmed";
 }
 
@@ -86,64 +79,30 @@ function SortArrow({ direction, active }: { direction: SortDirection; active: bo
   );
 }
 
-function ClearanceCell({ stage, sinceDate }: { stage: StageStatus; sinceDate: string }) {
-  const days = stage.status === "confirmed" && stage.date ? daysBetween(sinceDate, stage.date) : null;
-
-  const iconWrapClass =
-    stage.status === "confirmed"
-      ? "bg-emerald-100 text-emerald-600"
-      : stage.status === "rejected"
-      ? "bg-rose-100 text-rose-600"
-      : "bg-slate-200 text-slate-400";
-
+function DaysCell({ days, date }: { days: number; date: string | null }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${iconWrapClass}`}>
-        {stage.status === "confirmed" ? (
-          <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 111.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" />
-          </svg>
-        ) : stage.status === "rejected" ? (
-          <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
-          </svg>
-        ) : (
-          <span className="text-xs leading-none">•</span>
-        )}
-      </span>
-      <span
-        className={
-          stage.status === "confirmed"
-            ? "text-slate-700"
-            : stage.status === "rejected"
-            ? "text-rose-500"
-            : "text-slate-400 italic"
-        }
-      >
-        {stage.status === "confirmed" && stage.date ? (
-          <>
-            {days} days <span className="text-slate-400">({formatDisplay(stage.date)})</span>
-          </>
-        ) : stage.status === "rejected" ? (
-          "Rejected"
-        ) : (
-          "Pending"
-        )}
-      </span>
-    </div>
+    <span className="text-slate-700">
+      {days}
+      {date && <span className="ml-1 text-slate-400">({formatDisplay(date)})</span>}
+    </span>
   );
 }
 
 export default function Approval({ orders }: ApprovalProps) {
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
-  const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>("all");
   const [productFilter, setProductFilter] = useState<string>("all");
   const [managerFilter, setManagerFilter] = useState<string>("all");
-  const [minAmount, setMinAmount] = useState<string>("");
+  const [minLakh, setMinLakh] = useState(0);
+  const [maxLakh, setMaxLakh] = useState(AMOUNT_MAX_LAKH);
   const [sort, setSort] = useState<SortState>({ key: null, direction: "asc" });
 
-  const managerOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
+  const clearedOrders = useMemo(() => orders.filter(isFullyCleared), [orders]);
+
+  const managerOptions = useMemo(
+    () => Array.from(new Set(clearedOrders.map((o) => o.clientManager))).sort(),
+    [clearedOrders]
+  );
 
   function toggleSort(key: SortableKey) {
     setSort((prev) => {
@@ -153,11 +112,7 @@ export default function Approval({ orders }: ApprovalProps) {
   }
 
   const filtered = useMemo(() => {
-    let result: OrderRecord[] = orders;
-
-    if (statusFilter !== "all") {
-      result = result.filter((o) => (statusFilter === "closed" ? isClosed(o) : !isClosed(o)));
-    }
+    let result: OrderRecord[] = clearedOrders;
 
     if (productFilter !== "all") {
       result = result.filter((o) => o.product === productFilter);
@@ -167,10 +122,9 @@ export default function Approval({ orders }: ApprovalProps) {
       result = result.filter((o) => o.clientManager === managerFilter);
     }
 
-    const minAmountNum = minAmount.trim() === "" ? null : Number(minAmount);
-    if (minAmountNum !== null && !Number.isNaN(minAmountNum)) {
-      result = result.filter((o) => o.amount >= minAmountNum);
-    }
+    const minRupees = minLakh * 100_000;
+    const maxRupees = maxLakh >= AMOUNT_MAX_LAKH ? Infinity : maxLakh * 100_000;
+    result = result.filter((o) => o.amount >= minRupees && o.amount <= maxRupees);
 
     const q = search.trim().toLowerCase();
     if (q) {
@@ -201,22 +155,13 @@ export default function Approval({ orders }: ApprovalProps) {
     }
 
     return result;
-  }, [orders, search, dateRange, statusFilter, productFilter, managerFilter, minAmount, sort]);
+  }, [clearedOrders, search, dateRange, productFilter, managerFilter, minLakh, maxLakh, sort]);
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as OrderStatusFilter)}
-          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-        >
-          <option value="all">All</option>
-          <option value="closed">Closed</option>
-          <option value="open">Open</option>
-        </select>
-
+      <div className="mb-3 flex flex-wrap items-end gap-3">
         <div className="relative min-w-[220px] flex-1">
+          <label className="mb-1 block text-sm text-slate-600">Search</label>
           <svg
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
             viewBox="0 0 20 20"
@@ -231,50 +176,67 @@ export default function Approval({ orders }: ApprovalProps) {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by client, order #, or manager…"
+            placeholder="Search by account, order #, or manager…"
             className="w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
           />
         </div>
 
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <div>
+          <label className="mb-1 block text-sm text-slate-600">Creation Date</label>
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
+        </div>
 
-        <select
-          value={productFilter}
-          onChange={(e) => setProductFilter(e.target.value)}
-          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-        >
-          <option value="all">All products</option>
-          {PRODUCT_NAMES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
+        <div>
+          <label className="mb-1 block text-sm text-slate-600">Product</label>
+          <select
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          >
+            <option value="all">All products</option>
+            {PRODUCT_NAMES.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <select
-          value={managerFilter}
-          onChange={(e) => setManagerFilter(e.target.value)}
-          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-        >
-          <option value="all">All managers</option>
-          {managerOptions.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+        <div>
+          <label className="mb-1 block text-sm text-slate-600">Manager</label>
+          <select
+            value={managerFilter}
+            onChange={(e) => setManagerFilter(e.target.value)}
+            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          >
+            <option value="all">All managers</option>
+            {managerOptions.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <input
-          type="number"
-          min={0}
-          value={minAmount}
-          onChange={(e) => setMinAmount(e.target.value)}
-          placeholder="Min amount (₹)"
-          className="w-36 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-        />
+        <div>
+          <label className="mb-1 block text-sm text-slate-600">Amount</label>
+          <div className="w-56 rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
+            <AmountRangeSlider
+              min={0}
+              max={AMOUNT_MAX_LAKH}
+              minValue={minLakh}
+              maxValue={maxLakh}
+              onChange={(mn, mx) => {
+                setMinLakh(mn);
+                setMaxLakh(mx);
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       <p className="mb-3 text-xs text-slate-500">
+        Showing orders that have completed both Technical and Financial clearance. &nbsp;·&nbsp;
         <span className="font-medium text-slate-600">OCD:</span> Order Creation Date &nbsp;·&nbsp;
         <span className="font-medium text-slate-600">TC:</span> Technically Cleared &nbsp;·&nbsp;
         <span className="font-medium text-slate-600">FC:</span> Financially Cleared &nbsp;·&nbsp;
@@ -284,20 +246,20 @@ export default function Approval({ orders }: ApprovalProps) {
 
       <div className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
+          <thead>
             <tr>
               {leftColumns.map((col) => (
                 <th
                   key={col.key}
                   rowSpan={2}
-                  className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-left align-middle font-semibold text-slate-600"
+                  className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left align-middle font-semibold text-slate-600"
                 >
                   <SortButton col={col} sort={sort} onClick={toggleSort} />
                 </th>
               ))}
               <th
                 colSpan={timeTakenColumns.length}
-                className="whitespace-nowrap border-b border-slate-100 px-4 py-2 text-center font-semibold text-indigo-700"
+                className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-100 bg-slate-50 px-4 py-2 text-center font-semibold text-indigo-700"
               >
                 Time Taken (in days)
               </th>
@@ -305,7 +267,7 @@ export default function Approval({ orders }: ApprovalProps) {
                 <th
                   key={col.key}
                   rowSpan={2}
-                  className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-left align-middle font-semibold text-slate-600"
+                  className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left align-middle font-semibold text-slate-600"
                 >
                   <SortButton col={col} sort={sort} onClick={toggleSort} />
                 </th>
@@ -315,7 +277,7 @@ export default function Approval({ orders }: ApprovalProps) {
               {timeTakenColumns.map((col) => (
                 <th
                   key={col.key}
-                  className="whitespace-nowrap border-b border-slate-200 px-4 py-2 text-left font-semibold text-slate-600"
+                  className="sticky top-9 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600"
                 >
                   <SortButton col={col} sort={sort} onClick={toggleSort} />
                 </th>
@@ -324,35 +286,31 @@ export default function Approval({ orders }: ApprovalProps) {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.map((order) => {
-              const total =
-                order.financial.date && order.createdOn
-                  ? daysBetween(order.createdOn, order.financial.date)
-                  : null;
+              const ocdDays = daysBetween(order.dateOfSign, order.createdOn);
+              const tcDays = order.technical.date ? daysBetween(order.createdOn, order.technical.date) : 0;
+              const fcDays =
+                order.technical.date && order.financial.date
+                  ? daysBetween(order.technical.date, order.financial.date)
+                  : 0;
+              const totalDays = order.financial.date ? daysBetween(order.createdOn, order.financial.date) : 0;
+
               return (
                 <tr key={order.id} className="hover:bg-slate-50">
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{order.orderNo}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.client}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.product}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.clientManager}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-700">{formatDisplay(order.dateOfSign)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                    {daysBetween(order.dateOfSign, order.createdOn)} days{" "}
-                    <span className="text-slate-400">({formatDisplay(order.createdOn)})</span>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <DaysCell days={ocdDays} date={order.createdOn} />
                   </td>
                   <td className="whitespace-nowrap px-4 py-3">
-                    <ClearanceCell stage={order.technical} sinceDate={order.createdOn} />
+                    <DaysCell days={tcDays} date={order.technical.date} />
                   </td>
                   <td className="whitespace-nowrap px-4 py-3">
-                    <ClearanceCell stage={order.financial} sinceDate={order.technical.date ?? order.createdOn} />
+                    <DaysCell days={fcDays} date={order.financial.date} />
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                    {total !== null ? (
-                      <>
-                        {total} days <span className="text-slate-400">({formatDisplay(order.financial.date)})</span>
-                      </>
-                    ) : (
-                      <span className="text-slate-400 italic">Pending</span>
-                    )}
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <DaysCell days={totalDays} date={order.financial.date} />
                   </td>
                   <td
                     className="whitespace-nowrap px-4 py-3 text-slate-700"
@@ -406,8 +364,6 @@ function compareByKey(a: OrderRecord, b: OrderRecord, key: SortableKey): number 
       return a.orderNo.localeCompare(b.orderNo);
     case "client":
       return a.client.localeCompare(b.client);
-    case "product":
-      return a.product.localeCompare(b.product);
     case "clientManager":
       return a.clientManager.localeCompare(b.clientManager);
     case "dateOfSign":

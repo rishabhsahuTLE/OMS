@@ -4,7 +4,7 @@ import { PRODUCT_NAMES } from "../../products";
 import DateRangePicker, { type DateRange } from "../../components/DateRangePicker";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import CreateOrderModal from "./CreateOrderModal";
-import { formatDDMMYYYY, nextOrderNumber } from "../../utils";
+import { formatDDMMYYYY } from "../../utils";
 
 interface OrderPagePrefill {
   clientId: string;
@@ -61,11 +61,11 @@ export default function OrderPage({
   autoOpen,
   onAutoOpenHandled,
 }: OrderPageProps) {
-  const [creationClientId, setCreationClientId] = useState("");
-  const [creationProduct, setCreationProduct] = useState("");
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<OrderRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<OrderRecord | null>(null);
+  const [modalPrefillClientId, setModalPrefillClientId] = useState<string | undefined>(undefined);
+  const [modalPrefillProduct, setModalPrefillProduct] = useState<string | undefined>(undefined);
 
   const [clientFilter, setClientFilter] = useState("all");
   const [productFilter, setProductFilter] = useState("all");
@@ -82,22 +82,19 @@ export default function OrderPage({
 
   useEffect(() => {
     if (!autoOpen || !prefill) return;
-    setCreationClientId(prefill.clientId);
-    setCreationProduct(prefill.product);
+    setModalPrefillClientId(prefill.clientId);
+    setModalPrefillProduct(prefill.product);
     setEditingOrder(null);
     setOrderModalOpen(true);
     onAutoOpenHandled?.();
   }, [autoOpen, prefill, onAutoOpenHandled]);
 
-  const creationClient = clients.find((c) => c.id === creationClientId) ?? null;
-
-  const modalClient = editingOrder ? clients.find((c) => c.id === editingOrder.clientId) ?? null : creationClient;
-  const modalProduct = editingOrder ? editingOrder.product : creationProduct;
-  const modalNextOrderNo = editingOrder
-    ? editingOrder.orderNo
-    : creationClient
-    ? nextOrderNumber(orders, creationClient.id)
-    : "";
+  function openCreateModal() {
+    setModalPrefillClientId(undefined);
+    setModalPrefillProduct(undefined);
+    setEditingOrder(null);
+    setOrderModalOpen(true);
+  }
 
   function handleSearch() {
     setAppliedFilters({
@@ -138,8 +135,6 @@ export default function OrderPage({
 
   function handleCreateOrder(record: OrderRecord) {
     onCreateOrder(record);
-    setCreationClientId("");
-    setCreationProduct("");
   }
 
   function handleUpdateOrder(record: OrderRecord) {
@@ -153,6 +148,8 @@ export default function OrderPage({
   }
 
   function handleEditOrder(order: OrderRecord) {
+    setModalPrefillClientId(undefined);
+    setModalPrefillProduct(undefined);
     setEditingOrder(order);
     setOrderModalOpen(true);
   }
@@ -162,50 +159,10 @@ export default function OrderPage({
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="min-w-[240px]">
-            <label className="mb-1 block text-sm text-slate-600">
-              Select Client<span className="text-rose-500">*</span>
-            </label>
-            <select
-              value={creationClientId}
-              onChange={(e) => setCreationClientId(e.target.value)}
-              className={selectClass}
-            >
-              <option value="">--Select Client--</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="min-w-[240px]">
-            <label className="mb-1 block text-sm text-slate-600">
-              Select Product<span className="text-rose-500">*</span>
-            </label>
-            <select value={creationProduct} onChange={(e) => setCreationProduct(e.target.value)} className={selectClass}>
-              <option value="">--Select Product--</option>
-              {PRODUCT_NAMES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
+      <div className="flex justify-end">
         <button
-          onClick={() => {
-            if (creationClientId && creationProduct) {
-              setEditingOrder(null);
-              setOrderModalOpen(true);
-            }
-          }}
-          disabled={!creationClientId || !creationProduct}
-          className="rounded-md bg-teal-600 px-5 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={openCreateModal}
+          className="rounded-md bg-teal-600 px-5 py-2 text-sm font-medium text-white hover:bg-teal-700"
         >
           Create Order
         </button>
@@ -311,17 +268,17 @@ export default function OrderPage({
 
         <div className="flex-1 overflow-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
+            <thead>
               <tr>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Order #</th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Product</th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Client</th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Client Manager</th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Created On</th>
-                <th className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-600">Amount (₹)</th>
-                <th className="whitespace-nowrap px-4 py-3 text-center font-semibold text-slate-600">T</th>
-                <th className="whitespace-nowrap px-4 py-3 text-center font-semibold text-slate-600">F</th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Action</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Order #</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Product</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Client</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Client Manager</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Created On</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-right font-semibold text-slate-600">Amount (₹)</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">T</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">F</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -408,10 +365,11 @@ export default function OrderPage({
       <CreateOrderModal
         open={orderModalOpen}
         onClose={closeOrderModal}
-        client={modalClient}
-        product={modalProduct}
-        nextOrderNo={modalNextOrderNo}
+        clients={clients}
+        orders={orders}
         editingOrder={editingOrder}
+        prefillClientId={modalPrefillClientId}
+        prefillProduct={modalPrefillProduct}
         onCreate={handleCreateOrder}
         onUpdate={handleUpdateOrder}
       />

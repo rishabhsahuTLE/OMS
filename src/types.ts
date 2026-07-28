@@ -1,4 +1,4 @@
-export type MainTabId = "dashboard" | "report" | "orders";
+export type MainTabId = "dashboard" | "report" | "orders" | "managerReport";
 
 export type ReportSubTabId = "approval" | "billing";
 

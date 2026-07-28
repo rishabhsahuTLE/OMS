@@ -195,13 +195,13 @@ export default function ApprovalSetting() {
 
       <div className="flex-1 overflow-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
+          <thead>
             <tr>
-              <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Approver</th>
-              <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Department</th>
-              <th className="whitespace-nowrap px-4 py-3 text-center font-semibold text-slate-600">Technical</th>
-              <th className="whitespace-nowrap px-4 py-3 text-center font-semibold text-slate-600">Financial</th>
-              <th className="whitespace-nowrap px-4 py-3 text-center font-semibold text-slate-600">Status</th>
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Approver</th>
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Department</th>
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">Technical</th>
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">Financial</th>
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">

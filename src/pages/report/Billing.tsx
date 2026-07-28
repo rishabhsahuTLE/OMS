@@ -42,6 +42,7 @@ interface FyColumn {
   year: number;
   month0: number;
   label: string;
+  isCurrent: boolean;
 }
 
 function buildFiscalYearColumns(reference: Date): FyColumn[] {
@@ -49,7 +50,8 @@ function buildFiscalYearColumns(reference: Date): FyColumn[] {
   return Array.from({ length: 12 }, (_, i) => {
     const month0 = (6 + i) % 12;
     const year = fyStartYear + Math.floor((6 + i) / 12);
-    return { year, month0, label: MONTH_ABBR[month0] };
+    const isCurrent = year === reference.getFullYear() && month0 === reference.getMonth();
+    return { year, month0, label: MONTH_ABBR[month0], isCurrent };
   });
 }
 
@@ -131,6 +133,38 @@ function ChevronIcon({ open }: { open: boolean }) {
     >
       <path fillRule="evenodd" d="M5.2 7.2a1 1 0 011.4 0L10 10.6l3.4-3.4a1 1 0 111.4 1.4l-4.1 4.1a1 1 0 01-1.4 0L5.2 8.6a1 1 0 010-1.4z" clipRule="evenodd" />
     </svg>
+  );
+}
+
+function InfoTooltip({ text }: { text: string }) {
+  // Hover reveals it via pure CSS (group-hover); click toggles an
+  // independent boolean — kept separate so a real mouse click (which fires
+  // its own hover first) can't immediately re-close what the hover opened.
+  const [clicked, setClicked] = useState(false);
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setClicked((v) => !v)}
+        className="flex h-3.5 w-3.5 items-center justify-center rounded-full text-slate-400 hover:text-slate-600"
+        aria-label="Info"
+      >
+        <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+          <path
+            fillRule="evenodd"
+            d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11.5a1 1 0 10-2 0 1 1 0 002 0zM9 9.5a1 1 0 112 0V14a1 1 0 11-2 0V9.5z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+      <span
+        className={`absolute left-1/2 top-full z-30 mt-1.5 w-44 -translate-x-1/2 rounded-md bg-slate-800 px-2.5 py-1.5 text-center text-xs font-normal normal-case text-white shadow-lg group-hover:block ${
+          clicked ? "block" : "hidden"
+        }`}
+      >
+        {text}
+      </span>
+    </span>
   );
 }
 
@@ -337,65 +371,80 @@ export default function Billing({ orders }: BillingProps) {
 
       <div className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
+          <thead>
             <tr>
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
                 Client
               </th>
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
                 Order #
               </th>
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
                 Product
               </th>
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
                 Client Manager
               </th>
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
                 T
               </th>
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
                 F
               </th>
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
                 OCD
               </th>
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
                 OSD
               </th>
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
                 FBD
               </th>
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
                 BC
               </th>
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-right font-semibold text-slate-600">
-                Amount (₹)
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-right font-semibold text-slate-600">
+                <span className="inline-flex items-center justify-end gap-1">
+                  Amount (₹)
+                  <InfoTooltip text="Amount of each billing cycle" />
+                </span>
               </th>
               {fyColumns.map((col) => (
                 <th
                   key={`${col.year}-${col.month0}`}
-                  className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-right font-semibold text-slate-600"
+                  className={`sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 px-4 py-3 text-right font-semibold ${
+                    col.isCurrent ? "bg-amber-100 text-amber-900" : "bg-slate-50 text-slate-600"
+                  }`}
                 >
                   {col.label}
                 </th>
               ))}
-              <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3 text-right font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-right font-semibold text-slate-600">
                 Yearly Total (₹)
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            <tr className="bg-indigo-50/60 font-semibold text-indigo-900">
-              <td colSpan={identityColSpan} className="whitespace-nowrap px-4 py-3">
+            <tr className="font-semibold text-indigo-900">
+              <td
+                colSpan={identityColSpan}
+                className="sticky top-11 z-10 whitespace-nowrap bg-indigo-50 px-4 py-3"
+              >
                 Total Revenue
               </td>
               {monthTotals.map((total, idx) => (
-                <td key={idx} className="whitespace-nowrap px-4 py-3 text-right">
+                <td
+                  key={idx}
+                  className={`sticky top-11 z-10 whitespace-nowrap px-4 py-3 text-right ${
+                    fyColumns[idx].isCurrent ? "bg-amber-100 text-amber-900" : "bg-indigo-50"
+                  }`}
+                >
                   {total > 0 ? total.toLocaleString("en-IN") : "—"}
                 </td>
               ))}
-              <td className="whitespace-nowrap px-4 py-3 text-right">{grandYearlyTotal.toLocaleString("en-IN")}</td>
+              <td className="sticky top-11 z-10 whitespace-nowrap bg-indigo-50 px-4 py-3 text-right">
+                {grandYearlyTotal.toLocaleString("en-IN")}
+              </td>
             </tr>
 
             {rows.map(({ order, monthly, yearlyTotal }) => (
@@ -433,7 +482,12 @@ export default function Billing({ orders }: BillingProps) {
                   {order.amount.toLocaleString("en-IN")}
                 </td>
                 {monthly.map((amt, idx) => (
-                  <td key={idx} className="whitespace-nowrap px-4 py-3 text-right text-slate-700">
+                  <td
+                    key={idx}
+                    className={`whitespace-nowrap px-4 py-3 text-right text-slate-700 ${
+                      fyColumns[idx].isCurrent ? "bg-amber-50" : ""
+                    }`}
+                  >
                     {amt > 0 ? amt.toLocaleString("en-IN") : "—"}
                   </td>
                 ))}

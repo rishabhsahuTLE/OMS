@@ -313,21 +313,21 @@ export default function CloseBilling({
 
         <div className="flex-1 overflow-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
+            <thead>
               <tr>
-                <th className="w-10 px-4 py-3 text-left">
+                <th className="sticky top-0 z-20 w-10 bg-slate-50 px-4 py-3 text-left">
                   <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll} className="h-4 w-4" />
                 </th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Order #</th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Product</th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Client</th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Client Manager</th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Created On</th>
-                <th className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-600">Amount (₹)</th>
-                <th className="whitespace-nowrap px-4 py-3 text-center font-semibold text-slate-600">T</th>
-                <th className="whitespace-nowrap px-4 py-3 text-center font-semibold text-slate-600">F</th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Billing Status</th>
-                <th className="whitespace-nowrap px-4 py-3 text-left font-semibold text-slate-600">Remarks</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Order #</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Product</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Client</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Client Manager</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Created On</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-right font-semibold text-slate-600">Amount (₹)</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">T</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">F</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Billing Status</th>
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Remarks</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

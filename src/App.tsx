@@ -6,6 +6,7 @@ import Billing from "./pages/report/Billing";
 import OrderPage from "./pages/orders/OrderPage";
 import ApprovalSetting from "./pages/orders/ApprovalSetting";
 import CloseBilling from "./pages/orders/CloseBilling";
+import ManagerReport from "./pages/ManagerReport";
 import clientsData from "./data/clients.json";
 import { mockOrders } from "./data/mockOrders";
 import { nextOrderNumber, todayISO } from "./utils";
@@ -20,6 +21,7 @@ const TITLES: Record<string, string> = {
   "orders/order": "Order Management / Order",
   "orders/approvalSetting": "Order Management / Approval Setting",
   "orders/closeBilling": "Order Management / Close Billing",
+  managerReport: "Manager Report",
 };
 
 function App() {
@@ -119,9 +121,11 @@ function App() {
   let titleKey = "dashboard";
   if (activeTab === "report") titleKey = `report/${activeReportSubTab}`;
   if (activeTab === "orders") titleKey = `orders/${activeOrdersSubTab}`;
+  if (activeTab === "managerReport") titleKey = "managerReport";
 
   function renderPage() {
     if (activeTab === "dashboard") return <Dashboard />;
+    if (activeTab === "managerReport") return <ManagerReport orders={orders} />;
     if (activeTab === "report") {
       return activeReportSubTab === "approval" ? <Approval orders={orders} /> : <Billing orders={orders} />;
     }

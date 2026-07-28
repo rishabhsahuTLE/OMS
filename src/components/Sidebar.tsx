@@ -67,6 +67,14 @@ function OrdersIcon() {
   );
 }
 
+function ManagerReportIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M6 2a2 2 0 00-2 2v1H3a1 1 0 00-1 1v9a2 2 0 002 2h12a2 2 0 002-2V6a1 1 0 00-1-1h-1V4a2 2 0 00-2-2H6zm0 3V4h6v1H6zM3 8h12v2H3V8zm0 3h5v2H3v-2z" />
+    </svg>
+  );
+}
+
 export default function Sidebar({
   activeTab,
   activeReportSubTab,
@@ -167,6 +175,18 @@ export default function Sidebar({
             </div>
           )}
         </div>
+
+        <button
+          onClick={() => onSelect("managerReport")}
+          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            activeTab === "managerReport"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-300 hover:bg-slate-800 hover:text-white"
+          }`}
+        >
+          <ManagerReportIcon />
+          Manager Report
+        </button>
       </nav>
     </aside>
   );
