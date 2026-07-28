@@ -310,16 +310,16 @@ export default function Billing({ orders }: BillingProps) {
               </div>
             </div>
 
-            <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+            <div className="mt-5 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
               <button type="button" onClick={clearAllFilters} className="text-sm text-slate-500 hover:text-slate-700">
-                Clear all filters
+                Clear
               </button>
               <button
                 type="button"
                 onClick={() => setFiltersOpen(false)}
                 className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
               >
-                Hide Filters
+                Hide
               </button>
             </div>
           </div>
