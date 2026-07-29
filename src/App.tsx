@@ -3,9 +3,7 @@ import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import Approval from "./pages/report/Approval";
 import Billing from "./pages/report/Billing";
-// Order list is superseded by the Create Order + Approval flow — kept out
-// of the render tree but not deleted in case it needs to come back.
-// import OrderPage from "./pages/orders/OrderPage";
+import OrderPage from "./pages/orders/OrderPage";
 import CreateOrderModal from "./pages/orders/CreateOrderModal";
 import OrderApproval from "./pages/orders/OrderApproval";
 import ApprovalSetting from "./pages/orders/ApprovalSetting";
@@ -23,6 +21,7 @@ const TITLES: Record<string, string> = {
   "report/approval": "Report / Approval",
   "report/billing": "Report / Billing",
   "report/managerReport": "Report / Manager Report",
+  "orders/order": "Order Management / Order",
   "orders/createOrder": "Order Management / Create Order",
   "orders/approval": "Order Management / Approval",
   "orders/approvalSetting": "Order Management / Approval Setting",
@@ -36,6 +35,8 @@ function App() {
   const [orders, setOrders] = useState<OrderRecord[]>(mockOrders);
   const [createOrderPrefill, setCreateOrderPrefill] = useState<{ clientId: string; product: string } | null>(null);
   const [createOrderKey, setCreateOrderKey] = useState(0);
+  const [autoOpenOrderModal, setAutoOpenOrderModal] = useState(false);
+  const [editOrderId, setEditOrderId] = useState<string | null>(null);
 
   function handleSelect(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) {
     setActiveTab(tab);
@@ -56,11 +57,20 @@ function App() {
     setOrders((prev) => prev.map((o) => (o.id === record.id ? record : o)));
   }
 
-  // Only used by the now-disabled Order list page — kept for when it's
-  // restored, rather than deleted outright.
-  // function handleDeleteOrder(id: string) {
-  //   setOrders((prev) => prev.filter((o) => o.id !== id));
-  // }
+  function handleDeleteOrder(id: string) {
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+  }
+
+  // A duplicate-order check (University client + product already ordered)
+  // hands the existing order back here; jump to the Order tab and open it
+  // for editing there, and clear whatever was in progress on Create Order.
+  function handleRequestAmend(order: OrderRecord) {
+    setEditOrderId(order.id);
+    setAutoOpenOrderModal(true);
+    setActiveTab("orders");
+    setActiveOrdersSubTab("order");
+    handleResetCreateOrder();
+  }
 
   function handleSetBillingStatus(ids: string[], billingStatus: BillingStatus) {
     const idSet = new Set(ids);
@@ -147,6 +157,23 @@ function App() {
     if (activeTab === "orders") {
       if (activeOrdersSubTab === "approvalSetting") return <ApprovalSetting />;
       if (activeOrdersSubTab === "approval") return <OrderApproval orders={orders} onUpdateOrder={handleUpdateOrder} />;
+      if (activeOrdersSubTab === "order")
+        return (
+          <OrderPage
+            clients={clients}
+            orders={orders}
+            onCreateOrder={handleCreateOrder}
+            onUpdateOrder={handleUpdateOrder}
+            onDeleteOrder={handleDeleteOrder}
+            prefill={null}
+            autoOpen={autoOpenOrderModal}
+            editOrderId={editOrderId}
+            onAutoOpenHandled={() => {
+              setAutoOpenOrderModal(false);
+              setEditOrderId(null);
+            }}
+          />
+        );
       if (activeOrdersSubTab === "createOrder")
         return (
           <CreateOrderModal
@@ -161,6 +188,7 @@ function App() {
             onUpdate={handleUpdateOrder}
             onClose={() => {}}
             onReset={handleResetCreateOrder}
+            onRequestAmend={handleRequestAmend}
           />
         );
       return (

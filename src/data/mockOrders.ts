@@ -14,6 +14,18 @@ function makeDate(offsetDays: number) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+const APPROVERS = ["Harsh Vardhan", "Rinku Agarwal", "Priya Sharma"];
+
+// Only decided (non-pending) stages get an approver/remark attached.
+function withMeta(stage: StageStatus, seed: number): StageStatus {
+  if (stage.status === "pending") return stage;
+  return {
+    ...stage,
+    processedBy: APPROVERS[seed % APPROVERS.length],
+    remark: stage.status === "confirmed" ? "Looks good, cleared." : "Needs correction before proceeding.",
+  };
+}
+
 const billingCycles: BillingCycle[] = ["M", "B", "Q", "H", "Y", "O"];
 const technicalPattern: ApprovalState[] = [
   "pending",
@@ -83,11 +95,11 @@ clients.forEach((client, cliIdx) => {
       const bucket = fullyConfirmedCount % 3;
       if (bucket === 2) {
         lifecycleStatus = "cancelled";
-        cancellationTechnical = { status: "confirmed", date: makeDate(finOffset + 5) };
-        cancellationFinancial = { status: "confirmed", date: makeDate(finOffset + 12) };
+        cancellationTechnical = withMeta({ status: "confirmed", date: makeDate(finOffset + 5) }, orderIndex);
+        cancellationFinancial = withMeta({ status: "confirmed", date: makeDate(finOffset + 12) }, orderIndex + 1);
       } else if (bucket === 1) {
         lifecycleStatus = "cancellationInProgress";
-        cancellationTechnical = { status: "confirmed", date: makeDate(finOffset + 5) };
+        cancellationTechnical = withMeta({ status: "confirmed", date: makeDate(finOffset + 5) }, orderIndex);
       } else {
         lifecycleStatus = "active";
       }
@@ -103,8 +115,8 @@ clients.forEach((client, cliIdx) => {
       clientManager,
       dateOfSign,
       createdOn,
-      technical: { status: techState, date: techState === "pending" ? null : makeDate(techOffset) },
-      financial: { status: finState, date: finState === "pending" ? null : makeDate(finOffset) },
+      technical: withMeta({ status: techState, date: techState === "pending" ? null : makeDate(techOffset) }, orderIndex),
+      financial: withMeta({ status: finState, date: finState === "pending" ? null : makeDate(finOffset) }, orderIndex + 2),
       lifecycleStatus,
       cancellationTechnical,
       cancellationFinancial,

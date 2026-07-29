@@ -13,9 +13,7 @@ const reportSubTabs: SubTab<ReportSubTabId>[] = [
 ];
 
 const ordersSubTabs: SubTab<OrdersSubTabId>[] = [
-  // Order list is superseded by the Create Order + Approval flow below —
-  // kept out of nav but not deleted in case it needs to come back.
-  // { id: "order", label: "Order" },
+  { id: "order", label: "Order" },
   { id: "createOrder", label: "Create Order" },
   { id: "approval", label: "Approval" },
   { id: "approvalSetting", label: "Approval Setting" },

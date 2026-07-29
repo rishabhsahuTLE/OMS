@@ -20,6 +20,9 @@ interface OrderPageProps {
   prefill?: OrderPagePrefill | null;
   autoOpen?: boolean;
   onAutoOpenHandled?: () => void;
+  // When set alongside autoOpen, jump straight into editing this order
+  // instead of the create-with-prefill flow above.
+  editOrderId?: string | null;
 }
 
 function isFullyConfirmed(r: OrderRecord) {
@@ -60,6 +63,7 @@ export default function OrderPage({
   prefill,
   autoOpen,
   onAutoOpenHandled,
+  editOrderId,
 }: OrderPageProps) {
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<OrderRecord | null>(null);
@@ -81,13 +85,23 @@ export default function OrderPage({
   });
 
   useEffect(() => {
-    if (!autoOpen || !prefill) return;
-    setModalPrefillClientId(prefill.clientId);
-    setModalPrefillProduct(prefill.product);
-    setEditingOrder(null);
-    setOrderModalOpen(true);
+    if (!autoOpen) return;
+    if (editOrderId) {
+      const target = orders.find((o) => o.id === editOrderId);
+      if (target) {
+        setModalPrefillClientId(undefined);
+        setModalPrefillProduct(undefined);
+        setEditingOrder(target);
+        setOrderModalOpen(true);
+      }
+    } else if (prefill) {
+      setModalPrefillClientId(prefill.clientId);
+      setModalPrefillProduct(prefill.product);
+      setEditingOrder(null);
+      setOrderModalOpen(true);
+    }
     onAutoOpenHandled?.();
-  }, [autoOpen, prefill, onAutoOpenHandled]);
+  }, [autoOpen, prefill, editOrderId, orders, onAutoOpenHandled]);
 
   function openCreateModal() {
     setModalPrefillClientId(undefined);
@@ -372,6 +386,7 @@ export default function OrderPage({
         prefillProduct={modalPrefillProduct}
         onCreate={handleCreateOrder}
         onUpdate={handleUpdateOrder}
+        onRequestAmend={handleEditOrder}
       />
 
       <ConfirmDialog

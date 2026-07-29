@@ -78,6 +78,8 @@ export type ApprovalState = "pending" | "confirmed" | "rejected";
 export interface StageStatus {
   status: ApprovalState;
   date: string | null; // ISO date, set once status leaves "pending"
+  processedBy?: string; // who set it, once status leaves "pending"
+  remark?: string;
 }
 
 // The order lifecycle driven by Order Management's Approval tab:

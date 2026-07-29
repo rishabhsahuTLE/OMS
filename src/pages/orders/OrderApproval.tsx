@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ApprovalState, OrderLifecycleStatus, OrderRecord } from "../../types";
-import { todayISO } from "../../utils";
+import OrderApprovalReview from "./OrderApprovalReview";
 
 interface OrderApprovalProps {
   orders: OrderRecord[];
@@ -29,36 +29,6 @@ const LIFECYCLE_BADGE_CLASS: Record<OrderLifecycleStatus, string> = {
   cancelled: "bg-rose-200 text-rose-800",
 };
 
-type StageKey = "technical" | "financial" | "cancellationTechnical" | "cancellationFinancial";
-
-function cycleStatus(status: ApprovalState): ApprovalState {
-  if (status === "pending") return "confirmed";
-  if (status === "confirmed") return "rejected";
-  return "pending";
-}
-
-// After any T/F/TC/FC change, check whether the order should move to the
-// next lifecycle stage — inactive -> active once both activation stages are
-// confirmed, cancellationInProgress -> cancelled once both cancellation
-// stages are confirmed. Any other lifecycle stage is left untouched here.
-function withRecomputedLifecycle(order: OrderRecord): OrderRecord {
-  if (
-    order.lifecycleStatus === "inactive" &&
-    order.technical.status === "confirmed" &&
-    order.financial.status === "confirmed"
-  ) {
-    return { ...order, lifecycleStatus: "active" };
-  }
-  if (
-    order.lifecycleStatus === "cancellationInProgress" &&
-    order.cancellationTechnical.status === "confirmed" &&
-    order.cancellationFinancial.status === "confirmed"
-  ) {
-    return { ...order, lifecycleStatus: "cancelled" };
-  }
-  return order;
-}
-
 function CheckIcon() {
   return (
     <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -75,15 +45,17 @@ function CrossIcon() {
   );
 }
 
-function StageBadge({
-  status,
-  editable,
-  onClick,
-}: {
-  status: ApprovalState;
-  editable: boolean;
-  onClick: () => void;
-}) {
+function EditIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M13.586 3.586a2 2 0 112.828 2.828l-8.5 8.5a2 2 0 01-.878.507l-3 .857a.5.5 0 01-.618-.618l.857-3a2 2 0 01.507-.878l8.5-8.5z" />
+    </svg>
+  );
+}
+
+// Display-only now — stage changes only happen through the review/process
+// page, one at a time, in order (see OrderApprovalReview.tsx).
+function StageBadge({ status }: { status: ApprovalState }) {
   const cls =
     status === "confirmed"
       ? "bg-emerald-100 text-emerald-600"
@@ -91,22 +63,15 @@ function StageBadge({
       ? "bg-rose-100 text-rose-600"
       : "bg-slate-200 text-slate-500";
   return (
-    <button
-      type="button"
-      disabled={!editable}
-      onClick={onClick}
-      title={editable ? "Click to change" : "Not editable at this stage"}
-      className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-opacity ${cls} ${
-        editable ? "cursor-pointer hover:opacity-80" : "cursor-not-allowed opacity-50"
-      }`}
-    >
+    <span className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${cls}`}>
       {status === "confirmed" ? <CheckIcon /> : status === "rejected" ? <CrossIcon /> : "P"}
-    </button>
+    </span>
   );
 }
 
 export default function OrderApproval({ orders, onUpdateOrder }: OrderApprovalProps) {
   const [tab, setTab] = useState<ViewTab>("all");
+  const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (tab === "inactive") return orders.filter((o) => o.lifecycleStatus === "inactive");
@@ -114,23 +79,25 @@ export default function OrderApproval({ orders, onUpdateOrder }: OrderApprovalPr
     return orders;
   }, [orders, tab]);
 
-  function handleCycleStage(order: OrderRecord, stage: StageKey) {
-    const nextStatus = cycleStatus(order[stage].status);
-    const updated: OrderRecord = {
-      ...order,
-      [stage]: { status: nextStatus, date: nextStatus === "pending" ? null : todayISO() },
-    };
-    onUpdateOrder(withRecomputedLifecycle(updated));
-  }
-
-  function handleRequestCancellation(order: OrderRecord) {
-    onUpdateOrder({ ...order, lifecycleStatus: "cancellationInProgress" });
-  }
-
   function rowClass(order: OrderRecord) {
     if (order.lifecycleStatus === "cancelled") return "bg-rose-100 hover:bg-rose-200";
     if (order.amended) return "bg-yellow-100 hover:bg-yellow-200";
     return "hover:bg-slate-50";
+  }
+
+  const reviewOrder = reviewOrderId ? orders.find((o) => o.id === reviewOrderId) ?? null : null;
+
+  if (reviewOrder) {
+    return (
+      <OrderApprovalReview
+        order={reviewOrder}
+        onBack={() => setReviewOrderId(null)}
+        onUpdateOrder={onUpdateOrder}
+        onRequestCancellation={(order) => {
+          onUpdateOrder({ ...order, lifecycleStatus: "cancellationInProgress" });
+        }}
+      />
+    );
   }
 
   return (
@@ -153,24 +120,11 @@ export default function OrderApproval({ orders, onUpdateOrder }: OrderApprovalPr
       </div>
 
       <p className="text-xs text-slate-500">
-        <span className="font-medium text-slate-600">T/F:</span> activation approval, editable while Inactive
-        &nbsp;·&nbsp;
-        <span className="font-medium text-slate-600">TC/FC:</span> cancellation approval, editable during
-        Cancellation In Progress &nbsp;·&nbsp; Click a badge to cycle{" "}
-        <span className="mx-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-slate-200 align-middle text-[9px] font-semibold text-slate-500">
-          P
-        </span>{" "}
-        →{" "}
-        <span className="mx-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 align-middle text-emerald-600">
-          <CheckIcon />
-        </span>{" "}
-        →{" "}
-        <span className="mx-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-rose-100 align-middle text-rose-600">
-          <CrossIcon />
-        </span>{" "}
-        &nbsp;·&nbsp; rows highlighted{" "}
-        <span className="rounded bg-rose-200 px-1.5 py-0.5 text-rose-800">red</span> are cancelled,{" "}
-        <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-yellow-800">yellow</span> are amended.
+        <span className="font-medium text-slate-600">Tech</span> — Technical Approval and{" "}
+        <span className="font-medium text-slate-600">Fin</span> — Financial Approval decide activation;{" "}
+        <span className="font-medium text-slate-600">TC</span>/<span className="font-medium text-slate-600">FC</span>{" "}
+        are their cancellation-stage counterparts. Statuses are shown here for reference only — open a row's Edit
+        action to process it; approvals happen strictly in order (Tech before Fin, TC before FC).
       </p>
 
       <div className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -193,10 +147,10 @@ export default function OrderApproval({ orders, onUpdateOrder }: OrderApprovalPr
                 Amount (₹)
               </th>
               <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
-                T
+                Tech
               </th>
               <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
-                F
+                Fin
               </th>
               <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
                 TC
@@ -225,32 +179,16 @@ export default function OrderApproval({ orders, onUpdateOrder }: OrderApprovalPr
                   {order.amount.toLocaleString("en-IN")}
                 </td>
                 <td className="px-4 py-3">
-                  <StageBadge
-                    status={order.technical.status}
-                    editable={order.lifecycleStatus === "inactive"}
-                    onClick={() => handleCycleStage(order, "technical")}
-                  />
+                  <StageBadge status={order.technical.status} />
                 </td>
                 <td className="px-4 py-3">
-                  <StageBadge
-                    status={order.financial.status}
-                    editable={order.lifecycleStatus === "inactive"}
-                    onClick={() => handleCycleStage(order, "financial")}
-                  />
+                  <StageBadge status={order.financial.status} />
                 </td>
                 <td className="px-4 py-3">
-                  <StageBadge
-                    status={order.cancellationTechnical.status}
-                    editable={order.lifecycleStatus === "cancellationInProgress"}
-                    onClick={() => handleCycleStage(order, "cancellationTechnical")}
-                  />
+                  <StageBadge status={order.cancellationTechnical.status} />
                 </td>
                 <td className="px-4 py-3">
-                  <StageBadge
-                    status={order.cancellationFinancial.status}
-                    editable={order.lifecycleStatus === "cancellationInProgress"}
-                    onClick={() => handleCycleStage(order, "cancellationFinancial")}
-                  />
+                  <StageBadge status={order.cancellationFinancial.status} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
                   <span
@@ -260,15 +198,14 @@ export default function OrderApproval({ orders, onUpdateOrder }: OrderApprovalPr
                   </span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3">
-                  {order.lifecycleStatus === "active" && (
-                    <button
-                      type="button"
-                      onClick={() => handleRequestCancellation(order)}
-                      className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
-                    >
-                      Request Cancellation
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setReviewOrderId(order.id)}
+                    title="Review & process"
+                    className="text-teal-600 hover:text-teal-800"
+                  >
+                    <EditIcon />
+                  </button>
                 </td>
               </tr>
             ))}

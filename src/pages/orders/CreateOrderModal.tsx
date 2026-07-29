@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Modal from "../../components/Modal";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import type { BillingCycle, Client, OrderRecord, OrderRecordDetails, Spoc } from "../../types";
 import { getProduct, PRODUCT_NAMES } from "../../products";
 import type { ProductFormValues } from "../../products";
@@ -20,10 +21,14 @@ interface CreateOrderModalProps {
   // Reset — the parent bumps a `key` to remount and clear the form.
   embedded?: boolean;
   onReset?: () => void;
+  // University clients only ever get one order per product — when a match
+  // already exists, we ask whether to amend that one instead of creating a
+  // duplicate. "Yes" hands the existing order back up through this callback.
+  onRequestAmend?: (order: OrderRecord) => void;
 }
 
-const PLANS = ["Basic", "Standard", "Premium", "Enterprise"];
-const GST_PROCESSES = ["Intra-State", "Inter-State"];
+const PLANS = ["Prepaid", "Postpaid"];
+const GST_PROCESSES = ["Included in Order Amount", "Excluded from Order Amount"];
 const BILLING_CYCLES: { value: BillingCycle; label: string }[] = [
   { value: "M", label: "Monthly" },
   { value: "B", label: "Bi-monthly" },
@@ -145,6 +150,7 @@ export default function CreateOrderModal({
   onUpdate,
   embedded,
   onReset,
+  onRequestAmend,
 }: CreateOrderModalProps) {
   const [selectedClientId, setSelectedClientId] = useState("");
   const [selectedProduct, setSelectedProduct] = useState("");
@@ -153,6 +159,8 @@ export default function CreateOrderModal({
   const [documents, setDocuments] = useState<{ name: string; fileName: string }[]>([]);
   const [productValues, setProductValues] = useState<ProductFormValues>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [duplicateOrder, setDuplicateOrder] = useState<OrderRecord | null>(null);
+  const [duplicateDismissed, setDuplicateDismissed] = useState(false);
 
   const isEditing = editingOrder != null;
   const client = clients.find((c) => c.id === selectedClientId) ?? null;
@@ -165,6 +173,19 @@ export default function CreateOrderModal({
     if (!selectedClientId) return "";
     return nextOrderNumber(orders, selectedClientId);
   }, [editingOrder, selectedClientId, orders]);
+
+  // Universities only ever get one order per product — if one already
+  // exists for this client+product pick, offer to amend it instead of
+  // silently letting a duplicate get created.
+  useEffect(() => {
+    if (editingOrder || !client || !selectedProduct || client.type !== "University") {
+      setDuplicateOrder(null);
+      return;
+    }
+    const existing = orders.find((o) => o.clientId === client.id && o.product === selectedProduct) ?? null;
+    setDuplicateOrder(existing);
+    setDuplicateDismissed(false);
+  }, [client, selectedProduct, editingOrder, orders]);
 
   // Re-sync the form whenever the modal opens — blank for a new order (with
   // an optional client/product prefill), prefilled from editingOrder when
@@ -209,8 +230,10 @@ export default function CreateOrderModal({
     }
     if (editingOrder && editingOrder.product === currentProduct.name) {
       const values: ProductFormValues = {};
-      for (const field of currentProduct.fields) {
-        values[field.key] = toFieldString(editingOrder.details[field.key] as string | number | null | undefined);
+      for (const field of currentProduct.fields({})) {
+        values[field.key] = toFieldString(
+          editingOrder.details[field.key as keyof OrderRecordDetails] as string | number | null | undefined
+        );
       }
       setProductValues(values);
     } else {
@@ -294,7 +317,7 @@ export default function CreateOrderModal({
     }
 
     const productDetails: Partial<OrderRecordDetails> = {};
-    for (const field of currentProduct.fields) {
+    for (const field of currentProduct.fields(productValues)) {
       const raw = productValues[field.key] ?? "";
       (productDetails as Record<string, unknown>)[field.key] = field.type === "number" ? toNumber(raw) : raw;
     }
@@ -378,6 +401,17 @@ export default function CreateOrderModal({
 
   const content = (
     <>
+      <ConfirmDialog
+        open={duplicateOrder !== null && !duplicateDismissed}
+        title="Order Already Exists"
+        message={`${client?.name ?? "This university"} already has an order (${duplicateOrder?.orderNo}) for ${selectedProduct}. Do you want to amend it instead?`}
+        confirmLabel="Yes, amend it"
+        onConfirm={() => {
+          if (duplicateOrder) onRequestAmend?.(duplicateOrder);
+          setDuplicateDismissed(true);
+        }}
+        onCancel={() => setDuplicateDismissed(true)}
+      />
       <div className={embedded ? "" : "max-h-[85vh] overflow-y-auto"}>
         <div className="flex items-center gap-2 border-b border-slate-200 px-6 py-4">
           <svg className="h-5 w-5 text-teal-600" viewBox="0 0 20 20" fill="currentColor">
@@ -634,7 +668,7 @@ export default function CreateOrderModal({
             <input className={readonlyInputClass} value={client.gstNo || "NA"} disabled />
           </FieldRow>
 
-          {currentProduct.fields.map((field) => {
+          {currentProduct.fields(productValues).map((field) => {
             const value = productValues[field.key] ?? "";
             const error = errors[field.key];
 
