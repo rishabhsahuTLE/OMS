@@ -169,15 +169,6 @@ export default function OrderApproval({
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
-        >
-          <PlusIcon />
-          Create
-        </button>
-
         <div className="flex gap-2">
           {VIEW_TABS.map((t) => (
             <button
@@ -194,6 +185,15 @@ export default function OrderApproval({
             </button>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+        >
+          <PlusIcon />
+          Create
+        </button>
       </div>
 
       <p className="text-xs text-slate-500">
