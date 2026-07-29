@@ -13,9 +13,8 @@ const reportSubTabs: SubTab<ReportSubTabId>[] = [
 ];
 
 const ordersSubTabs: SubTab<OrdersSubTabId>[] = [
-  { id: "createOrder", label: "Create" },
   { id: "amendCancel", label: "Amend / Cancel" },
-  { id: "approval", label: "Approval" },
+  { id: "approval", label: "Manage Orders" },
   { id: "closeBilling", label: "Close Billing" },
 ];
 

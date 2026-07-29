@@ -2,7 +2,7 @@ export type MainTabId = "dashboard" | "report" | "orders" | "admin";
 
 export type ReportSubTabId = "approval" | "billing" | "managerReport";
 
-export type OrdersSubTabId = "createOrder" | "amendCancel" | "approval" | "closeBilling";
+export type OrdersSubTabId = "amendCancel" | "approval" | "closeBilling";
 
 export type AdminSubTabId = "approvalSetting";
 

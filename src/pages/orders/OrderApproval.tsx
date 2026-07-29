@@ -1,10 +1,19 @@
 import { useMemo, useState } from "react";
-import type { ApprovalState, OrderLifecycleStatus, OrderRecord } from "../../types";
+import type { ApprovalState, Client, OrderLifecycleStatus, OrderRecord } from "../../types";
 import OrderApprovalReview from "./OrderApprovalReview";
+import CreateOrderModal from "./CreateOrderModal";
 
 interface OrderApprovalProps {
   orders: OrderRecord[];
   onUpdateOrder: (record: OrderRecord) => void;
+  // Create used to be its own tab — it now lives behind the "Create" button
+  // here, rendered exactly as it was, just toggled locally instead of routed.
+  clients: Client[];
+  onCreateOrder: (record: OrderRecord) => void;
+  createOrderPrefill: { clientId: string; product: string } | null;
+  createOrderKey: number;
+  onResetCreateOrder: () => void;
+  onRequestAmend: (order: OrderRecord) => void;
 }
 
 type ViewTab = "all" | "inactive" | "cancellationInProgress";
@@ -53,6 +62,22 @@ function EditIcon() {
   );
 }
 
+function PlusIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
+    </svg>
+  );
+}
+
+function BackIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="M12 5l-6 5 6 5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 // Display-only now — stage changes only happen through the review/process
 // page, one at a time, in order (see OrderApprovalReview.tsx).
 function StageBadge({ status }: { status: ApprovalState }) {
@@ -69,9 +94,19 @@ function StageBadge({ status }: { status: ApprovalState }) {
   );
 }
 
-export default function OrderApproval({ orders, onUpdateOrder }: OrderApprovalProps) {
+export default function OrderApproval({
+  orders,
+  onUpdateOrder,
+  clients,
+  onCreateOrder,
+  createOrderPrefill,
+  createOrderKey,
+  onResetCreateOrder,
+  onRequestAmend,
+}: OrderApprovalProps) {
   const [tab, setTab] = useState<ViewTab>("all");
   const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const filtered = useMemo(() => {
     if (tab === "inactive") return orders.filter((o) => o.lifecycleStatus === "inactive");
@@ -86,6 +121,37 @@ export default function OrderApproval({ orders, onUpdateOrder }: OrderApprovalPr
   }
 
   const reviewOrder = reviewOrderId ? orders.find((o) => o.id === reviewOrderId) ?? null : null;
+
+  // Same CreateOrderModal, same embedded rendering, same props it had as its
+  // own tab — only the entry point (a button here instead of a sidebar tab)
+  // changed.
+  if (creating) {
+    return (
+      <div className="flex h-full flex-col gap-4">
+        <button
+          onClick={() => setCreating(false)}
+          className="flex w-fit items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-800"
+        >
+          <BackIcon />
+          Back to Manage Orders
+        </button>
+        <CreateOrderModal
+          key={createOrderKey}
+          open
+          embedded
+          clients={clients}
+          orders={orders}
+          prefillClientId={createOrderPrefill?.clientId}
+          prefillProduct={createOrderPrefill?.product}
+          onCreate={onCreateOrder}
+          onUpdate={onUpdateOrder}
+          onClose={() => {}}
+          onReset={onResetCreateOrder}
+          onRequestAmend={onRequestAmend}
+        />
+      </div>
+    );
+  }
 
   if (reviewOrder) {
     return (
@@ -102,21 +168,32 @@ export default function OrderApproval({ orders, onUpdateOrder }: OrderApprovalPr
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex gap-2">
-        {VIEW_TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              tab === t.key
-                ? "bg-slate-800 text-white"
-                : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+        >
+          <PlusIcon />
+          Create
+        </button>
+
+        <div className="flex gap-2">
+          {VIEW_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                tab === t.key
+                  ? "bg-slate-800 text-white"
+                  : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <p className="text-xs text-slate-500">

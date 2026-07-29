@@ -4,7 +4,6 @@ import Dashboard from "./pages/Dashboard";
 import Approval from "./pages/report/Approval";
 import Billing from "./pages/report/Billing";
 import OrderPage from "./pages/orders/OrderPage";
-import CreateOrderModal from "./pages/orders/CreateOrderModal";
 import OrderApproval from "./pages/orders/OrderApproval";
 import ApprovalSetting from "./pages/orders/ApprovalSetting";
 import CloseBilling from "./pages/orders/CloseBilling";
@@ -29,9 +28,8 @@ const TITLES: Record<string, string> = {
   "report/approval": "Report / Approval",
   "report/billing": "Report / Billing",
   "report/managerReport": "Report / Manager Report",
-  "orders/createOrder": "Order Management / Create",
   "orders/amendCancel": "Order Management / Amend / Cancel",
-  "orders/approval": "Order Management / Approval",
+  "orders/approval": "Order Management / Manage Orders",
   "orders/closeBilling": "Order Management / Close Billing",
   "admin/approvalSetting": "Admin / Approval Setting",
 };
@@ -39,7 +37,7 @@ const TITLES: Record<string, string> = {
 function App() {
   const [activeTab, setActiveTab] = useState<MainTabId>("report");
   const [activeReportSubTab, setActiveReportSubTab] = useState<ReportSubTabId>("approval");
-  const [activeOrdersSubTab, setActiveOrdersSubTab] = useState<OrdersSubTabId>("createOrder");
+  const [activeOrdersSubTab, setActiveOrdersSubTab] = useState<OrdersSubTabId>("approval");
   const [activeAdminSubTab, setActiveAdminSubTab] = useState<AdminSubTabId>("approvalSetting");
   const [orders, setOrders] = useState<OrderRecord[]>(mockOrders);
   const [createOrderPrefill, setCreateOrderPrefill] = useState<{ clientId: string; product: string } | null>(null);
@@ -91,7 +89,7 @@ function App() {
     setCreateOrderPrefill({ clientId: fromOrder.clientId, product: fromOrder.product });
     setCreateOrderKey((k) => k + 1);
     setActiveTab("orders");
-    setActiveOrdersSubTab("createOrder");
+    setActiveOrdersSubTab("approval");
   }
 
   function handleCreateOrderLater(fromOrder: OrderRecord) {
@@ -164,7 +162,19 @@ function App() {
       return <ApprovalSetting />;
     }
     if (activeTab === "orders") {
-      if (activeOrdersSubTab === "approval") return <OrderApproval orders={orders} onUpdateOrder={handleUpdateOrder} />;
+      if (activeOrdersSubTab === "approval")
+        return (
+          <OrderApproval
+            orders={orders}
+            onUpdateOrder={handleUpdateOrder}
+            clients={clients}
+            onCreateOrder={handleCreateOrder}
+            createOrderPrefill={createOrderPrefill}
+            createOrderKey={createOrderKey}
+            onResetCreateOrder={handleResetCreateOrder}
+            onRequestAmend={handleRequestAmend}
+          />
+        );
       if (activeOrdersSubTab === "amendCancel")
         return (
           <OrderPage
@@ -178,23 +188,6 @@ function App() {
               setAutoOpenOrderModal(false);
               setEditOrderId(null);
             }}
-          />
-        );
-      if (activeOrdersSubTab === "createOrder")
-        return (
-          <CreateOrderModal
-            key={createOrderKey}
-            open
-            embedded
-            clients={clients}
-            orders={orders}
-            prefillClientId={createOrderPrefill?.clientId}
-            prefillProduct={createOrderPrefill?.product}
-            onCreate={handleCreateOrder}
-            onUpdate={handleUpdateOrder}
-            onClose={() => {}}
-            onReset={handleResetCreateOrder}
-            onRequestAmend={handleRequestAmend}
           />
         );
       return (
