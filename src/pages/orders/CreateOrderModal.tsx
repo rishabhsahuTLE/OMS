@@ -397,7 +397,11 @@ export default function CreateOrderModal({
     client.deliveryState === client.billingState &&
     client.deliveryCity === client.billingCity;
 
-  const ready = client !== null && currentProduct !== null;
+  // A pending duplicate blocks the rest of the form outright — dismissing
+  // the popup (Cancel / click-outside) just hides the dialog, it doesn't
+  // make the fields below appear. The only ways forward are amending the
+  // existing order or picking a different client/product.
+  const ready = client !== null && currentProduct !== null && duplicateOrder === null;
 
   const content = (
     <>
@@ -456,7 +460,11 @@ export default function CreateOrderModal({
 
         {!ready && (
           <div className="flex items-center justify-between border-t border-slate-200 px-6 py-8">
-            <p className="text-sm text-slate-400">Select a client and product to continue.</p>
+            <p className="text-sm text-slate-400">
+              {duplicateOrder
+                ? `${client?.name ?? "This client"} already has an order (${duplicateOrder.orderNo}) for ${selectedProduct} — amend that one, or pick a different client/product.`
+                : "Select a client and product to continue."}
+            </p>
             {!embedded && (
               <button
                 onClick={handleCancel}
