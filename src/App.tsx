@@ -18,10 +18,10 @@ const TITLES: Record<string, string> = {
   dashboard: "Dashboard",
   "report/approval": "Report / Approval",
   "report/billing": "Report / Billing",
+  "report/managerReport": "Report / Manager Report",
   "orders/order": "Order Management / Order",
   "orders/approvalSetting": "Order Management / Approval Setting",
   "orders/closeBilling": "Order Management / Close Billing",
-  managerReport: "Manager Report",
 };
 
 function App() {
@@ -121,13 +121,13 @@ function App() {
   let titleKey = "dashboard";
   if (activeTab === "report") titleKey = `report/${activeReportSubTab}`;
   if (activeTab === "orders") titleKey = `orders/${activeOrdersSubTab}`;
-  if (activeTab === "managerReport") titleKey = "managerReport";
 
   function renderPage() {
     if (activeTab === "dashboard") return <Dashboard />;
-    if (activeTab === "managerReport") return <ManagerReport orders={orders} />;
     if (activeTab === "report") {
-      return activeReportSubTab === "approval" ? <Approval orders={orders} /> : <Billing orders={orders} />;
+      if (activeReportSubTab === "approval") return <Approval orders={orders} />;
+      if (activeReportSubTab === "billing") return <Billing orders={orders} />;
+      return <ManagerReport orders={orders} />;
     }
     if (activeTab === "orders") {
       if (activeOrdersSubTab === "approvalSetting") return <ApprovalSetting />;

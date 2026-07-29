@@ -2,9 +2,11 @@ import { useMemo, useState } from "react";
 import type { BillingCycle, OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
 import { formatDDMMYYYY } from "../../utils";
-import DateRangePicker, { type DateRange } from "../../components/DateRangePicker";
+import type { DateRange } from "../../components/DateRangePicker";
+import InlineDateRangeCalendar from "../../components/InlineDateRangeCalendar";
 import SearchableSelect from "../../components/SearchableSelect";
 import AmountRangeSlider from "../../components/AmountRangeSlider";
+import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
 
 interface BillingProps {
   orders: OrderRecord[];
@@ -45,11 +47,12 @@ interface FyColumn {
   isCurrent: boolean;
 }
 
+// Standard Indian fiscal year: April through March.
 function buildFiscalYearColumns(reference: Date): FyColumn[] {
-  const fyStartYear = reference.getMonth() >= 6 ? reference.getFullYear() : reference.getFullYear() - 1;
+  const fyStartYear = reference.getMonth() >= 3 ? reference.getFullYear() : reference.getFullYear() - 1;
   return Array.from({ length: 12 }, (_, i) => {
-    const month0 = (6 + i) % 12;
-    const year = fyStartYear + Math.floor((6 + i) / 12);
+    const month0 = (3 + i) % 12;
+    const year = fyStartYear + Math.floor((3 + i) / 12);
     const isCurrent = year === reference.getFullYear() && month0 === reference.getMonth();
     return { year, month0, label: MONTH_ABBR[month0], isCurrent };
   });
@@ -116,22 +119,22 @@ function StageIcon({ confirmed, rejected }: { confirmed: boolean; rejected: bool
   );
 }
 
-function FunnelIcon() {
+function SearchIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-      <path d="M3 4a1 1 0 011-1h12a1 1 0 01.8 1.6L12 12v4a1 1 0 01-.45.83l-2 1.34A1 1 0 018 17.3V12L3.2 4.6A1 1 0 013 4z" />
+      <path
+        fillRule="evenodd"
+        d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.6 4.2l3.6 3.6a1 1 0 01-1.4 1.4l-3.6-3.6A7 7 0 012 9z"
+        clipRule="evenodd"
+      />
     </svg>
   );
 }
 
-function ChevronIcon({ open }: { open: boolean }) {
+function FunnelIcon() {
   return (
-    <svg
-      className={`h-4 w-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
-      viewBox="0 0 20 20"
-      fill="currentColor"
-    >
-      <path fillRule="evenodd" d="M5.2 7.2a1 1 0 011.4 0L10 10.6l3.4-3.4a1 1 0 111.4 1.4l-4.1 4.1a1 1 0 01-1.4 0L5.2 8.6a1 1 0 010-1.4z" clipRule="evenodd" />
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M3 4a1 1 0 011-1h12a1 1 0 01.8 1.6L12 12v4a1 1 0 01-.45.83l-2 1.34A1 1 0 018 17.3V12L3.2 4.6A1 1 0 013 4z" />
     </svg>
   );
 }
@@ -168,76 +171,124 @@ function InfoTooltip({ text }: { text: string }) {
   );
 }
 
+const FILTER_CATEGORIES: FilterDrawerCategory[] = [
+  { key: "client", label: "Client" },
+  { key: "product", label: "Product" },
+  { key: "manager", label: "Client Manager" },
+  { key: "amount", label: "Amount" },
+  { key: "status", label: "Order Status" },
+  { key: "date", label: "Created On" },
+];
+
+interface DrawerFilters {
+  client: string;
+  product: string;
+  manager: string;
+  minLakh: number;
+  maxLakh: number;
+  statusBuckets: Set<StatusBucketKey>;
+  dateRange: DateRange;
+}
+
+const defaultDrawerFilters: DrawerFilters = {
+  client: "all",
+  product: "all",
+  manager: "all",
+  minLakh: 0,
+  maxLakh: AMOUNT_MAX_LAKH,
+  dateRange: { start: null, end: null },
+  statusBuckets: new Set(),
+};
+
+// Frozen column widths (Client / Order # / Product) and their cumulative
+// left offsets, kept in sync between header, total row, and body cells.
+const CLIENT_COL = "w-[180px] min-w-[180px] max-w-[180px] left-0";
+const ORDERNO_COL = "w-[130px] min-w-[130px] max-w-[130px] left-[180px]";
+const PRODUCT_COL = "w-[90px] min-w-[90px] max-w-[90px] left-[310px]";
+
 export default function Billing({ orders }: BillingProps) {
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [clientFilter, setClientFilter] = useState("all");
-  const [productFilter, setProductFilter] = useState("all");
-  const [managerFilter, setManagerFilter] = useState("all");
-  const [minLakh, setMinLakh] = useState(0);
-  const [maxLakh, setMaxLakh] = useState(AMOUNT_MAX_LAKH);
-  const [statusBuckets, setStatusBuckets] = useState<Set<StatusBucketKey>>(new Set());
-  const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
+  const [search, setSearch] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState(FILTER_CATEGORIES[0].key);
+
+  const [draft, setDraft] = useState<DrawerFilters>(defaultDrawerFilters);
+  const [applied, setApplied] = useState<DrawerFilters>(defaultDrawerFilters);
 
   const fyColumns = useMemo(() => buildFiscalYearColumns(new Date()), []);
 
   const clientOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.client))).sort(), [orders]);
   const managerOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
 
-  function toggleBucket(key: StatusBucketKey) {
-    setStatusBuckets((prev) => {
-      const next = new Set(prev);
+  function toggleDraftBucket(key: StatusBucketKey) {
+    setDraft((prev) => {
+      const next = new Set(prev.statusBuckets);
       if (next.has(key)) next.delete(key);
       else next.add(key);
-      return next;
+      return { ...prev, statusBuckets: next };
     });
   }
 
-  function clearAllFilters() {
-    setClientFilter("all");
-    setProductFilter("all");
-    setManagerFilter("all");
-    setMinLakh(0);
-    setMaxLakh(AMOUNT_MAX_LAKH);
-    setStatusBuckets(new Set());
-    setDateRange({ start: null, end: null });
+  function openDrawer() {
+    setDraft(applied);
+    setDrawerOpen(true);
+  }
+
+  function handleApply() {
+    setApplied(draft);
+    setDrawerOpen(false);
+  }
+
+  function handleClear() {
+    setDraft(defaultDrawerFilters);
+    setApplied(defaultDrawerFilters);
   }
 
   const hasActiveFilters =
-    clientFilter !== "all" ||
-    productFilter !== "all" ||
-    managerFilter !== "all" ||
-    minLakh !== 0 ||
-    maxLakh !== AMOUNT_MAX_LAKH ||
-    statusBuckets.size > 0 ||
-    dateRange.start !== null ||
-    dateRange.end !== null;
+    applied.client !== "all" ||
+    applied.product !== "all" ||
+    applied.manager !== "all" ||
+    applied.minLakh !== 0 ||
+    applied.maxLakh !== AMOUNT_MAX_LAKH ||
+    applied.statusBuckets.size > 0 ||
+    applied.dateRange.start !== null ||
+    applied.dateRange.end !== null;
 
   const filteredOrders = useMemo(() => {
     let result = orders;
 
-    if (clientFilter !== "all") result = result.filter((o) => o.client === clientFilter);
-    if (productFilter !== "all") result = result.filter((o) => o.product === productFilter);
-    if (managerFilter !== "all") result = result.filter((o) => o.clientManager === managerFilter);
+    if (applied.client !== "all") result = result.filter((o) => o.client === applied.client);
+    if (applied.product !== "all") result = result.filter((o) => o.product === applied.product);
+    if (applied.manager !== "all") result = result.filter((o) => o.clientManager === applied.manager);
 
-    const minRupees = minLakh * 100_000;
-    const maxRupees = maxLakh >= AMOUNT_MAX_LAKH ? Infinity : maxLakh * 100_000;
+    const minRupees = applied.minLakh * 100_000;
+    const maxRupees = applied.maxLakh >= AMOUNT_MAX_LAKH ? Infinity : applied.maxLakh * 100_000;
     result = result.filter((o) => o.amount >= minRupees && o.amount <= maxRupees);
 
-    if (statusBuckets.size > 0) {
-      result = result.filter((o) => statusBuckets.has(statusBucketOf(o)));
+    if (applied.statusBuckets.size > 0) {
+      result = result.filter((o) => applied.statusBuckets.has(statusBucketOf(o)));
     }
 
-    if (dateRange.start && dateRange.end) {
-      const startTime = dateRange.start.getTime();
-      const endTime = dateRange.end.getTime();
+    if (applied.dateRange.start && applied.dateRange.end) {
+      const startTime = applied.dateRange.start.getTime();
+      const endTime = applied.dateRange.end.getTime();
       result = result.filter((o) => {
         const t = parseISO(o.createdOn).getTime();
         return t >= startTime && t <= endTime;
       });
     }
 
+    const q = search.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (o) =>
+          o.client.toLowerCase().includes(q) ||
+          o.orderNo.toLowerCase().includes(q) ||
+          o.clientManager.toLowerCase().includes(q)
+      );
+    }
+
     return result;
-  }, [orders, clientFilter, productFilter, managerFilter, minLakh, maxLakh, statusBuckets, dateRange]);
+  }, [orders, applied, search]);
 
   const rows = useMemo(
     () =>
@@ -255,109 +306,120 @@ export default function Billing({ orders }: BillingProps) {
   );
   const grandYearlyTotal = monthTotals.reduce((a, b) => a + b, 0);
 
-  const identityColSpan = 11;
-  const totalColumns = identityColSpan + fyColumns.length + 1;
+  const restIdentityColSpan = 8; // Client Manager, T, F, OCD, OSD, FBD, BC, Amount
+  const totalColumns = 3 + restIdentityColSpan + fyColumns.length + 1;
+
+  function renderCategoryContent() {
+    switch (activeCategory) {
+      case "client":
+        return (
+          <SearchableSelect
+            label="Client"
+            allLabel="All Clients"
+            options={clientOptions}
+            value={draft.client}
+            onChange={(v) => setDraft((prev) => ({ ...prev, client: v }))}
+            searchPlaceholder="Search clients…"
+          />
+        );
+      case "product":
+        return (
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">Product</label>
+            <select
+              value={draft.product}
+              onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
+              className={selectClass}
+            >
+              <option value="all">All Products</option>
+              {PRODUCT_NAMES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      case "manager":
+        return (
+          <SearchableSelect
+            label="Client Manager"
+            allLabel="All Managers"
+            options={managerOptions}
+            value={draft.manager}
+            onChange={(v) => setDraft((prev) => ({ ...prev, manager: v }))}
+            searchPlaceholder="Search managers…"
+          />
+        );
+      case "amount":
+        return (
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">Amount</label>
+            <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
+              <AmountRangeSlider
+                min={0}
+                max={AMOUNT_MAX_LAKH}
+                minValue={draft.minLakh}
+                maxValue={draft.maxLakh}
+                onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
+              />
+            </div>
+          </div>
+        );
+      case "status":
+        return (
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">Order Status</label>
+            <div className="flex flex-col gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2.5 shadow-sm">
+              {STATUS_BUCKETS.map((b) => (
+                <label key={b.key} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={draft.statusBuckets.has(b.key)}
+                    onChange={() => toggleDraftBucket(b.key)}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-1 focus:ring-indigo-400"
+                  />
+                  {b.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      case "date":
+        return (
+          <InlineDateRangeCalendar
+            value={draft.dateRange}
+            onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
+          />
+        );
+      default:
+        return null;
+    }
+  }
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <SearchIcon />
+          </span>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by client, order #, or manager…"
+            className="w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          />
+        </div>
         <button
           type="button"
-          onClick={() => setFiltersOpen((v) => !v)}
-          className="flex w-full items-center gap-2 px-6 py-4 text-left text-sm font-semibold text-slate-700"
+          onClick={openDrawer}
+          className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+          aria-label="Open filters"
         >
           <FunnelIcon />
-          Filters
-          {hasActiveFilters && <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />}
-          <ChevronIcon open={filtersOpen} />
+          {hasActiveFilters && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500" />}
         </button>
-
-        {filtersOpen && (
-          <div className="border-t border-slate-100 px-6 py-5">
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              <SearchableSelect
-                label="Client"
-                allLabel="All Clients"
-                options={clientOptions}
-                value={clientFilter}
-                onChange={setClientFilter}
-                searchPlaceholder="Search clients…"
-              />
-
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">Product</label>
-                <select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className={selectClass}>
-                  <option value="all">All Products</option>
-                  {PRODUCT_NAMES.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <SearchableSelect
-                label="Client Manager"
-                allLabel="All Managers"
-                options={managerOptions}
-                value={managerFilter}
-                onChange={setManagerFilter}
-                searchPlaceholder="Search managers…"
-              />
-
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">Amount</label>
-                <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
-                  <AmountRangeSlider
-                    min={0}
-                    max={AMOUNT_MAX_LAKH}
-                    minValue={minLakh}
-                    maxValue={maxLakh}
-                    onChange={(mn, mx) => {
-                      setMinLakh(mn);
-                      setMaxLakh(mx);
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">Order Status</label>
-                <div className="flex flex-col gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2.5 shadow-sm">
-                  {STATUS_BUCKETS.map((b) => (
-                    <label key={b.key} className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={statusBuckets.has(b.key)}
-                        onChange={() => toggleBucket(b.key)}
-                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-1 focus:ring-indigo-400"
-                      />
-                      {b.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm text-slate-600">Creation Date</label>
-                <DateRangePicker value={dateRange} onChange={setDateRange} />
-              </div>
-            </div>
-
-            <div className="mt-5 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
-              <button type="button" onClick={clearAllFilters} className="text-sm text-slate-500 hover:text-slate-700">
-                Clear
-              </button>
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(false)}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              >
-                Hide
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       <p className="text-xs text-slate-500">
@@ -373,13 +435,19 @@ export default function Billing({ orders }: BillingProps) {
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
             <tr>
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
+              <th
+                className={`sticky top-0 z-30 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600 ${CLIENT_COL}`}
+              >
                 Client
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
+              <th
+                className={`sticky top-0 z-30 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600 ${ORDERNO_COL}`}
+              >
                 Order #
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
+              <th
+                className={`sticky top-0 z-30 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600 ${PRODUCT_COL}`}
+              >
                 Product
               </th>
               <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
@@ -426,12 +494,10 @@ export default function Billing({ orders }: BillingProps) {
           </thead>
           <tbody className="divide-y divide-slate-100">
             <tr className="font-semibold text-indigo-900">
-              <td
-                colSpan={identityColSpan}
-                className="sticky top-11 z-10 whitespace-nowrap bg-indigo-50 px-4 py-3"
-              >
+              <td colSpan={3} className="sticky left-0 top-11 z-20 whitespace-nowrap bg-indigo-50 px-4 py-3">
                 Total Revenue
               </td>
+              <td colSpan={restIdentityColSpan} className="sticky top-11 z-10 whitespace-nowrap bg-indigo-50 px-4 py-3" />
               {monthTotals.map((total, idx) => (
                 <td
                   key={idx}
@@ -448,12 +514,19 @@ export default function Billing({ orders }: BillingProps) {
             </tr>
 
             {rows.map(({ order, monthly, yearlyTotal }) => (
-              <tr key={order.id} className="hover:bg-slate-50">
-                <td className="max-w-[200px] truncate px-4 py-3 text-slate-700" title={order.client}>
+              <tr key={order.id} className="group hover:bg-slate-50">
+                <td
+                  className={`sticky z-10 truncate bg-white px-4 py-3 text-slate-700 group-hover:bg-slate-50 ${CLIENT_COL}`}
+                  title={order.client}
+                >
                   {order.client}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{order.orderNo}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.product}</td>
+                <td className={`sticky z-10 whitespace-nowrap bg-white px-4 py-3 font-medium text-slate-800 group-hover:bg-slate-50 ${ORDERNO_COL}`}>
+                  {order.orderNo}
+                </td>
+                <td className={`sticky z-10 whitespace-nowrap bg-white px-4 py-3 text-slate-700 group-hover:bg-slate-50 ${PRODUCT_COL}`}>
+                  {order.product}
+                </td>
                 <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.clientManager}</td>
                 <td className="px-4 py-3">
                   <StageIcon
@@ -507,6 +580,19 @@ export default function Billing({ orders }: BillingProps) {
           </tbody>
         </table>
       </div>
+
+      <FilterDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="Billing Filters"
+        categories={FILTER_CATEGORIES}
+        activeCategory={activeCategory}
+        onSelectCategory={setActiveCategory}
+        onClear={handleClear}
+        onApply={handleApply}
+      >
+        {renderCategoryContent()}
+      </FilterDrawer>
     </div>
   );
 }

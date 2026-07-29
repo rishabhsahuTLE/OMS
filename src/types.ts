@@ -1,6 +1,6 @@
-export type MainTabId = "dashboard" | "report" | "orders" | "managerReport";
+export type MainTabId = "dashboard" | "report" | "orders";
 
-export type ReportSubTabId = "approval" | "billing";
+export type ReportSubTabId = "approval" | "billing" | "managerReport";
 
 export type OrdersSubTabId = "order" | "approvalSetting" | "closeBilling";
 

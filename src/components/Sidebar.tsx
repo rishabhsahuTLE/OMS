@@ -9,6 +9,7 @@ interface SubTab<T extends string> {
 const reportSubTabs: SubTab<ReportSubTabId>[] = [
   { id: "approval", label: "Approval" },
   { id: "billing", label: "Billing" },
+  { id: "managerReport", label: "Manager Report" },
 ];
 
 const ordersSubTabs: SubTab<OrdersSubTabId>[] = [
@@ -45,7 +46,7 @@ function ChevronIcon({ open }: { open: boolean }) {
 
 function DashboardIcon() {
   return (
-    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
       <path d="M3 3h6v6H3V3zm8 0h6v4h-6V3zM3 11h6v6H3v-6zm8 2h6v4h-6v-4z" />
     </svg>
   );
@@ -53,7 +54,7 @@ function DashboardIcon() {
 
 function ReportIcon() {
   return (
-    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
       <path d="M4 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H4zm2 10a1 1 0 112 0v1a1 1 0 11-2 0v-1zm4-4a1 1 0 112 0v5a1 1 0 11-2 0V9zm4-2a1 1 0 112 0v7a1 1 0 11-2 0V7z" />
     </svg>
   );
@@ -61,16 +62,8 @@ function ReportIcon() {
 
 function OrdersIcon() {
   return (
-    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
       <path d="M4 4a1 1 0 011-1h10a1 1 0 011 1v1H4V4zM3 7h14l-1 9a1 1 0 01-1 1H5a1 1 0 01-1-1L3 7zm5 3a1 1 0 000 2h4a1 1 0 100-2H8z" />
-    </svg>
-  );
-}
-
-function ManagerReportIcon() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-      <path d="M6 2a2 2 0 00-2 2v1H3a1 1 0 00-1 1v9a2 2 0 002 2h12a2 2 0 002-2V6a1 1 0 00-1-1h-1V4a2 2 0 00-2-2H6zm0 3V4h6v1H6zM3 8h12v2H3V8zm0 3h5v2H3v-2z" />
     </svg>
   );
 }
@@ -81,54 +74,75 @@ export default function Sidebar({
   activeOrdersSubTab,
   onSelect,
 }: SidebarProps) {
-  const [reportOpen, setReportOpen] = useState(activeTab === "report");
-  const [ordersOpen, setOrdersOpen] = useState(activeTab === "orders");
+  // The rail itself expands on hover (icon-only at rest); each category's
+  // sub-item list drops down on hover of that category and collapses when
+  // the cursor leaves it — both independent of click state.
+  const [expanded, setExpanded] = useState(false);
+  const [reportHovered, setReportHovered] = useState(false);
+  const [ordersHovered, setOrdersHovered] = useState(false);
+
+  function collapseAll() {
+    setExpanded(false);
+    setReportHovered(false);
+    setOrdersHovered(false);
+  }
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-slate-200 bg-slate-900 text-slate-200">
-      <div className="flex h-16 items-center gap-2 border-b border-slate-800 px-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-indigo-500 font-semibold text-white">
+    <aside
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={collapseAll}
+      className={`flex h-full shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-slate-900 text-slate-200 transition-all duration-150 ${
+        expanded ? "w-64" : "w-16"
+      }`}
+    >
+      <div className={`flex h-16 shrink-0 items-center gap-2 border-b border-slate-800 ${expanded ? "px-5" : "justify-center px-2"}`}>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-indigo-500 font-semibold text-white">
           O
         </div>
-        <span className="text-lg font-semibold text-white">OMS</span>
+        {expanded && <span className="whitespace-nowrap text-lg font-semibold text-white">OMS</span>}
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-4">
         <button
           onClick={() => onSelect("dashboard")}
           className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            !expanded ? "justify-center" : ""
+          } ${
             activeTab === "dashboard"
               ? "bg-indigo-600 text-white"
               : "text-slate-300 hover:bg-slate-800 hover:text-white"
           }`}
         >
           <DashboardIcon />
-          Dashboard
+          {expanded && <span className="whitespace-nowrap">Dashboard</span>}
         </button>
 
-        <div>
+        <div onMouseEnter={() => setReportHovered(true)} onMouseLeave={() => setReportHovered(false)}>
           <button
-            onClick={() => {
-              setReportOpen((v) => !v);
-              if (activeTab !== "report") onSelect("report", activeReportSubTab);
-            }}
+            onClick={() => onSelect("report", activeReportSubTab)}
             className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              !expanded ? "justify-center" : ""
+            } ${
               activeTab === "report"
                 ? "bg-slate-800 text-white"
                 : "text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
             <ReportIcon />
-            <span className="flex-1 text-left">Report</span>
-            <ChevronIcon open={reportOpen} />
+            {expanded && (
+              <>
+                <span className="flex-1 whitespace-nowrap text-left">Report</span>
+                <ChevronIcon open={reportHovered} />
+              </>
+            )}
           </button>
-          {reportOpen && (
+          {expanded && reportHovered && (
             <div className="mt-1 space-y-0.5 pl-9">
               {reportSubTabs.map((sub) => (
                 <button
                   key={sub.id}
                   onClick={() => onSelect("report", sub.id)}
-                  className={`block w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
+                  className={`block w-full whitespace-nowrap rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
                     activeTab === "report" && activeReportSubTab === sub.id
                       ? "bg-indigo-600 text-white"
                       : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -141,29 +155,32 @@ export default function Sidebar({
           )}
         </div>
 
-        <div>
+        <div onMouseEnter={() => setOrdersHovered(true)} onMouseLeave={() => setOrdersHovered(false)}>
           <button
-            onClick={() => {
-              setOrdersOpen((v) => !v);
-              if (activeTab !== "orders") onSelect("orders", activeOrdersSubTab);
-            }}
+            onClick={() => onSelect("orders", activeOrdersSubTab)}
             className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              !expanded ? "justify-center" : ""
+            } ${
               activeTab === "orders"
                 ? "bg-slate-800 text-white"
                 : "text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
             <OrdersIcon />
-            <span className="flex-1 text-left">Order Management</span>
-            <ChevronIcon open={ordersOpen} />
+            {expanded && (
+              <>
+                <span className="flex-1 whitespace-nowrap text-left">Order Management</span>
+                <ChevronIcon open={ordersHovered} />
+              </>
+            )}
           </button>
-          {ordersOpen && (
+          {expanded && ordersHovered && (
             <div className="mt-1 space-y-0.5 pl-9">
               {ordersSubTabs.map((sub) => (
                 <button
                   key={sub.id}
                   onClick={() => onSelect("orders", sub.id)}
-                  className={`block w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
+                  className={`block w-full whitespace-nowrap rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
                     activeTab === "orders" && activeOrdersSubTab === sub.id
                       ? "bg-indigo-600 text-white"
                       : "text-slate-400 hover:bg-slate-800 hover:text-white"
@@ -175,18 +192,6 @@ export default function Sidebar({
             </div>
           )}
         </div>
-
-        <button
-          onClick={() => onSelect("managerReport")}
-          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-            activeTab === "managerReport"
-              ? "bg-indigo-600 text-white"
-              : "text-slate-300 hover:bg-slate-800 hover:text-white"
-          }`}
-        >
-          <ManagerReportIcon />
-          Manager Report
-        </button>
       </nav>
     </aside>
   );
