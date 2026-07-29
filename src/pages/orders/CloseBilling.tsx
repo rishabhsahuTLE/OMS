@@ -12,8 +12,10 @@ interface CloseBillingProps {
   onCreateOrderLater: (fromOrder: OrderRecord) => void;
 }
 
-function isFullyConfirmed(r: OrderRecord) {
-  return r.technical.status === "confirmed" && r.financial.status === "confirmed";
+// Orders only reach Close Billing after completing the cancellation
+// approval stage (Order Management > Approval), not merely on activation.
+function isClosable(r: OrderRecord) {
+  return r.lifecycleStatus === "cancelled";
 }
 
 function StatusIcon({ status }: { status: ApprovalState }) {
@@ -87,7 +89,7 @@ export default function CloseBilling({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [popupQueue, setPopupQueue] = useState<OrderRecord[]>([]);
 
-  const closableOrders = useMemo(() => orders.filter(isFullyConfirmed), [orders]);
+  const closableOrders = useMemo(() => orders.filter(isClosable), [orders]);
 
   const clientOptions = useMemo(
     () => Array.from(new Set(closableOrders.map((o) => o.client))).sort(),

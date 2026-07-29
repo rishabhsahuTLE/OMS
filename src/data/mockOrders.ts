@@ -1,6 +1,6 @@
 import clientsData from "./clients.json";
 import { PRODUCTS } from "../products";
-import type { ApprovalState, BillingCycle, Client, OrderRecord } from "../types";
+import type { ApprovalState, BillingCycle, Client, OrderRecord, OrderLifecycleStatus, StageStatus } from "../types";
 
 const clients = clientsData as Client[];
 
@@ -43,6 +43,7 @@ export const mockOrders: OrderRecord[] = [];
 
 let orderIndex = 0;
 let globalSeq = 128;
+let fullyConfirmedCount = 0;
 
 clients.forEach((client, cliIdx) => {
   const count = ORDER_COUNTS[cliIdx] ?? 1;
@@ -70,6 +71,29 @@ clients.forEach((client, cliIdx) => {
     const createdOn = makeDate(createdOffset);
     const isFullyConfirmed = techState === "confirmed" && finState === "confirmed";
 
+    // Orders only enter the cancellation flow once fully activated. Cycle
+    // through active / cancellation-in-progress / cancelled across just the
+    // fully-confirmed orders (not the raw order index, which would leave
+    // these buckets empty since only a handful of orders are ever fully
+    // confirmed), so every bucket has a demo-able entry.
+    let lifecycleStatus: OrderLifecycleStatus = "inactive";
+    let cancellationTechnical: StageStatus = { status: "pending", date: null };
+    let cancellationFinancial: StageStatus = { status: "pending", date: null };
+    if (isFullyConfirmed) {
+      const bucket = fullyConfirmedCount % 3;
+      if (bucket === 2) {
+        lifecycleStatus = "cancelled";
+        cancellationTechnical = { status: "confirmed", date: makeDate(finOffset + 5) };
+        cancellationFinancial = { status: "confirmed", date: makeDate(finOffset + 12) };
+      } else if (bucket === 1) {
+        lifecycleStatus = "cancellationInProgress";
+        cancellationTechnical = { status: "confirmed", date: makeDate(finOffset + 5) };
+      } else {
+        lifecycleStatus = "active";
+      }
+      fullyConfirmedCount++;
+    }
+
     mockOrders.push({
       id: `ord-${orderIndex + 1}`,
       orderNo,
@@ -81,6 +105,9 @@ clients.forEach((client, cliIdx) => {
       createdOn,
       technical: { status: techState, date: techState === "pending" ? null : makeDate(techOffset) },
       financial: { status: finState, date: finState === "pending" ? null : makeDate(finOffset) },
+      lifecycleStatus,
+      cancellationTechnical,
+      cancellationFinancial,
       billingCycle,
       amount,
       billingStatus: isFullyConfirmed && orderIndex % 4 === 0 ? "Closed" : "Open",

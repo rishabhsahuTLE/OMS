@@ -3,7 +3,11 @@ import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import Approval from "./pages/report/Approval";
 import Billing from "./pages/report/Billing";
-import OrderPage from "./pages/orders/OrderPage";
+// Order list is superseded by the Create Order + Approval flow — kept out
+// of the render tree but not deleted in case it needs to come back.
+// import OrderPage from "./pages/orders/OrderPage";
+import CreateOrderModal from "./pages/orders/CreateOrderModal";
+import OrderApproval from "./pages/orders/OrderApproval";
 import ApprovalSetting from "./pages/orders/ApprovalSetting";
 import CloseBilling from "./pages/orders/CloseBilling";
 import ManagerReport from "./pages/ManagerReport";
@@ -19,7 +23,8 @@ const TITLES: Record<string, string> = {
   "report/approval": "Report / Approval",
   "report/billing": "Report / Billing",
   "report/managerReport": "Report / Manager Report",
-  "orders/order": "Order Management / Order",
+  "orders/createOrder": "Order Management / Create Order",
+  "orders/approval": "Order Management / Approval",
   "orders/approvalSetting": "Order Management / Approval Setting",
   "orders/closeBilling": "Order Management / Close Billing",
 };
@@ -27,15 +32,20 @@ const TITLES: Record<string, string> = {
 function App() {
   const [activeTab, setActiveTab] = useState<MainTabId>("report");
   const [activeReportSubTab, setActiveReportSubTab] = useState<ReportSubTabId>("approval");
-  const [activeOrdersSubTab, setActiveOrdersSubTab] = useState<OrdersSubTabId>("order");
+  const [activeOrdersSubTab, setActiveOrdersSubTab] = useState<OrdersSubTabId>("createOrder");
   const [orders, setOrders] = useState<OrderRecord[]>(mockOrders);
-  const [orderPrefill, setOrderPrefill] = useState<{ clientId: string; product: string } | null>(null);
-  const [autoOpenOrderModal, setAutoOpenOrderModal] = useState(false);
+  const [createOrderPrefill, setCreateOrderPrefill] = useState<{ clientId: string; product: string } | null>(null);
+  const [createOrderKey, setCreateOrderKey] = useState(0);
 
   function handleSelect(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) {
     setActiveTab(tab);
     if (tab === "report" && subTab) setActiveReportSubTab(subTab as ReportSubTabId);
     if (tab === "orders" && subTab) setActiveOrdersSubTab(subTab as OrdersSubTabId);
+  }
+
+  function handleResetCreateOrder() {
+    setCreateOrderPrefill(null);
+    setCreateOrderKey((k) => k + 1);
   }
 
   function handleCreateOrder(record: OrderRecord) {
@@ -46,9 +56,11 @@ function App() {
     setOrders((prev) => prev.map((o) => (o.id === record.id ? record : o)));
   }
 
-  function handleDeleteOrder(id: string) {
-    setOrders((prev) => prev.filter((o) => o.id !== id));
-  }
+  // Only used by the now-disabled Order list page — kept for when it's
+  // restored, rather than deleted outright.
+  // function handleDeleteOrder(id: string) {
+  //   setOrders((prev) => prev.filter((o) => o.id !== id));
+  // }
 
   function handleSetBillingStatus(ids: string[], billingStatus: BillingStatus) {
     const idSet = new Set(ids);
@@ -60,10 +72,10 @@ function App() {
   }
 
   function handleCreateOrderNow(fromOrder: OrderRecord) {
-    setOrderPrefill({ clientId: fromOrder.clientId, product: fromOrder.product });
+    setCreateOrderPrefill({ clientId: fromOrder.clientId, product: fromOrder.product });
+    setCreateOrderKey((k) => k + 1);
     setActiveTab("orders");
-    setActiveOrdersSubTab("order");
-    setAutoOpenOrderModal(true);
+    setActiveOrdersSubTab("createOrder");
   }
 
   function handleCreateOrderLater(fromOrder: OrderRecord) {
@@ -82,6 +94,9 @@ function App() {
       amount: 0,
       technical: { status: "pending", date: null },
       financial: { status: "pending", date: null },
+      lifecycleStatus: "inactive",
+      cancellationTechnical: { status: "pending", date: null },
+      cancellationFinancial: { status: "pending", date: null },
       billingCycle: "",
       billingStatus: "Open",
       billingRemarks: "",
@@ -131,17 +146,21 @@ function App() {
     }
     if (activeTab === "orders") {
       if (activeOrdersSubTab === "approvalSetting") return <ApprovalSetting />;
-      if (activeOrdersSubTab === "order")
+      if (activeOrdersSubTab === "approval") return <OrderApproval orders={orders} onUpdateOrder={handleUpdateOrder} />;
+      if (activeOrdersSubTab === "createOrder")
         return (
-          <OrderPage
+          <CreateOrderModal
+            key={createOrderKey}
+            open
+            embedded
             clients={clients}
             orders={orders}
-            onCreateOrder={handleCreateOrder}
-            onUpdateOrder={handleUpdateOrder}
-            onDeleteOrder={handleDeleteOrder}
-            prefill={orderPrefill}
-            autoOpen={autoOpenOrderModal}
-            onAutoOpenHandled={() => setAutoOpenOrderModal(false)}
+            prefillClientId={createOrderPrefill?.clientId}
+            prefillProduct={createOrderPrefill?.product}
+            onCreate={handleCreateOrder}
+            onUpdate={handleUpdateOrder}
+            onClose={() => {}}
+            onReset={handleResetCreateOrder}
           />
         );
       return (

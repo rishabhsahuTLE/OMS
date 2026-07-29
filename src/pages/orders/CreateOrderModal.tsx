@@ -15,6 +15,11 @@ interface CreateOrderModalProps {
   prefillProduct?: string;
   onCreate: (record: OrderRecord) => void;
   onUpdate: (record: OrderRecord) => void;
+  // Renders the form directly on a page instead of inside a Modal overlay.
+  // Embedded instances have no "close" to return to, so Cancel becomes
+  // Reset — the parent bumps a `key` to remount and clear the form.
+  embedded?: boolean;
+  onReset?: () => void;
 }
 
 const PLANS = ["Basic", "Standard", "Premium", "Enterprise"];
@@ -138,6 +143,8 @@ export default function CreateOrderModal({
   prefillProduct,
   onCreate,
   onUpdate,
+  embedded,
+  onReset,
 }: CreateOrderModalProps) {
   const [selectedClientId, setSelectedClientId] = useState("");
   const [selectedProduct, setSelectedProduct] = useState("");
@@ -264,6 +271,10 @@ export default function CreateOrderModal({
   }, [form.oneTime, form.advance, form.tds, productValues, currentProduct]);
 
   function handleCancel() {
+    if (embedded) {
+      onReset?.();
+      return;
+    }
     onClose();
   }
 
@@ -339,6 +350,9 @@ export default function CreateOrderModal({
         amount: netAmount,
         technical: { status: "pending", date: null },
         financial: { status: "pending", date: null },
+        lifecycleStatus: "inactive",
+        cancellationTechnical: { status: "pending", date: null },
+        cancellationFinancial: { status: "pending", date: null },
         billingCycle: form.billingCycle,
         billingStatus: "Open",
         billingRemarks: "",
@@ -347,7 +361,11 @@ export default function CreateOrderModal({
       });
     }
 
-    onClose();
+    if (embedded) {
+      onReset?.();
+    } else {
+      onClose();
+    }
   }
 
   const sameAsBilling =
@@ -358,9 +376,9 @@ export default function CreateOrderModal({
 
   const ready = client !== null && currentProduct !== null;
 
-  return (
-    <Modal open={open} onClose={handleCancel} widthClassName="max-w-4xl">
-      <div className="max-h-[85vh] overflow-y-auto">
+  const content = (
+    <>
+      <div className={embedded ? "" : "max-h-[85vh] overflow-y-auto"}>
         <div className="flex items-center gap-2 border-b border-slate-200 px-6 py-4">
           <svg className="h-5 w-5 text-teal-600" viewBox="0 0 20 20" fill="currentColor">
             <path d="M2.5 3a.5.5 0 000 1h1.04l1.7 8.02A2 2 0 007.2 13.5h6.1a2 2 0 001.96-1.6l1.05-5.4a.5.5 0 00-.49-.6H5.02l-.3-1.42A1.5 1.5 0 003.26 3H2.5zM7 17a1.25 1.25 0 100-2.5A1.25 1.25 0 007 17zm7 0a1.25 1.25 0 100-2.5 1.25 1.25 0 000 2.5z" />
@@ -405,12 +423,14 @@ export default function CreateOrderModal({
         {!ready && (
           <div className="flex items-center justify-between border-t border-slate-200 px-6 py-8">
             <p className="text-sm text-slate-400">Select a client and product to continue.</p>
-            <button
-              onClick={handleCancel}
-              className="rounded-md bg-slate-200 px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300"
-            >
-              Cancel
-            </button>
+            {!embedded && (
+              <button
+                onClick={handleCancel}
+                className="rounded-md bg-slate-200 px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300"
+              >
+                Cancel
+              </button>
+            )}
           </div>
         )}
 
@@ -816,7 +836,7 @@ export default function CreateOrderModal({
             onClick={handleCancel}
             className="rounded-md bg-slate-200 px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300"
           >
-            Cancel
+            {embedded ? "Reset" : "Cancel"}
           </button>
           <button
             onClick={handleSave}
@@ -828,6 +848,16 @@ export default function CreateOrderModal({
         </>
         )}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="rounded-lg border border-slate-200 bg-white shadow-sm">{content}</div>;
+  }
+
+  return (
+    <Modal open={open} onClose={handleCancel} widthClassName="max-w-4xl">
+      {content}
     </Modal>
   );
 }

@@ -2,7 +2,7 @@ export type MainTabId = "dashboard" | "report" | "orders";
 
 export type ReportSubTabId = "approval" | "billing" | "managerReport";
 
-export type OrdersSubTabId = "order" | "approvalSetting" | "closeBilling";
+export type OrdersSubTabId = "order" | "createOrder" | "approval" | "approvalSetting" | "closeBilling";
 
 export type BillingCycle = "M" | "B" | "Q" | "H" | "Y" | "O";
 
@@ -80,6 +80,11 @@ export interface StageStatus {
   date: string | null; // ISO date, set once status leaves "pending"
 }
 
+// The order lifecycle driven by Order Management's Approval tab:
+// inactive (awaiting T+F) -> active -> [cancellation requested] ->
+// cancellationInProgress (awaiting TC+FC) -> cancelled -> eligible for Close Billing.
+export type OrderLifecycleStatus = "inactive" | "active" | "cancellationInProgress" | "cancelled";
+
 export interface OrderRecord {
   id: string;
   orderNo: string;
@@ -89,8 +94,11 @@ export interface OrderRecord {
   clientManager: string;
   dateOfSign: string; // ISO date
   createdOn: string; // ISO date — Order Creation Date (OCD)
-  technical: StageStatus; // Technically Cleared (TC)
-  financial: StageStatus; // Financially Cleared (FC)
+  technical: StageStatus; // Technically Cleared (T) — activation
+  financial: StageStatus; // Financially Cleared (F) — activation
+  lifecycleStatus: OrderLifecycleStatus;
+  cancellationTechnical: StageStatus; // Technically Cleared (TC) — cancellation
+  cancellationFinancial: StageStatus; // Financially Cleared (FC) — cancellation
   billingCycle: BillingCycle | "";
   amount: number;
   billingStatus: BillingStatus;
