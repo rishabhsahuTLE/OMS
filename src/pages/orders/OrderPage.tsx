@@ -254,13 +254,13 @@ export default function OrderPage({
                         onClick={() => handleAmendClick(r)}
                         className="rounded-md border border-teal-300 px-3 py-1.5 text-xs font-medium text-teal-600 hover:bg-teal-50"
                       >
-                        Amendment
+                        Amend
                       </button>
                       <button
                         onClick={() => setCancelTarget(r)}
                         className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
                       >
-                        Cancellation Initiation
+                        Initiate Cancellation
                       </button>
                     </div>
                   </td>
