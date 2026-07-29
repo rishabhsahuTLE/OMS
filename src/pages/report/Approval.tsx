@@ -65,6 +65,14 @@ function isFullyCleared(order: OrderRecord) {
   return order.technical.status === "confirmed" && order.financial.status === "confirmed";
 }
 
+// Amended (archived) orders and fully cancelled ones are flagged the same
+// way in every report table — yellow for amended, red for cancelled.
+function rowHighlightClass(order: OrderRecord) {
+  if (order.lifecycleStatus === "cancelled") return "bg-rose-100 hover:bg-rose-200";
+  if (order.amended) return "bg-yellow-100 hover:bg-yellow-200";
+  return "hover:bg-slate-50";
+}
+
 function SortArrow({ direction, active }: { direction: SortDirection; active: boolean }) {
   return (
     <svg
@@ -297,7 +305,7 @@ export default function Approval({ orders }: ApprovalProps) {
               const totalDays = order.financial.date ? daysBetween(order.createdOn, order.financial.date) : 0;
 
               return (
-                <tr key={order.id} className="hover:bg-slate-50">
+                <tr key={order.id} className={`transition-colors ${rowHighlightClass(order)}`}>
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{order.orderNo}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.client}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.clientManager}</td>

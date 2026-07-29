@@ -96,6 +96,20 @@ function formatFirstBillingMonth(fbm: string) {
   return new Date(y, m - 1, 1).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
 }
 
+// Amended (archived) and fully cancelled orders are flagged the same way in
+// every report table — yellow for amended, red for cancelled. Frozen (sticky
+// left) cells need their own matching background since they can't just
+// inherit the row's via group-hover the way the rest of the row does.
+function rowHighlight(order: OrderRecord): { row: string; frozen: string } {
+  if (order.lifecycleStatus === "cancelled") {
+    return { row: "group bg-rose-100 hover:bg-rose-200", frozen: "bg-rose-100 group-hover:bg-rose-200" };
+  }
+  if (order.amended) {
+    return { row: "group bg-yellow-100 hover:bg-yellow-200", frozen: "bg-yellow-100 group-hover:bg-yellow-200" };
+  }
+  return { row: "group hover:bg-slate-50", frozen: "bg-white group-hover:bg-slate-50" };
+}
+
 function StageIcon({ confirmed, rejected }: { confirmed: boolean; rejected: boolean }) {
   const wrapClass = confirmed
     ? "bg-emerald-100 text-emerald-600"
@@ -513,18 +527,20 @@ export default function Billing({ orders }: BillingProps) {
               </td>
             </tr>
 
-            {rows.map(({ order, monthly, yearlyTotal }) => (
-              <tr key={order.id} className="group hover:bg-slate-50">
+            {rows.map(({ order, monthly, yearlyTotal }) => {
+              const highlight = rowHighlight(order);
+              return (
+              <tr key={order.id} className={`transition-colors ${highlight.row}`}>
                 <td
-                  className={`sticky z-10 truncate bg-white px-4 py-3 text-slate-700 group-hover:bg-slate-50 ${CLIENT_COL}`}
+                  className={`sticky z-10 truncate px-4 py-3 text-slate-700 ${highlight.frozen} ${CLIENT_COL}`}
                   title={order.client}
                 >
                   {order.client}
                 </td>
-                <td className={`sticky z-10 whitespace-nowrap bg-white px-4 py-3 font-medium text-slate-800 group-hover:bg-slate-50 ${ORDERNO_COL}`}>
+                <td className={`sticky z-10 whitespace-nowrap px-4 py-3 font-medium text-slate-800 ${highlight.frozen} ${ORDERNO_COL}`}>
                   {order.orderNo}
                 </td>
-                <td className={`sticky z-10 whitespace-nowrap bg-white px-4 py-3 text-slate-700 group-hover:bg-slate-50 ${PRODUCT_COL}`}>
+                <td className={`sticky z-10 whitespace-nowrap px-4 py-3 text-slate-700 ${highlight.frozen} ${PRODUCT_COL}`}>
                   {order.product}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.clientManager}</td>
@@ -568,7 +584,8 @@ export default function Billing({ orders }: BillingProps) {
                   {yearlyTotal.toLocaleString("en-IN")}
                 </td>
               </tr>
-            ))}
+              );
+            })}
 
             {rows.length === 0 && (
               <tr>

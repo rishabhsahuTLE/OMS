@@ -12,7 +12,15 @@ import ManagerReport from "./pages/ManagerReport";
 import clientsData from "./data/clients.json";
 import { mockOrders } from "./data/mockOrders";
 import { nextOrderNumber, todayISO } from "./utils";
-import type { BillingStatus, Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "./types";
+import type {
+  AdminSubTabId,
+  BillingStatus,
+  Client,
+  MainTabId,
+  OrderRecord,
+  OrdersSubTabId,
+  ReportSubTabId,
+} from "./types";
 
 const clients = clientsData as Client[];
 
@@ -21,27 +29,29 @@ const TITLES: Record<string, string> = {
   "report/approval": "Report / Approval",
   "report/billing": "Report / Billing",
   "report/managerReport": "Report / Manager Report",
-  "orders/order": "Order Management / Order",
-  "orders/createOrder": "Order Management / Create Order",
+  "orders/createOrder": "Order Management / Create",
+  "orders/amendCancel": "Order Management / Amend / Cancel",
   "orders/approval": "Order Management / Approval",
-  "orders/approvalSetting": "Order Management / Approval Setting",
   "orders/closeBilling": "Order Management / Close Billing",
+  "admin/approvalSetting": "Admin / Approval Setting",
 };
 
 function App() {
   const [activeTab, setActiveTab] = useState<MainTabId>("report");
   const [activeReportSubTab, setActiveReportSubTab] = useState<ReportSubTabId>("approval");
   const [activeOrdersSubTab, setActiveOrdersSubTab] = useState<OrdersSubTabId>("createOrder");
+  const [activeAdminSubTab, setActiveAdminSubTab] = useState<AdminSubTabId>("approvalSetting");
   const [orders, setOrders] = useState<OrderRecord[]>(mockOrders);
   const [createOrderPrefill, setCreateOrderPrefill] = useState<{ clientId: string; product: string } | null>(null);
   const [createOrderKey, setCreateOrderKey] = useState(0);
   const [autoOpenOrderModal, setAutoOpenOrderModal] = useState(false);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
 
-  function handleSelect(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) {
+  function handleSelect(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId | AdminSubTabId) {
     setActiveTab(tab);
     if (tab === "report" && subTab) setActiveReportSubTab(subTab as ReportSubTabId);
     if (tab === "orders" && subTab) setActiveOrdersSubTab(subTab as OrdersSubTabId);
+    if (tab === "admin" && subTab) setActiveAdminSubTab(subTab as AdminSubTabId);
   }
 
   function handleResetCreateOrder() {
@@ -57,18 +67,14 @@ function App() {
     setOrders((prev) => prev.map((o) => (o.id === record.id ? record : o)));
   }
 
-  function handleDeleteOrder(id: string) {
-    setOrders((prev) => prev.filter((o) => o.id !== id));
-  }
-
   // A duplicate-order check (University client + product already ordered)
-  // hands the existing order back here; jump to the Order tab and open it
-  // for editing there, and clear whatever was in progress on Create Order.
+  // hands the existing order back here; jump to the Amend/Cancel tab and
+  // open it for editing there, and clear whatever was in progress on Create.
   function handleRequestAmend(order: OrderRecord) {
     setEditOrderId(order.id);
     setAutoOpenOrderModal(true);
     setActiveTab("orders");
-    setActiveOrdersSubTab("order");
+    setActiveOrdersSubTab("amendCancel");
     handleResetCreateOrder();
   }
 
@@ -154,18 +160,18 @@ function App() {
       if (activeReportSubTab === "billing") return <Billing orders={orders} />;
       return <ManagerReport orders={orders} />;
     }
+    if (activeTab === "admin") {
+      return <ApprovalSetting />;
+    }
     if (activeTab === "orders") {
-      if (activeOrdersSubTab === "approvalSetting") return <ApprovalSetting />;
       if (activeOrdersSubTab === "approval") return <OrderApproval orders={orders} onUpdateOrder={handleUpdateOrder} />;
-      if (activeOrdersSubTab === "order")
+      if (activeOrdersSubTab === "amendCancel")
         return (
           <OrderPage
             clients={clients}
             orders={orders}
             onCreateOrder={handleCreateOrder}
             onUpdateOrder={handleUpdateOrder}
-            onDeleteOrder={handleDeleteOrder}
-            prefill={null}
             autoOpen={autoOpenOrderModal}
             editOrderId={editOrderId}
             onAutoOpenHandled={() => {
@@ -210,6 +216,7 @@ function App() {
         activeTab={activeTab}
         activeReportSubTab={activeReportSubTab}
         activeOrdersSubTab={activeOrdersSubTab}
+        activeAdminSubTab={activeAdminSubTab}
         onSelect={handleSelect}
       />
       <div className="flex flex-1 flex-col overflow-hidden">

@@ -1,8 +1,10 @@
-export type MainTabId = "dashboard" | "report" | "orders";
+export type MainTabId = "dashboard" | "report" | "orders" | "admin";
 
 export type ReportSubTabId = "approval" | "billing" | "managerReport";
 
-export type OrdersSubTabId = "order" | "createOrder" | "approval" | "approvalSetting" | "closeBilling";
+export type OrdersSubTabId = "createOrder" | "amendCancel" | "approval" | "closeBilling";
+
+export type AdminSubTabId = "approvalSetting";
 
 export type BillingCycle = "M" | "B" | "Q" | "H" | "Y" | "O";
 

@@ -18,6 +18,12 @@ function isClosable(r: OrderRecord) {
   return r.lifecycleStatus === "cancelled";
 }
 
+// Every row here is already cancelled by definition, so only amended (not
+// cancelled) gets a highlight — a uniform cancelled-red would say nothing.
+function rowHighlightClass(order: OrderRecord) {
+  return order.amended ? "bg-yellow-100 hover:bg-yellow-200" : "hover:bg-slate-50";
+}
+
 function StatusIcon({ status }: { status: ApprovalState }) {
   if (status === "confirmed") {
     return (
@@ -334,7 +340,7 @@ export default function CloseBilling({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {sorted.map((o) => (
-                <tr key={o.id} className="hover:bg-slate-50">
+                <tr key={o.id} className={`transition-colors ${rowHighlightClass(o)}`}>
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
@@ -343,13 +349,7 @@ export default function CloseBilling({
                       className="h-4 w-4"
                     />
                   </td>
-                  <td
-                    className={`whitespace-nowrap px-4 py-3 font-medium text-slate-800 ${
-                      o.amended ? "bg-yellow-200" : ""
-                    }`}
-                  >
-                    {o.orderNo}
-                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{o.orderNo}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-700">{o.product}</td>
                   <td className="max-w-[220px] truncate px-4 py-3 text-slate-700" title={o.client}>
                     {o.client}

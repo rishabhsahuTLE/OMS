@@ -116,6 +116,14 @@ function StatusPill({ status }: { status: ApprovalState }) {
   );
 }
 
+// Amended (archived) and fully cancelled orders are flagged the same way in
+// every report table — yellow for amended, red for cancelled.
+function rowHighlightClass(order: OrderRecord) {
+  if (order.lifecycleStatus === "cancelled") return "bg-rose-100 hover:bg-rose-200";
+  if (order.amended) return "bg-yellow-100 hover:bg-yellow-200";
+  return "hover:bg-slate-50";
+}
+
 function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
   const [search, setSearch] = useState("");
   const [pageSize, setPageSize] = useState(10);
@@ -189,10 +197,8 @@ function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {pageRows.map((o) => (
-              <tr key={o.id} className="hover:bg-slate-50">
-                <td className={`whitespace-nowrap px-3 py-2 font-medium text-slate-800 ${o.amended ? "bg-yellow-200" : ""}`}>
-                  #{o.orderNo}
-                </td>
+              <tr key={o.id} className={`transition-colors ${rowHighlightClass(o)}`}>
+                <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-800">#{o.orderNo}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-slate-700">{o.product}</td>
                 <td className="max-w-[200px] truncate px-3 py-2 text-slate-700" title={o.client}>
                   {o.client}

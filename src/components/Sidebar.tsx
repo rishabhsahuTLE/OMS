@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { MainTabId, OrdersSubTabId, ReportSubTabId } from "../types";
+import type { AdminSubTabId, MainTabId, OrdersSubTabId, ReportSubTabId } from "../types";
 
 interface SubTab<T extends string> {
   id: T;
@@ -13,20 +13,22 @@ const reportSubTabs: SubTab<ReportSubTabId>[] = [
 ];
 
 const ordersSubTabs: SubTab<OrdersSubTabId>[] = [
-  { id: "order", label: "Order" },
-  { id: "createOrder", label: "Create Order" },
+  { id: "createOrder", label: "Create" },
+  { id: "amendCancel", label: "Amend / Cancel" },
   { id: "approval", label: "Approval" },
-  { id: "approvalSetting", label: "Approval Setting" },
   { id: "closeBilling", label: "Close Billing" },
 ];
+
+const adminSubTabs: SubTab<AdminSubTabId>[] = [{ id: "approvalSetting", label: "Approval Setting" }];
 
 interface SidebarProps {
   activeTab: MainTabId;
   activeReportSubTab: ReportSubTabId;
   activeOrdersSubTab: OrdersSubTabId;
+  activeAdminSubTab: AdminSubTabId;
   onSelect: (
     tab: MainTabId,
-    subTab?: ReportSubTabId | OrdersSubTabId
+    subTab?: ReportSubTabId | OrdersSubTabId | AdminSubTabId
   ) => void;
 }
 
@@ -70,10 +72,23 @@ function OrdersIcon() {
   );
 }
 
+function AdminIcon() {
+  return (
+    <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        d="M11.5 2.5a1.5 1.5 0 00-3 0v.3a6.97 6.97 0 00-1.6.66l-.22-.22a1.5 1.5 0 00-2.12 2.12l.22.22a6.97 6.97 0 00-.66 1.6h-.3a1.5 1.5 0 000 3h.3c.15.57.37 1.1.66 1.6l-.22.22a1.5 1.5 0 002.12 2.12l.22-.22c.5.29 1.03.51 1.6.66v.3a1.5 1.5 0 003 0v-.3c.57-.15 1.1-.37 1.6-.66l.22.22a1.5 1.5 0 002.12-2.12l-.22-.22c.29-.5.51-1.03.66-1.6h.3a1.5 1.5 0 000-3h-.3a6.97 6.97 0 00-.66-1.6l.22-.22a1.5 1.5 0 00-2.12-2.12l-.22.22a6.97 6.97 0 00-1.6-.66v-.3zM10 13a3 3 0 100-6 3 3 0 000 6z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 export default function Sidebar({
   activeTab,
   activeReportSubTab,
   activeOrdersSubTab,
+  activeAdminSubTab,
   onSelect,
 }: SidebarProps) {
   // The rail itself expands on hover (icon-only at rest); each category's
@@ -82,11 +97,13 @@ export default function Sidebar({
   const [expanded, setExpanded] = useState(false);
   const [reportHovered, setReportHovered] = useState(false);
   const [ordersHovered, setOrdersHovered] = useState(false);
+  const [adminHovered, setAdminHovered] = useState(false);
 
   function collapseAll() {
     setExpanded(false);
     setReportHovered(false);
     setOrdersHovered(false);
+    setAdminHovered(false);
   }
 
   return (
@@ -184,6 +201,44 @@ export default function Sidebar({
                   onClick={() => onSelect("orders", sub.id)}
                   className={`block w-full whitespace-nowrap rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
                     activeTab === "orders" && activeOrdersSubTab === sub.id
+                      ? "bg-indigo-600 text-white"
+                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div onMouseEnter={() => setAdminHovered(true)} onMouseLeave={() => setAdminHovered(false)}>
+          <button
+            onClick={() => onSelect("admin", activeAdminSubTab)}
+            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              !expanded ? "justify-center" : ""
+            } ${
+              activeTab === "admin"
+                ? "bg-slate-800 text-white"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <AdminIcon />
+            {expanded && (
+              <>
+                <span className="flex-1 whitespace-nowrap text-left">Admin</span>
+                <ChevronIcon open={adminHovered} />
+              </>
+            )}
+          </button>
+          {expanded && adminHovered && (
+            <div className="mt-1 space-y-0.5 pl-9">
+              {adminSubTabs.map((sub) => (
+                <button
+                  key={sub.id}
+                  onClick={() => onSelect("admin", sub.id)}
+                  className={`block w-full whitespace-nowrap rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
+                    activeTab === "admin" && activeAdminSubTab === sub.id
                       ? "bg-indigo-600 text-white"
                       : "text-slate-400 hover:bg-slate-800 hover:text-white"
                   }`}
