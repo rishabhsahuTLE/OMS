@@ -113,14 +113,18 @@ export function diffOrderDetails(prev: OrderRecord, next: OrderRecord): DiffRow[
 // After any T/F/TC/FC change, check whether the order should move to the
 // next lifecycle stage — inactive -> active once both activation stages are
 // confirmed, cancellationInProgress -> cancelled once both cancellation
-// stages are confirmed. Any other lifecycle stage is left untouched.
+// stages are confirmed. Any other lifecycle stage is left untouched. An
+// amendment successor (has `supersedes` set) goes to "pendingClosure"
+// instead of straight to "active" — it only actually activates once the
+// predecessor it supersedes has its billing closed (see CloseBilling.tsx /
+// App.tsx's handleSetBillingStatus).
 export function withRecomputedLifecycle(order: OrderRecord): OrderRecord {
   if (
     order.lifecycleStatus === "inactive" &&
     order.technical.status === "confirmed" &&
     order.financial.status === "confirmed"
   ) {
-    return { ...order, lifecycleStatus: "active" };
+    return { ...order, lifecycleStatus: order.supersedes ? "pendingClosure" : "active" };
   }
   if (
     order.lifecycleStatus === "cancellationInProgress" &&

@@ -87,7 +87,10 @@ export interface StageStatus {
 // The order lifecycle driven by Order Management's Approval tab:
 // inactive (awaiting T+F) -> active -> [cancellation requested] ->
 // cancellationInProgress (awaiting TC+FC) -> cancelled -> eligible for Close Billing.
-export type OrderLifecycleStatus = "inactive" | "active" | "cancellationInProgress" | "cancelled";
+// An amendment successor (has `supersedes` set) takes a detour at the top:
+// inactive (awaiting T+F) -> pendingClosure (T+F done, but held until the
+// predecessor it supersedes has its billing closed) -> active.
+export type OrderLifecycleStatus = "inactive" | "pendingClosure" | "active" | "cancellationInProgress" | "cancelled";
 
 export interface OrderRecord {
   id: string;
@@ -108,6 +111,11 @@ export interface OrderRecord {
   billingStatus: BillingStatus;
   billingRemarks: string;
   amended: boolean;
+  // Set only on an amendment successor — the id of the order it was amended
+  // from (the one immediately cancelled to make way for it). Used to look up
+  // predecessor/successor pairs unambiguously, even across several
+  // amendment generations of the same order.
+  supersedes?: string;
   // Placeholder order created via "Create Order Later" from Close Billing —
   // still missing required order details, remains editable until completed.
   incomplete?: boolean;

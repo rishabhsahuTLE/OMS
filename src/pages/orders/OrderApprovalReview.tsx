@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { ApprovalState, OrderRecord } from "../../types";
 import {
-  baseOrderNo,
   CURRENT_USER_EMAIL,
   deriveCreatedByName,
   diffOrderDetails,
@@ -58,9 +57,7 @@ export default function OrderApprovalReview({
   const [remark, setRemark] = useState("");
 
   const actionable = getNextActionableStage(order);
-  const predecessor = order.orderNo.includes("/")
-    ? orders.find((o) => o.orderNo === baseOrderNo(order.orderNo)) ?? null
-    : null;
+  const predecessor = order.supersedes ? orders.find((o) => o.id === order.supersedes) ?? null : null;
   const changes = predecessor ? diffOrderDetails(predecessor, order) : [];
   const agreementMatches = agreementAmountInput.trim() !== "" && Number(agreementAmountInput) === order.amount;
   const canSubmit = actionable !== null && status !== "" && agreementMatches;
@@ -180,6 +177,13 @@ export default function OrderApprovalReview({
               Request Cancellation
             </button>
           </div>
+        ) : order.lifecycleStatus === "pendingClosure" ? (
+          <p className="px-6 py-6 text-sm text-slate-500">
+            Tech and Fin are both cleared, but this order won't go Active until{" "}
+            <span className="font-medium text-slate-700">{predecessor?.orderNo ?? "the order it supersedes"}</span>{" "}
+            finishes its own TC/FC cancellation approval and has its billing closed (Order Management &gt; Close
+            Billing).
+          </p>
         ) : !actionable ? (
           <p className="px-6 py-6 text-sm text-slate-400">
             No further action needed — every approval stage for this order is complete.

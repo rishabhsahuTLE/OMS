@@ -14,8 +14,15 @@ interface CloseBillingProps {
 
 // Orders only reach Close Billing after completing the cancellation
 // approval stage (Order Management > Approval), not merely on activation.
-function isClosable(r: OrderRecord) {
-  return r.lifecycleStatus === "cancelled";
+// A cancelled order that was superseded by an amendment (some other order's
+// `supersedes` points back at it) additionally requires that successor to
+// have reached "pendingClosure" — i.e. its own Tech/Fin approval is done
+// too — before it can be closed; closing it is what then activates that
+// successor (see App.tsx's handleSetBillingStatus).
+function isClosable(r: OrderRecord, allOrders: OrderRecord[]) {
+  if (r.lifecycleStatus !== "cancelled") return false;
+  const successor = allOrders.find((o) => o.supersedes === r.id);
+  return !successor || successor.lifecycleStatus === "pendingClosure" || successor.lifecycleStatus === "active";
 }
 
 // Every row here is already cancelled by definition, so only amended (not
@@ -95,7 +102,7 @@ export default function CloseBilling({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [popupQueue, setPopupQueue] = useState<OrderRecord[]>([]);
 
-  const closableOrders = useMemo(() => orders.filter(isClosable), [orders]);
+  const closableOrders = useMemo(() => orders.filter((o) => isClosable(o, orders)), [orders]);
 
   const clientOptions = useMemo(
     () => Array.from(new Set(closableOrders.map((o) => o.client))).sort(),

@@ -16,16 +16,18 @@ interface OrderApprovalProps {
   onRequestAmend: (order: OrderRecord) => void;
 }
 
-type ViewTab = "all" | "inactive" | "cancellationInProgress";
+type ViewTab = "all" | "inactive" | "pendingClosure" | "cancellationInProgress";
 
 const VIEW_TABS: { key: ViewTab; label: string }[] = [
   { key: "all", label: "All" },
   { key: "inactive", label: "Inactive" },
+  { key: "pendingClosure", label: "Pending Closure" },
   { key: "cancellationInProgress", label: "Cancellation In Progress" },
 ];
 
 const LIFECYCLE_LABELS: Record<OrderLifecycleStatus, string> = {
   inactive: "Inactive",
+  pendingClosure: "Pending Closure",
   active: "Active",
   cancellationInProgress: "Cancellation In Progress",
   cancelled: "Cancelled",
@@ -33,6 +35,7 @@ const LIFECYCLE_LABELS: Record<OrderLifecycleStatus, string> = {
 
 const LIFECYCLE_BADGE_CLASS: Record<OrderLifecycleStatus, string> = {
   inactive: "bg-slate-200 text-slate-700",
+  pendingClosure: "bg-indigo-100 text-indigo-700",
   active: "bg-emerald-100 text-emerald-700",
   cancellationInProgress: "bg-amber-100 text-amber-800",
   cancelled: "bg-rose-200 text-rose-800",
@@ -109,9 +112,8 @@ export default function OrderApproval({
   const [creating, setCreating] = useState(false);
 
   const filtered = useMemo(() => {
-    if (tab === "inactive") return orders.filter((o) => o.lifecycleStatus === "inactive");
-    if (tab === "cancellationInProgress") return orders.filter((o) => o.lifecycleStatus === "cancellationInProgress");
-    return orders;
+    if (tab === "all") return orders;
+    return orders.filter((o) => o.lifecycleStatus === tab);
   }, [orders, tab]);
 
   function rowClass(order: OrderRecord) {

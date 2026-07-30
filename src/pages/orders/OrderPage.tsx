@@ -4,7 +4,14 @@ import { PRODUCT_NAMES } from "../../products";
 import DateRangePicker, { type DateRange } from "../../components/DateRangePicker";
 import CreateOrderModal from "./CreateOrderModal";
 import CancellationConfirm from "./CancellationConfirm";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { baseOrderNo, formatDDMMYYYY } from "../../utils";
+
+interface PendingAmendment {
+  original: OrderRecord;
+  updated: OrderRecord;
+  nextOrderNo: string;
+}
 
 interface OrderPageProps {
   clients: Client[];
@@ -33,6 +40,7 @@ export default function OrderPage({
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<OrderRecord | null>(null);
   const [cancelTarget, setCancelTarget] = useState<OrderRecord | null>(null);
+  const [pendingAmendment, setPendingAmendment] = useState<PendingAmendment | null>(null);
   const [modalPrefillClientId, setModalPrefillClientId] = useState<string | undefined>(undefined);
   const [modalPrefillProduct, setModalPrefillProduct] = useState<string | undefined>(undefined);
 
@@ -68,27 +76,11 @@ export default function OrderPage({
     });
   }
 
-  // Bases with a pending (inactive) amendment successor already in flight —
-  // their currently-active predecessor is hidden here so it can't be amended
-  // or cancelled a second time while that successor awaits Tech/Fin approval.
-  const pendingSuccessorBases = useMemo(
-    () =>
-      new Set(
-        orders.filter((o) => o.lifecycleStatus === "inactive" && o.orderNo.includes("/")).map((o) => baseOrderNo(o.orderNo))
-      ),
-    [orders]
-  );
-
   // Only currently-active orders can be amended or have cancellation
-  // initiated. Amending one doesn't touch it in place — it spawns a new
-  // "{base}/{n}" successor that goes through its own Tech/Fin approval (see
-  // handleModalUpdate) — so this predecessor stays active and visible here
-  // until that successor is confirmed, at which point App.tsx auto-cancels
-  // it and it drops out on the lifecycleStatus check alone.
-  const activeOrders = useMemo(
-    () => orders.filter((o) => o.lifecycleStatus === "active" && !pendingSuccessorBases.has(baseOrderNo(o.orderNo))),
-    [orders, pendingSuccessorBases]
-  );
+  // initiated. Confirming an amendment immediately moves this predecessor to
+  // "cancellationInProgress" (see confirmAmendment), so it drops out of this
+  // list the moment it's amended — no separate guard needed here.
+  const activeOrders = useMemo(() => orders.filter((o) => o.lifecycleStatus === "active"), [orders]);
 
   const filtered = useMemo(() => {
     return activeOrders.filter((r) => {
@@ -117,14 +109,11 @@ export default function OrderPage({
   }
 
   // The CreateOrderModal's "onUpdate" for this page. When the order being
-  // edited is active, it's left untouched — the edited details instead spawn
-  // a brand-new "{base}/{n}" successor at lifecycleStatus "inactive", which
-  // has to clear its own Tech/Fin approval like any new order (see
-  // OrderApprovalReview). Only once that successor goes active does
-  // App.tsx's handleUpdateOrder auto-cancel this predecessor; nothing here
-  // decides that. Anything not yet active (e.g. reached via the
+  // edited is active, don't commit yet — stash it and let confirmAmendment
+  // (behind the ConfirmDialog below) do the actual two-order mutation once
+  // the user confirms. Anything not yet active (e.g. reached via the
   // duplicate-order handoff, before ever activating) has no "live" version
-  // to preserve, so it's just updated in place.
+  // to preserve, so it's just updated in place with no confirmation needed.
   function handleModalUpdate(updatedRecord: OrderRecord) {
     const original = orders.find((o) => o.id === updatedRecord.id);
     if (original && original.lifecycleStatus === "active") {
@@ -134,22 +123,43 @@ export default function OrderPage({
         .map((o) => parseInt(o.orderNo.split("/")[1], 10))
         .filter((n) => !Number.isNaN(n));
       const nextVersion = priorVersions.length > 0 ? Math.max(...priorVersions) + 1 : 1;
-
-      onCreateOrder({
-        ...updatedRecord,
-        id: `ord-${Math.random().toString(36).slice(2, 10)}`,
-        orderNo: `${base}/${nextVersion}`,
-        amended: true,
-        lifecycleStatus: "inactive",
-        technical: { status: "pending", date: null },
-        financial: { status: "pending", date: null },
-        cancellationTechnical: { status: "pending", date: null },
-        cancellationFinancial: { status: "pending", date: null },
-      });
+      setPendingAmendment({ original, updated: updatedRecord, nextOrderNo: `${base}/${nextVersion}` });
     } else {
       onUpdateOrder(updatedRecord);
+      setEditingOrder(null);
     }
+  }
+
+  // Confirmed: spawn the successor at "inactive" (its own fresh Tech/Fin
+  // approval, see OrderApprovalReview) linked back via `supersedes`, and
+  // immediately move the predecessor into "cancellationInProgress" — its
+  // TC/FC approval and the successor's Tech/Fin now run independently and
+  // in parallel. Only once both finish, and the predecessor's billing is
+  // closed (Close Billing), does the successor actually go "active" (see
+  // App.tsx's handleSetBillingStatus).
+  function confirmAmendment() {
+    if (!pendingAmendment) return;
+    const { original, updated, nextOrderNo } = pendingAmendment;
+    onCreateOrder({
+      ...updated,
+      id: `ord-${Math.random().toString(36).slice(2, 10)}`,
+      orderNo: nextOrderNo,
+      amended: true,
+      supersedes: original.id,
+      lifecycleStatus: "inactive",
+      technical: { status: "pending", date: null },
+      financial: { status: "pending", date: null },
+      cancellationTechnical: { status: "pending", date: null },
+      cancellationFinancial: { status: "pending", date: null },
+    });
+    onUpdateOrder({ ...original, lifecycleStatus: "cancellationInProgress" });
+    setPendingAmendment(null);
     setEditingOrder(null);
+    setOrderModalOpen(false);
+  }
+
+  function cancelPendingAmendment() {
+    setPendingAmendment(null);
   }
 
   const clientOptions = useMemo(() => Array.from(new Set(activeOrders.map((r) => r.client))).sort(), [activeOrders]);
@@ -305,6 +315,19 @@ export default function OrderPage({
         onCreate={onCreateOrder}
         onUpdate={handleModalUpdate}
         onRequestAmend={handleAmendClick}
+      />
+
+      <ConfirmDialog
+        open={pendingAmendment !== null}
+        title="Confirm Amendment"
+        message={
+          pendingAmendment
+            ? `${pendingAmendment.nextOrderNo} will be created as Inactive, needing fresh Tech/Fin approval. ${pendingAmendment.original.orderNo} will immediately have cancellation initiated, needing TC/FC approval. Once all four are done and ${pendingAmendment.original.orderNo}'s billing is closed, ${pendingAmendment.nextOrderNo} will become Active.`
+            : ""
+        }
+        confirmLabel="Confirm Amendment"
+        onConfirm={confirmAmendment}
+        onCancel={cancelPendingAmendment}
       />
     </div>
   );
