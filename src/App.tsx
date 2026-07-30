@@ -188,6 +188,7 @@ function App() {
             createOrderKey={createOrderKey}
             onResetCreateOrder={handleResetCreateOrder}
             onRequestAmend={handleRequestAmend}
+            onNavigateToCloseBilling={() => setActiveOrdersSubTab("closeBilling")}
           />
         );
       if (activeOrdersSubTab === "amendCancel")
