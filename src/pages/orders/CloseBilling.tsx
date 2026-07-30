@@ -8,8 +8,6 @@ interface CloseBillingProps {
   orders: OrderRecord[];
   onSetBillingStatus: (ids: string[], billingStatus: BillingStatus) => void;
   onUpdateBillingRemarks: (id: string, billingRemarks: string) => void;
-  onCreateOrderNow: (fromOrder: OrderRecord) => void;
-  onCreateOrderLater: (fromOrder: OrderRecord) => void;
 }
 
 // Orders only reach Close Billing after completing the cancellation
@@ -82,13 +80,7 @@ interface Filters {
 
 const defaultFilters: Filters = { client: "all", product: "all", billingStatus: "all", manager: "all", date: "" };
 
-export default function CloseBilling({
-  orders,
-  onSetBillingStatus,
-  onUpdateBillingRemarks,
-  onCreateOrderNow,
-  onCreateOrderLater,
-}: CloseBillingProps) {
+export default function CloseBilling({ orders, onSetBillingStatus, onUpdateBillingRemarks }: CloseBillingProps) {
   const [clientFilter, setClientFilter] = useState(defaultFilters.client);
   const [productFilter, setProductFilter] = useState(defaultFilters.product);
   const [billingStatusFilter, setBillingStatusFilter] = useState<Filters["billingStatus"]>(
@@ -100,7 +92,10 @@ export default function CloseBilling({
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [popupQueue, setPopupQueue] = useState<OrderRecord[]>([]);
+  // The full batch of orders just marked Closed, shown together in one
+  // summary popup (no per-order "create the next order" prompt anymore).
+  const [closedBatch, setClosedBatch] = useState<OrderRecord[] | null>(null);
+  const [closedRemark, setClosedRemark] = useState("");
 
   const closableOrders = useMemo(() => orders.filter((o) => isClosable(o, orders)), [orders]);
 
@@ -170,24 +165,16 @@ export default function CloseBilling({
     onSetBillingStatus(Array.from(selectedIds), billingStatus);
     setSelectedIds(new Set());
     if (billingStatus === "Closed") {
-      setPopupQueue((prev) => [...prev, ...affected]);
+      setClosedBatch(affected);
+      setClosedRemark("");
     }
   }
 
-  const currentPopupOrder = popupQueue[0] ?? null;
-
-  function dismissPopup() {
-    setPopupQueue((prev) => prev.slice(1));
-  }
-
-  function handleCreateNow() {
-    if (currentPopupOrder) onCreateOrderNow(currentPopupOrder);
-    dismissPopup();
-  }
-
-  function handleCreateLater() {
-    if (currentPopupOrder) onCreateOrderLater(currentPopupOrder);
-    dismissPopup();
+  function dismissClosedBatch() {
+    if (closedBatch && closedRemark.trim()) {
+      for (const o of closedBatch) onUpdateBillingRemarks(o.id, closedRemark);
+    }
+    setClosedBatch(null);
   }
 
   return (
@@ -407,47 +394,40 @@ export default function CloseBilling({
         </div>
       </div>
 
-      <Modal open={currentPopupOrder !== null} onClose={dismissPopup} widthClassName="max-w-2xl">
-        {currentPopupOrder && (
+      <Modal open={closedBatch !== null} onClose={dismissClosedBatch} widthClassName="max-w-md">
+        {closedBatch && (
           <div>
             <div className="border-b border-slate-200 px-6 py-4">
-              <h2 className="text-sm font-semibold tracking-wide text-slate-700">
-                BILLING CLOSED — {currentPopupOrder.orderNo}
-              </h2>
+              <h2 className="text-sm font-semibold tracking-wide text-slate-700">BILLING CLOSED</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Billing for <span className="font-medium text-slate-700">{currentPopupOrder.client}</span> has been
-                closed. Would you like to create the next order now, or later?
+                Billing has been closed for the following order{closedBatch.length > 1 ? "s" : ""}:
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 px-6 py-6 sm:grid-cols-2">
-              <button
-                onClick={handleCreateNow}
-                className="flex flex-col gap-2 rounded-lg border border-teal-300 p-4 text-left hover:bg-teal-50"
-              >
-                <span className="text-sm font-semibold text-teal-700">Create Order Now</span>
-                <span className="text-xs text-slate-500">
-                  Redirects you straight to the Order Creation form with the client and product already filled in, so
-                  you can complete and submit the order immediately.
-                </span>
-              </button>
+            <ul className="max-h-48 space-y-1 overflow-y-auto px-6 pt-4 text-sm text-slate-700">
+              {closedBatch.map((o) => (
+                <li key={o.id}>
+                  <span className="font-medium text-slate-800">{o.orderNo}</span> — {o.client}
+                </li>
+              ))}
+            </ul>
 
-              <button
-                onClick={handleCreateLater}
-                className="flex flex-col gap-2 rounded-lg border border-slate-300 p-4 text-left hover:bg-slate-50"
-              >
-                <span className="text-sm font-semibold text-slate-700">Create Order Later</span>
-                <span className="text-xs text-slate-500">
-                  Creates a placeholder order with an Incomplete status, pinned to the top of the Orders list. It
-                  stays editable until you open it, finish the details, and submit it through the normal approval
-                  workflow.
-                </span>
-              </button>
+            <div className="px-6 py-4">
+              <label className="mb-1 block text-sm text-slate-600">Remarks (applies to all orders above)</label>
+              <textarea
+                value={closedRemark}
+                onChange={(e) => setClosedRemark(e.target.value)}
+                placeholder="Add remark…"
+                className="w-full min-h-[70px] resize-y rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
             </div>
 
             <div className="flex justify-end border-t border-slate-200 px-6 py-3">
-              <button onClick={dismissPopup} className="text-sm font-medium text-slate-500 hover:text-slate-700">
-                Skip
+              <button
+                onClick={dismissClosedBatch}
+                className="rounded-md bg-teal-600 px-5 py-2 text-sm font-medium text-white hover:bg-teal-700"
+              >
+                Okay
               </button>
             </div>
           </div>

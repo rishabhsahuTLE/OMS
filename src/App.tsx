@@ -10,7 +10,6 @@ import CloseBilling from "./pages/orders/CloseBilling";
 import ManagerReport from "./pages/ManagerReport";
 import clientsData from "./data/clients.json";
 import { mockOrders } from "./data/mockOrders";
-import { nextOrderNumber, todayISO } from "./utils";
 import type {
   AdminSubTabId,
   BillingStatus,
@@ -100,68 +99,6 @@ function App() {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, billingRemarks } : o)));
   }
 
-  function handleCreateOrderNow(fromOrder: OrderRecord) {
-    setCreateOrderPrefill({ clientId: fromOrder.clientId, product: fromOrder.product });
-    setCreateOrderKey((k) => k + 1);
-    setActiveTab("orders");
-    setActiveOrdersSubTab("approval");
-  }
-
-  function handleCreateOrderLater(fromOrder: OrderRecord) {
-    const client = clients.find((c) => c.id === fromOrder.clientId);
-    if (!client) return;
-
-    const placeholder: OrderRecord = {
-      id: `ord-${Math.random().toString(36).slice(2, 10)}`,
-      orderNo: nextOrderNumber(orders, client.id),
-      product: fromOrder.product,
-      clientId: client.id,
-      client: client.name,
-      clientManager: client.clientManager,
-      dateOfSign: "",
-      createdOn: todayISO(),
-      amount: 0,
-      technical: { status: "pending", date: null },
-      financial: { status: "pending", date: null },
-      lifecycleStatus: "inactive",
-      cancellationTechnical: { status: "pending", date: null },
-      cancellationFinancial: { status: "pending", date: null },
-      billingCycle: "",
-      billingStatus: "Open",
-      billingRemarks: "",
-      amended: false,
-      incomplete: true,
-      details: {
-        clientManager: client.clientManager,
-        billingAddress: client.billingAddress,
-        billingState: client.billingState,
-        billingCity: client.billingCity,
-        deliveryAddress: client.deliveryAddress,
-        deliveryState: client.deliveryState,
-        deliveryCity: client.deliveryCity,
-        gstNo: client.gstNo,
-        spocs: client.spocs,
-        product: fromOrder.product,
-        dateOfSign: "",
-        plan: "",
-        oneTime: null,
-        gstProcess: "",
-        selectGst: client.gstNo || "NA",
-        firstBillingMonth: "",
-        billingCycle: "",
-        agreement: null,
-        advance: null,
-        tds: null,
-        netAmount: 0,
-        creditPeriod: null,
-        documents: [],
-        remarks: "",
-      },
-    };
-
-    handleCreateOrder(placeholder);
-  }
-
   let titleKey = "dashboard";
   if (activeTab === "report") titleKey = `report/${activeReportSubTab}`;
   if (activeTab === "orders") titleKey = `orders/${activeOrdersSubTab}`;
@@ -211,8 +148,6 @@ function App() {
           orders={orders}
           onSetBillingStatus={handleSetBillingStatus}
           onUpdateBillingRemarks={handleUpdateBillingRemarks}
-          onCreateOrderNow={handleCreateOrderNow}
-          onCreateOrderLater={handleCreateOrderLater}
         />
       );
     }
