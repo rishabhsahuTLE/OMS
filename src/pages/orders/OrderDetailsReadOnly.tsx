@@ -119,6 +119,18 @@ export default function OrderDetailsReadOnly({ order }: { order: OrderRecord }) 
           </ul>
         )}
       </Section>
+
+      {order.cancellationDetails && (
+        <Section title="CANCELLATION DETAILS">
+          <ReadRow label="Effect From Date" value={formatDDMMYYYY(order.cancellationDetails.effectFromDate)} />
+          <ReadRow
+            label="Outstanding Balance (₹)"
+            value={order.cancellationDetails.outstandingBalance.toLocaleString("en-IN")}
+          />
+          <ReadRow label="Reason for Cancellation" value={order.cancellationDetails.reason} />
+          <ReadRow label="Comments" value={order.cancellationDetails.comments} />
+        </Section>
+      )}
     </>
   );
 }

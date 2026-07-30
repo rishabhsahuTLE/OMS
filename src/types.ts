@@ -119,7 +119,17 @@ export interface OrderRecord {
   // Placeholder order created via "Create Order Later" from Close Billing —
   // still missing required order details, remains editable until completed.
   incomplete?: boolean;
+  // Collected once, at the point cancellation is initiated (CancellationConfirm.tsx) —
+  // absent until then, permanent afterward.
+  cancellationDetails?: CancellationDetails;
   details: OrderRecordDetails;
+}
+
+export interface CancellationDetails {
+  effectFromDate: string; // ISO date
+  outstandingBalance: number;
+  reason: string;
+  comments: string;
 }
 
 export interface OrderRecordDetails {

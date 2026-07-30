@@ -173,8 +173,8 @@ export default function OrderPage({
       <CancellationConfirm
         order={cancelTarget}
         onBack={() => setCancelTarget(null)}
-        onConfirm={(order) => {
-          onUpdateOrder({ ...order, lifecycleStatus: "cancellationInProgress" });
+        onConfirm={(order, details) => {
+          onUpdateOrder({ ...order, lifecycleStatus: "cancellationInProgress", cancellationDetails: details });
           setCancelTarget(null);
         }}
       />

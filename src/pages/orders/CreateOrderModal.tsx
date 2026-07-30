@@ -40,6 +40,13 @@ const BILLING_CYCLES: { value: BillingCycle; label: string }[] = [
 
 const emptySpoc: Spoc = { name: "", email: "", mobile: "", remarks: "" };
 
+// Amending an already-active order only ever gets to touch this set of
+// fields (see handleModalUpdate/OrderPage.tsx) — everything else on the
+// form is shown for reference but locked. Doesn't apply to editing a
+// not-yet-active order (e.g. completing an incomplete/duplicate-handoff
+// order), which is still freely editable like a fresh Create.
+const AMENDMENT_EDITABLE_PRODUCT_FIELDS = new Set(["numUsers", "feePerUser", "unitPrice"]);
+
 function Required() {
   return <span className="text-rose-500">*</span>;
 }
@@ -75,10 +82,12 @@ function YesNoRow({
   label,
   value,
   onChange,
+  disabled,
 }: {
   label: string;
   value: "Yes" | "No" | "";
   onChange: (v: "Yes" | "No") => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="grid grid-cols-[280px_1fr] items-center gap-x-4">
@@ -88,11 +97,11 @@ function YesNoRow({
       </label>
       <div className="flex gap-8">
         <label className="flex items-center gap-1.5 text-sm text-slate-600">
-          <input type="radio" checked={value === "Yes"} onChange={() => onChange("Yes")} />
+          <input type="radio" checked={value === "Yes"} onChange={() => onChange("Yes")} disabled={disabled} />
           Yes
         </label>
         <label className="flex items-center gap-1.5 text-sm text-slate-600">
-          <input type="radio" checked={value === "No"} onChange={() => onChange("No")} />
+          <input type="radio" checked={value === "No"} onChange={() => onChange("No")} disabled={disabled} />
           No
         </label>
       </div>
@@ -163,6 +172,16 @@ export default function CreateOrderModal({
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
 
   const isEditing = editingOrder != null;
+  // A true amendment (editing an already-*active* order) locks the form down
+  // to just Product/Users/Rate/Payment Terms/Billing Month/Agreement/Advance —
+  // editing an order that hasn't activated yet (e.g. completing an
+  // incomplete/duplicate-handoff order) stays fully editable, same as Create.
+  const isAmendingActiveOrder = editingOrder != null && editingOrder.lifecycleStatus === "active";
+  // If the amender actually switches the product, there's no prior value to
+  // preserve for that product's fields, so unlock the whole product section
+  // rather than locking it to a permanently-blank, unsavable state.
+  const productChanged = editingOrder != null && editingOrder.product !== selectedProduct;
+  const productFieldsLocked = isAmendingActiveOrder && !productChanged;
   const client = clients.find((c) => c.id === selectedClientId) ?? null;
   const currentProduct = useMemo(() => (selectedProduct ? getProduct(selectedProduct) ?? null : null), [
     selectedProduct,
@@ -445,7 +464,7 @@ export default function CreateOrderModal({
             <select
               className={inputClass}
               value={selectedProduct}
-              disabled={isEditing}
+              disabled={isEditing && !isAmendingActiveOrder}
               onChange={(e) => setSelectedProduct(e.target.value)}
             >
               <option value="">--Select Product--</option>
@@ -457,6 +476,13 @@ export default function CreateOrderModal({
             </select>
           </FieldRow>
         </div>
+
+        {ready && isAmendingActiveOrder && (
+          <p className="mx-6 rounded-md bg-amber-50 px-4 py-3 text-xs text-amber-700">
+            This order is active — an amendment can only change Product, No. of Users, Rate, Payment Terms (Plan),
+            First Billing Month, Agreement, and Advance. Everything else is shown for reference only.
+          </p>
+        )}
 
         {!ready && (
           <div className="flex items-center justify-between border-t border-slate-200 px-6 py-8">
@@ -535,15 +561,17 @@ export default function CreateOrderModal({
         </div>
 
         <div className="px-6 py-4">
-          <button
-            onClick={selectSpoc}
-            className="mb-3 flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-800"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
-            </svg>
-            Select Spoc
-          </button>
+          {!isAmendingActiveOrder && (
+            <button
+              onClick={selectSpoc}
+              className="mb-3 flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
+              </svg>
+              Select Spoc
+            </button>
+          )}
 
           <div className="overflow-x-auto rounded-md border border-slate-200">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -568,6 +596,7 @@ export default function CreateOrderModal({
                         list="spoc-suggestions"
                         className="w-full border-none p-0 text-sm focus:outline-none focus:ring-0"
                         value={s.name}
+                        disabled={isAmendingActiveOrder}
                         onChange={(e) => updateSpoc(i, "name", e.target.value)}
                       />
                     </td>
@@ -575,6 +604,7 @@ export default function CreateOrderModal({
                       <input
                         className="w-full border-none p-0 text-sm focus:outline-none focus:ring-0"
                         value={s.email}
+                        disabled={isAmendingActiveOrder}
                         onChange={(e) => updateSpoc(i, "email", e.target.value)}
                       />
                     </td>
@@ -582,6 +612,7 @@ export default function CreateOrderModal({
                       <input
                         className="w-full border-none p-0 text-sm focus:outline-none focus:ring-0"
                         value={s.mobile}
+                        disabled={isAmendingActiveOrder}
                         onChange={(e) => updateSpoc(i, "mobile", e.target.value)}
                       />
                     </td>
@@ -589,11 +620,12 @@ export default function CreateOrderModal({
                       <input
                         className="w-full border-none p-0 text-sm focus:outline-none focus:ring-0"
                         value={s.remarks}
+                        disabled={isAmendingActiveOrder}
                         onChange={(e) => updateSpoc(i, "remarks", e.target.value)}
                       />
                     </td>
                     <td className="px-2 py-2 text-center">
-                      {effectiveSpocs.length > 1 && (
+                      {!isAmendingActiveOrder && effectiveSpocs.length > 1 && (
                         <button onClick={() => removeSpoc(i)} className="text-slate-400 hover:text-rose-500">
                           ✕
                         </button>
@@ -631,6 +663,7 @@ export default function CreateOrderModal({
               type="date"
               className={inputClass}
               value={form.dateOfSign}
+              disabled={isAmendingActiveOrder}
               onChange={(e) => update("dateOfSign", e.target.value)}
             />
             {errors.dateOfSign && <p className="mt-1 text-xs text-rose-500">{errors.dateOfSign}</p>}
@@ -653,6 +686,7 @@ export default function CreateOrderModal({
               type="number"
               className={inputClass}
               value={form.oneTime}
+              disabled={isAmendingActiveOrder}
               onChange={(e) => update("oneTime", e.target.value)}
             />
           </FieldRow>
@@ -661,6 +695,7 @@ export default function CreateOrderModal({
             <select
               className={inputClass}
               value={form.gstProcess}
+              disabled={isAmendingActiveOrder}
               onChange={(e) => update("gstProcess", e.target.value)}
             >
               <option value="">--Select Process--</option>
@@ -679,6 +714,7 @@ export default function CreateOrderModal({
           {currentProduct.fields(productValues).map((field) => {
             const value = productValues[field.key] ?? "";
             const error = errors[field.key];
+            const fieldDisabled = productFieldsLocked && !AMENDMENT_EDITABLE_PRODUCT_FIELDS.has(field.key);
 
             if (field.type === "yesno") {
               return (
@@ -687,6 +723,7 @@ export default function CreateOrderModal({
                   label={field.label}
                   value={value as "Yes" | "No" | ""}
                   onChange={(v) => updateProductValue(field.key, v)}
+                  disabled={fieldDisabled}
                 />
               );
             }
@@ -697,6 +734,7 @@ export default function CreateOrderModal({
                   <select
                     className={inputClass}
                     value={value}
+                    disabled={fieldDisabled}
                     onChange={(e) => updateProductValue(field.key, e.target.value)}
                   >
                     <option value="">{`--Select ${field.label}--`}</option>
@@ -711,6 +749,7 @@ export default function CreateOrderModal({
                     type={field.type === "number" ? "number" : field.type === "month" ? "month" : "text"}
                     className={inputClass}
                     value={value}
+                    disabled={fieldDisabled}
                     onChange={(e) => updateProductValue(field.key, e.target.value)}
                   />
                 )}
@@ -733,6 +772,7 @@ export default function CreateOrderModal({
             <select
               className={inputClass}
               value={form.billingCycle}
+              disabled={isAmendingActiveOrder}
               onChange={(e) => update("billingCycle", e.target.value as BillingCycle)}
             >
               <option value="">--Select Cycle--</option>
@@ -772,7 +812,13 @@ export default function CreateOrderModal({
             />
           </FieldRow>
           <FieldRow label="TDS (₹)">
-            <input type="number" className={inputClass} value={form.tds} onChange={(e) => update("tds", e.target.value)} />
+            <input
+              type="number"
+              className={inputClass}
+              value={form.tds}
+              disabled={isAmendingActiveOrder}
+              onChange={(e) => update("tds", e.target.value)}
+            />
           </FieldRow>
           <FieldRow label="Net Amt.(₹)">
             <input className={readonlyInputClass} value={netAmount.toLocaleString("en-IN")} disabled />
@@ -782,6 +828,7 @@ export default function CreateOrderModal({
               type="number"
               className={inputClass}
               value={form.creditPeriod}
+              disabled={isAmendingActiveOrder}
               onChange={(e) => update("creditPeriod", e.target.value)}
             />
             <p className="mt-1 text-xs text-slate-400">(in days)</p>
@@ -798,15 +845,17 @@ export default function CreateOrderModal({
         </div>
 
         <div className="px-6 py-4">
-          <button
-            onClick={addDocument}
-            className="mb-3 flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-800"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
-            </svg>
-            Add Document
-          </button>
+          {!isAmendingActiveOrder && (
+            <button
+              onClick={addDocument}
+              className="mb-3 flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
+              </svg>
+              Add Document
+            </button>
+          )}
 
           {documents.length > 0 && (
             <div className="overflow-x-auto rounded-md border border-slate-200">
@@ -829,6 +878,7 @@ export default function CreateOrderModal({
                         <input
                           className="w-full border-none p-0 text-sm focus:outline-none focus:ring-0"
                           value={d.name}
+                          disabled={isAmendingActiveOrder}
                           onChange={(e) => updateDocument(i, "name", e.target.value)}
                         />
                       </td>
@@ -836,13 +886,16 @@ export default function CreateOrderModal({
                         <input
                           type="file"
                           className="w-full text-sm"
+                          disabled={isAmendingActiveOrder}
                           onChange={(e) => updateDocument(i, "fileName", e.target.files?.[0]?.name ?? "")}
                         />
                       </td>
                       <td className="px-2 py-2 text-center">
-                        <button onClick={() => removeDocument(i)} className="text-slate-400 hover:text-rose-500">
-                          ✕
-                        </button>
+                        {!isAmendingActiveOrder && (
+                          <button onClick={() => removeDocument(i)} className="text-slate-400 hover:text-rose-500">
+                            ✕
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -869,6 +922,7 @@ export default function CreateOrderModal({
             className={`${inputClass} min-h-[80px] resize-y`}
             placeholder="Enter remark.."
             value={form.remarks}
+            disabled={isAmendingActiveOrder}
             onChange={(e) => update("remarks", e.target.value)}
           />
         </div>

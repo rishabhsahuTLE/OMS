@@ -243,8 +243,8 @@ export default function OrderApproval({
         orders={orders}
         onBack={() => setReviewOrderId(null)}
         onUpdateOrder={onUpdateOrder}
-        onRequestCancellation={(order) => {
-          onUpdateOrder({ ...order, lifecycleStatus: "cancellationInProgress" });
+        onRequestCancellation={(order, details) => {
+          onUpdateOrder({ ...order, lifecycleStatus: "cancellationInProgress", cancellationDetails: details });
         }}
       />
     );
