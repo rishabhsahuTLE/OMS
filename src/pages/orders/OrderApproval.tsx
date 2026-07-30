@@ -20,13 +20,18 @@ interface OrderApprovalProps {
   onNavigateToCloseBilling: () => void;
 }
 
-type ViewTab = "all" | "inactive" | "pendingClosure" | "cancellationInProgress";
+type ViewTab = "all" | OrderLifecycleStatus;
 
+// Chronological order the lifecycle actually flows in: inactive -> pendingClosure
+// (the amendment-successor detour, taken instead of going straight to active) ->
+// active -> cancellationInProgress -> cancelled. "All" stays first as the default view.
 const VIEW_TABS: { key: ViewTab; label: string }[] = [
   { key: "all", label: "All" },
   { key: "inactive", label: "Inactive" },
   { key: "pendingClosure", label: "Pending Closure" },
+  { key: "active", label: "Active" },
   { key: "cancellationInProgress", label: "Cancellation In Progress" },
+  { key: "cancelled", label: "Cancelled" },
 ];
 
 const LIFECYCLE_LABELS: Record<OrderLifecycleStatus, string> = {
