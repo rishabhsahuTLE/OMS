@@ -77,6 +77,14 @@ function BackIcon() {
   );
 }
 
+function EditIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M13.586 3.586a2 2 0 112.828 2.828l-8.5 8.5a2 2 0 01-.878.507l-3 .857a.5.5 0 01-.618-.618l.857-3a2 2 0 01.507-.878l8.5-8.5z" />
+    </svg>
+  );
+}
+
 function InfoIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
@@ -276,8 +284,8 @@ export default function OrderApproval({
         <span className="font-medium text-slate-600">Tech</span> — Technical Approval and{" "}
         <span className="font-medium text-slate-600">Fin</span> — Financial Approval decide activation;{" "}
         <span className="font-medium text-slate-600">TC</span>/<span className="font-medium text-slate-600">FC</span>{" "}
-        are their cancellation-stage counterparts. Statuses are shown here for reference only — click a row to
-        process it; approvals happen strictly in order (Tech before Fin, TC before FC).
+        are their cancellation-stage counterparts. Statuses are shown here for reference only — open a row's Edit
+        action to process it; approvals happen strictly in order (Tech before Fin, TC before FC).
       </p>
 
       <div className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -314,16 +322,14 @@ export default function OrderApproval({
               <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
                 Status
               </th>
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
+                Action
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.map((order) => (
-              <tr
-                key={order.id}
-                onClick={() => setReviewOrderId(order.id)}
-                title="Review & process"
-                className={`cursor-pointer transition-colors ${rowClass(order)}`}
-              >
+              <tr key={order.id} className={`transition-colors ${rowClass(order)}`}>
                 <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{order.orderNo}</td>
                 <td className="max-w-[200px] truncate px-4 py-3 text-slate-700" title={order.client}>
                   {order.client}
@@ -354,10 +360,7 @@ export default function OrderApproval({
                     </span>
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenInfoOrderId((id) => (id === order.id ? null : order.id));
-                      }}
+                      onClick={() => setOpenInfoOrderId((id) => (id === order.id ? null : order.id))}
                       title="What's next?"
                       className="text-slate-400 hover:text-slate-600"
                     >
@@ -379,10 +382,7 @@ export default function OrderApproval({
                         }
                       );
                       return (
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute left-4 top-full z-30 mt-1 w-72 rounded-md border border-slate-200 bg-white p-3 text-left text-xs font-normal normal-case text-slate-600 shadow-lg"
-                        >
+                        <div className="absolute left-4 top-full z-30 mt-1 w-72 rounded-md border border-slate-200 bg-white p-3 text-left text-xs font-normal normal-case text-slate-600 shadow-lg">
                           <p>{info.message}</p>
                           <div className="mt-2 flex justify-end gap-2">
                             {info.action && (
@@ -406,11 +406,21 @@ export default function OrderApproval({
                       );
                     })()}
                 </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setReviewOrderId(order.id)}
+                    title="Review & process"
+                    className="text-teal-600 hover:text-teal-800"
+                  >
+                    <EditIcon />
+                  </button>
+                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={11} className="px-4 py-8 text-center text-slate-400">
                   No orders match this view.
                 </td>
               </tr>
