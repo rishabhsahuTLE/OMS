@@ -10,7 +10,7 @@ import CloseBilling from "./pages/orders/CloseBilling";
 import ManagerReport from "./pages/ManagerReport";
 import clientsData from "./data/clients.json";
 import { mockOrders } from "./data/mockOrders";
-import { nextOrderNumber, todayISO } from "./utils";
+import { baseOrderNo, nextOrderNumber, todayISO } from "./utils";
 import type {
   AdminSubTabId,
   BillingStatus,
@@ -61,8 +61,22 @@ function App() {
     setOrders((prev) => [record, ...prev]);
   }
 
+  // Amending an active order spawns a "{base}/{n}" successor at "inactive"
+  // (see OrderPage.tsx's handleModalUpdate) rather than touching the
+  // predecessor. Once that successor clears Tech/Fin and flips to "active",
+  // this is where the predecessor it superseded gets auto-cancelled — no
+  // TC/FC approval, since nothing was actually requested for it.
   function handleUpdateOrder(record: OrderRecord) {
-    setOrders((prev) => prev.map((o) => (o.id === record.id ? record : o)));
+    setOrders((prev) => {
+      const previousVersion = prev.find((o) => o.id === record.id);
+      const next = prev.map((o) => (o.id === record.id ? record : o));
+      const justActivated = previousVersion?.lifecycleStatus !== "active" && record.lifecycleStatus === "active";
+      if (justActivated && record.orderNo.includes("/")) {
+        const base = baseOrderNo(record.orderNo);
+        return next.map((o) => (o.orderNo === base && o.lifecycleStatus === "active" ? { ...o, lifecycleStatus: "cancelled" } : o));
+      }
+      return next;
+    });
   }
 
   // A duplicate-order check (University client + product already ordered)

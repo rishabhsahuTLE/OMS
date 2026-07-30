@@ -157,6 +157,7 @@ export default function OrderApproval({
     return (
       <OrderApprovalReview
         order={reviewOrder}
+        orders={orders}
         onBack={() => setReviewOrderId(null)}
         onUpdateOrder={onUpdateOrder}
         onRequestCancellation={(order) => {

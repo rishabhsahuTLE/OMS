@@ -161,8 +161,22 @@ class QuirioProduct extends Product {
     return unit * (users + assessments);
   }
 
-  mockDetails(_seed: number): Partial<OrderRecordDetails> {
-    return { billedOn: "No. of Users", assessments: 200, unitPrice: 40 };
+  mockDetails(seed: number): Partial<OrderRecordDetails> {
+    const billedOnUsers = seed % 2 === 0;
+    return {
+      billedOn: billedOnUsers ? "No. of Users" : "No. of Assessments",
+      numUsers: billedOnUsers ? 80 + seed * 3 : null,
+      assessments: billedOnUsers ? null : 200 + seed * 10,
+      unitPrice: 40 + (seed % 5) * 5,
+      automatedProctoring: seed % 2 === 0 ? "Yes" : "No",
+      proctoringBySgTeam: seed % 3 === 0 ? "Yes" : "No",
+      proctoringVideos: seed % 2 === 0 ? "No" : "Yes",
+      gradingBySgTeam: seed % 4 === 0 ? "Yes" : "No",
+      mathsEditor: seed % 2 === 0 ? "No" : "Yes",
+      freeAssessments: 5 + (seed % 4),
+      questionType: QUESTION_TYPES[seed % QUESTION_TYPES.length],
+      deviceType: DEVICE_TYPES[seed % DEVICE_TYPES.length],
+    };
   }
 }
 

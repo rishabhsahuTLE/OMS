@@ -1,8 +1,10 @@
 import { useState } from "react";
 import type { ApprovalState, OrderRecord } from "../../types";
 import {
+  baseOrderNo,
   CURRENT_USER_EMAIL,
   deriveCreatedByName,
+  diffOrderDetails,
   formatDDMMYYYY,
   getNextActionableStage,
   todayISO,
@@ -13,6 +15,7 @@ import OrderDetailsReadOnly from "./OrderDetailsReadOnly";
 
 interface OrderApprovalReviewProps {
   order: OrderRecord;
+  orders: OrderRecord[];
   onBack: () => void;
   onUpdateOrder: (record: OrderRecord) => void;
   onRequestCancellation: (order: OrderRecord) => void;
@@ -44,6 +47,7 @@ const STAGE_LABELS: Record<ApprovalStageKey, string> = {
 
 export default function OrderApprovalReview({
   order,
+  orders,
   onBack,
   onUpdateOrder,
   onRequestCancellation,
@@ -54,6 +58,10 @@ export default function OrderApprovalReview({
   const [remark, setRemark] = useState("");
 
   const actionable = getNextActionableStage(order);
+  const predecessor = order.orderNo.includes("/")
+    ? orders.find((o) => o.orderNo === baseOrderNo(order.orderNo)) ?? null
+    : null;
+  const changes = predecessor ? diffOrderDetails(predecessor, order) : [];
   const agreementMatches = agreementAmountInput.trim() !== "" && Number(agreementAmountInput) === order.amount;
   const canSubmit = actionable !== null && status !== "" && agreementMatches;
 
@@ -89,6 +97,40 @@ export default function OrderApprovalReview({
       </div>
 
       <OrderDetailsReadOnly order={order} />
+
+      {predecessor && (
+        <div className="rounded-lg border border-amber-200 bg-white shadow-sm">
+          <div className="border-b border-amber-200 px-6 py-3">
+            <h3 className="text-sm font-semibold tracking-wide text-slate-700">
+              CHANGES FROM {predecessor.orderNo}
+            </h3>
+          </div>
+          {changes.length === 0 ? (
+            <p className="px-6 py-4 text-sm text-slate-400">No fields differ from the previous version.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-semibold text-slate-600">Field</th>
+                    <th className="px-4 py-2 text-left font-semibold text-slate-600">Previously</th>
+                    <th className="px-4 py-2 text-left font-semibold text-slate-600">Now</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {changes.map((row) => (
+                    <tr key={row.label}>
+                      <td className="px-4 py-2 font-medium text-slate-800">{row.label}</td>
+                      <td className="px-4 py-2 text-rose-600 line-through">{row.before}</td>
+                      <td className="px-4 py-2 text-emerald-700">{row.after}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-3">

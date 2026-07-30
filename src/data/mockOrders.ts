@@ -137,7 +137,7 @@ clients.forEach((client, cliIdx) => {
         spocs: client.spocs,
         product: product.name,
         dateOfSign,
-        plan: "Standard",
+        plan: orderIndex % 2 === 0 ? "Prepaid" : "Postpaid",
         oneTime: null,
         gstProcess: "",
         selectGst: client.gstNo || "NA",

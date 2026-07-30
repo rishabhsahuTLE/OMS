@@ -4,7 +4,7 @@ import { PRODUCT_NAMES } from "../../products";
 import DateRangePicker, { type DateRange } from "../../components/DateRangePicker";
 import CreateOrderModal from "./CreateOrderModal";
 import CancellationConfirm from "./CancellationConfirm";
-import { formatDDMMYYYY } from "../../utils";
+import { baseOrderNo, formatDDMMYYYY } from "../../utils";
 
 interface OrderPageProps {
   clients: Client[];
@@ -20,12 +20,6 @@ interface OrderPageProps {
 
 const selectClass =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
-
-// An order's orderNo may carry a "/N" version suffix once it's been amended
-// and archived (see handleAmendSave) — this strips that back off.
-function baseOrderNo(orderNo: string): string {
-  return orderNo.split("/")[0];
-}
 
 export default function OrderPage({
   clients,
@@ -74,11 +68,27 @@ export default function OrderPage({
     });
   }
 
+  // Bases with a pending (inactive) amendment successor already in flight —
+  // their currently-active predecessor is hidden here so it can't be amended
+  // or cancelled a second time while that successor awaits Tech/Fin approval.
+  const pendingSuccessorBases = useMemo(
+    () =>
+      new Set(
+        orders.filter((o) => o.lifecycleStatus === "inactive" && o.orderNo.includes("/")).map((o) => baseOrderNo(o.orderNo))
+      ),
+    [orders]
+  );
+
   // Only currently-active orders can be amended or have cancellation
-  // initiated — once amended, the pre-edit version is archived (renamed
-  // with a "/N" suffix and flagged amended) and drops out of this list,
-  // staying visible only in reports/history.
-  const activeOrders = useMemo(() => orders.filter((o) => o.lifecycleStatus === "active" && !o.amended), [orders]);
+  // initiated. Amending one doesn't touch it in place — it spawns a new
+  // "{base}/{n}" successor that goes through its own Tech/Fin approval (see
+  // handleModalUpdate) — so this predecessor stays active and visible here
+  // until that successor is confirmed, at which point App.tsx auto-cancels
+  // it and it drops out on the lifecycleStatus check alone.
+  const activeOrders = useMemo(
+    () => orders.filter((o) => o.lifecycleStatus === "active" && !pendingSuccessorBases.has(baseOrderNo(o.orderNo))),
+    [orders, pendingSuccessorBases]
+  );
 
   const filtered = useMemo(() => {
     return activeOrders.filter((r) => {
@@ -107,28 +117,34 @@ export default function OrderPage({
   }
 
   // The CreateOrderModal's "onUpdate" for this page. When the order being
-  // edited is active, the pre-edit version is archived under a versioned
-  // order number (base/1, base/2, ...) and flagged amended (shown yellow
-  // everywhere, and excluded from this active-only list); the edited
-  // details continue as a fresh record under the original order number.
-  // Anything not yet active (e.g. reached via the duplicate-order handoff)
-  // is just updated in place — there's no prior "active" version to archive.
+  // edited is active, it's left untouched — the edited details instead spawn
+  // a brand-new "{base}/{n}" successor at lifecycleStatus "inactive", which
+  // has to clear its own Tech/Fin approval like any new order (see
+  // OrderApprovalReview). Only once that successor goes active does
+  // App.tsx's handleUpdateOrder auto-cancel this predecessor; nothing here
+  // decides that. Anything not yet active (e.g. reached via the
+  // duplicate-order handoff, before ever activating) has no "live" version
+  // to preserve, so it's just updated in place.
   function handleModalUpdate(updatedRecord: OrderRecord) {
     const original = orders.find((o) => o.id === updatedRecord.id);
     if (original && original.lifecycleStatus === "active") {
       const base = baseOrderNo(original.orderNo);
       const priorVersions = orders
-        .filter((o) => o.id !== original.id && baseOrderNo(o.orderNo) === base && o.orderNo.includes("/"))
+        .filter((o) => baseOrderNo(o.orderNo) === base && o.orderNo.includes("/"))
         .map((o) => parseInt(o.orderNo.split("/")[1], 10))
         .filter((n) => !Number.isNaN(n));
       const nextVersion = priorVersions.length > 0 ? Math.max(...priorVersions) + 1 : 1;
 
-      onUpdateOrder({ ...original, orderNo: `${base}/${nextVersion}`, amended: true });
       onCreateOrder({
         ...updatedRecord,
         id: `ord-${Math.random().toString(36).slice(2, 10)}`,
-        orderNo: base,
-        amended: false,
+        orderNo: `${base}/${nextVersion}`,
+        amended: true,
+        lifecycleStatus: "inactive",
+        technical: { status: "pending", date: null },
+        financial: { status: "pending", date: null },
+        cancellationTechnical: { status: "pending", date: null },
+        cancellationFinancial: { status: "pending", date: null },
       });
     } else {
       onUpdateOrder(updatedRecord);
