@@ -6,11 +6,13 @@ import type { DateRange } from "../../components/DateRangePicker";
 import InlineDateRangeCalendar from "../../components/InlineDateRangeCalendar";
 import AmountRangeSlider from "../../components/AmountRangeSlider";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
+import PaginationFooter from "../../components/PaginationFooter";
 import SortArrow from "../../components/SortArrow";
 import {
   compareNullableDate,
   compareNullableNumber,
   toggleSortState,
+  usePagination,
   type SortState,
 } from "../../utils";
 
@@ -207,6 +209,8 @@ export default function Approval({ orders }: ApprovalProps) {
     return result;
   }, [clearedOrders, search, applied, sort]);
 
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(filtered);
+
   function renderCategoryContent() {
     switch (activeCategory) {
       case "product":
@@ -314,7 +318,8 @@ export default function Approval({ orders }: ApprovalProps) {
         Quarterly, H: Half-yearly, Y: Yearly, O: One-time)
       </p>
 
-      <div className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="flex-1 overflow-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
             <tr>
@@ -322,7 +327,7 @@ export default function Approval({ orders }: ApprovalProps) {
                 <th
                   key={col.key}
                   rowSpan={2}
-                  className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left align-middle font-semibold text-slate-600"
+                  className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-left align-middle font-semibold text-slate-600"
                 >
                   <SortButton col={col} sort={sort} onClick={toggleSort} />
                 </th>
@@ -337,7 +342,7 @@ export default function Approval({ orders }: ApprovalProps) {
                 <th
                   key={col.key}
                   rowSpan={2}
-                  className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left align-middle font-semibold text-slate-600"
+                  className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-left align-middle font-semibold text-slate-600"
                 >
                   <SortButton col={col} sort={sort} onClick={toggleSort} />
                 </th>
@@ -355,7 +360,7 @@ export default function Approval({ orders }: ApprovalProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtered.map((order) => {
+            {pageRows.map((order) => {
               const ocdDays = daysBetween(order.dateOfSign, order.createdOn);
               const tcDays = order.technical.date ? daysBetween(order.createdOn, order.technical.date) : 0;
               const fcDays =
@@ -366,35 +371,35 @@ export default function Approval({ orders }: ApprovalProps) {
 
               return (
                 <tr key={order.id} className={`transition-colors ${rowHighlightClass(order)}`}>
-                  <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{order.orderNo}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.client}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.clientManager}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">{formatDisplay(order.dateOfSign)}</td>
-                  <td className="whitespace-nowrap px-4 py-3">
+                  <td className="whitespace-nowrap px-4 py-2 font-medium text-slate-800">{order.orderNo}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-700">{order.client}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-700">{order.clientManager}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-700">{formatDisplay(order.dateOfSign)}</td>
+                  <td className="whitespace-nowrap px-4 py-2">
                     <DaysCell days={ocdDays} date={order.createdOn} />
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3">
+                  <td className="whitespace-nowrap px-4 py-2">
                     <DaysCell days={tcDays} date={order.technical.date} />
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3">
+                  <td className="whitespace-nowrap px-4 py-2">
                     <DaysCell days={fcDays} date={order.financial.date} />
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3">
+                  <td className="whitespace-nowrap px-4 py-2">
                     <DaysCell days={totalDays} date={order.financial.date} />
                   </td>
                   <td
-                    className="whitespace-nowrap px-4 py-3 text-slate-700"
+                    className="whitespace-nowrap px-4 py-2 text-slate-700"
                     title={order.billingCycle ? BILLING_CYCLE_LABELS[order.billingCycle] : ""}
                   >
                     {order.billingCycle || "—"}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-700">
                     {order.amount.toLocaleString("en-IN")}
                   </td>
                 </tr>
               );
             })}
-            {filtered.length === 0 && (
+            {pageRows.length === 0 && (
               <tr>
                 <td
                   colSpan={leftColumns.length + timeTakenColumns.length + rightColumns.length}
@@ -406,6 +411,15 @@ export default function Approval({ orders }: ApprovalProps) {
             )}
           </tbody>
         </table>
+        </div>
+        <PaginationFooter
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          totalRecords={totalRecords}
+        />
       </div>
 
       <FilterDrawer

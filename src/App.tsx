@@ -1,4 +1,5 @@
 import { useState } from "react";
+import EmpowerTopBar from "./components/EmpowerTopBar";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import Approval from "./pages/report/Approval";
@@ -13,16 +14,6 @@ import { promoteSuccessorOf } from "./utils";
 import type { AdminSubTabId, Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "./types";
 
 const clients = clientsData as Client[];
-
-const TITLES: Record<string, string> = {
-  dashboard: "Dashboard",
-  "report/approval": "Report / Approval",
-  "report/billing": "Report / Billing",
-  "report/managerReport": "Report / Manager Report",
-  "orders/approval": "Order Management / Manage Orders",
-  "orders/amendCancel": "Order Management / Approvals",
-  "admin/approvalSetting": "Admin / Approval Setting",
-};
 
 function App() {
   const [activeTab, setActiveTab] = useState<MainTabId>("report");
@@ -62,10 +53,6 @@ function App() {
     });
   }
 
-  let titleKey = "dashboard";
-  if (activeTab === "report") titleKey = `report/${activeReportSubTab}`;
-  if (activeTab === "orders") titleKey = `orders/${activeOrdersSubTab}`;
-
   function renderPage() {
     if (activeTab === "dashboard") return <Dashboard />;
     if (activeTab === "report") {
@@ -95,24 +82,19 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-slate-100">
-      <Sidebar
-        activeTab={activeTab}
-        activeReportSubTab={activeReportSubTab}
-        activeOrdersSubTab={activeOrdersSubTab}
-        activeAdminSubTab={activeAdminSubTab}
-        onSelect={handleSelect}
-      />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
-          <h1 className="text-base font-semibold text-slate-800">{TITLES[titleKey]}</h1>
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-sm font-medium text-indigo-700">
-              A
-            </div>
-          </div>
-        </header>
-        <main className="flex-1 overflow-auto p-6">{renderPage()}</main>
+    <div className="flex h-screen w-screen flex-col bg-slate-100">
+      <EmpowerTopBar />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          activeTab={activeTab}
+          activeReportSubTab={activeReportSubTab}
+          activeOrdersSubTab={activeOrdersSubTab}
+          activeAdminSubTab={activeAdminSubTab}
+          onSelect={handleSelect}
+        />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <main className="flex-1 overflow-auto p-6">{renderPage()}</main>
+        </div>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import CreateOrderModal from "./CreateOrderModal";
 import CancellationConfirm from "./CancellationConfirm";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
+import PaginationFooter from "../../components/PaginationFooter";
 import SortArrow from "../../components/SortArrow";
 import SearchableSelect from "../../components/SearchableSelect";
 import AmountRangeSlider from "../../components/AmountRangeSlider";
@@ -17,6 +18,7 @@ import {
   getNextActionableStage,
   initiateClosure,
   toggleSortState,
+  usePagination,
   type SortState,
 } from "../../utils";
 
@@ -111,7 +113,7 @@ function SortableTh({
 }) {
   return (
     <th
-      className={`sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 font-semibold text-slate-600 ${
+      className={`sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 font-semibold text-slate-600 ${
         align === "right" ? "text-right" : "text-left"
       }`}
     >
@@ -427,9 +429,11 @@ export default function OrderApproval({
     }
   }
 
-  // Only closeable orders are selectable — Select All only ever touches the
-  // currently-filtered closeable rows, matching the checkboxes shown.
-  const closeableFiltered = useMemo(() => filtered.filter((o) => canInitiateClose(o)), [filtered]);
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(filtered);
+
+  // Only closeable orders on the current page are selectable — Select All
+  // only ever touches the checkboxes actually visible on this page.
+  const closeableFiltered = useMemo(() => pageRows.filter((o) => canInitiateClose(o)), [pageRows]);
   const allCloseableSelected = closeableFiltered.length > 0 && closeableFiltered.every((o) => selectedIds.has(o.id));
 
   function toggleRow(id: string) {
@@ -658,11 +662,12 @@ export default function OrderApproval({
         on the Approvals tab, strictly in order (Tech before Fin, TC before FC).
       </p>
 
-      <div className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="flex-1 overflow-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
             <tr>
-              <th className="sticky top-0 z-20 w-10 bg-slate-50 px-4 py-3 text-left">
+              <th className="sticky top-0 z-20 w-10 bg-slate-50 px-4 py-2 text-left">
                 <input
                   type="checkbox"
                   checked={allCloseableSelected}
@@ -676,32 +681,32 @@ export default function OrderApproval({
               <SortableTh label="Product" sortKey="product" sort={sort} onClick={toggleSort} />
               <SortableTh label="Client Manager" sortKey="clientManager" sort={sort} onClick={toggleSort} />
               <SortableTh label="Amount (₹)" sortKey="amount" sort={sort} onClick={toggleSort} align="right" />
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
                 Tech
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
                 Fin
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
                 TC
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
                 FC
               </th>
               <SortableTh label="Status" sortKey="status" sort={sort} onClick={toggleSort} />
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                 Action
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtered.map((order) => {
+            {pageRows.map((order) => {
               const stage = getDisplayStage(order);
               const canAmend = order.lifecycleStatus === "active";
               const canClose = canInitiateClose(order);
               return (
                 <tr key={order.id} className={`transition-colors ${rowClass(order)}`}>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2">
                     {canClose ? (
                       <input
                         type="checkbox"
@@ -713,28 +718,28 @@ export default function OrderApproval({
                       <span className="text-slate-300">—</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{order.orderNo}</td>
-                  <td className="max-w-[200px] truncate px-4 py-3 text-slate-700" title={order.client}>
+                  <td className="whitespace-nowrap px-4 py-2 font-medium text-slate-800">{order.orderNo}</td>
+                  <td className="max-w-[200px] truncate px-4 py-2 text-slate-700" title={order.client}>
                     {order.client}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.product}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.clientManager}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-700">{order.product}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-700">{order.clientManager}</td>
+                  <td className="whitespace-nowrap px-4 py-2 text-right text-slate-700">
                     {order.amount.toLocaleString("en-IN")}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2">
                     <StageBadge status={order.technical.status} />
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2">
                     <StageBadge status={order.financial.status} />
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2">
                     <StageBadge status={order.cancellationTechnical.status} />
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2">
                     <StageBadge status={order.cancellationFinancial.status} />
                   </td>
-                  <td className="relative whitespace-nowrap px-4 py-3">
+                  <td className="relative whitespace-nowrap px-4 py-2">
                     <div className="flex items-center gap-1.5">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STAGE_BADGE_CLASS[stage]}`}>
                         {STAGE_LABELS[stage]}
@@ -767,7 +772,7 @@ export default function OrderApproval({
                         );
                       })()}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3">
+                  <td className="whitespace-nowrap px-4 py-2">
                     {canAmend ? (
                       <button
                         onClick={() => handleAmendClick(order)}
@@ -782,7 +787,7 @@ export default function OrderApproval({
                 </tr>
               );
             })}
-            {filtered.length === 0 && (
+            {pageRows.length === 0 && (
               <tr>
                 <td colSpan={12} className="px-4 py-8 text-center text-slate-400">
                   No orders match this view.
@@ -791,6 +796,15 @@ export default function OrderApproval({
             )}
           </tbody>
         </table>
+        </div>
+        <PaginationFooter
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          totalRecords={totalRecords}
+        />
       </div>
 
       <CreateOrderModal

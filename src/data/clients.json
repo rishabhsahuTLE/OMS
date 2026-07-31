@@ -12,7 +12,14 @@
     "deliveryCity": "Mumbai",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Ritu Nair", "email": "ritu.nair@abc.com", "mobile": "9820011223", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Ritu Nair",
+        "email": "ritu.nair@abc.com",
+        "mobile": "9820011223",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Harsh Vardhan",
     "createdBy": "Harsh Vardhan",
     "createdOn": "2024-01-12"
@@ -30,7 +37,14 @@
     "deliveryCity": "Bengaluru",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Harsh Vardhan", "email": "harsh.vardhan@teamlease.com", "mobile": "9900011122", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Harsh Vardhan",
+        "email": "harsh.vardhan@teamlease.com",
+        "mobile": "9900011122",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Harsh Vardhan",
     "createdBy": "Harsh Vardhan",
     "createdOn": "2024-01-12"
@@ -48,7 +62,14 @@
     "deliveryCity": "Noida",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Vikram Suri", "email": "vikram.suri@havells.com", "mobile": "9811122334", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Vikram Suri",
+        "email": "vikram.suri@havells.com",
+        "mobile": "9811122334",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Rinku Agarwal",
     "createdBy": "Harsh Vardhan",
     "createdOn": "2022-12-09"
@@ -66,7 +87,14 @@
     "deliveryCity": "Bengaluru",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Sounak Datta", "email": "sounak.datta@iiflsamasta.com", "mobile": "9845566778", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Sounak Datta",
+        "email": "sounak.datta@iiflsamasta.com",
+        "mobile": "9845566778",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Sounak Datta",
     "createdBy": "Sounak Datta",
     "createdOn": "2022-02-01"
@@ -84,7 +112,14 @@
     "deliveryCity": "Noida",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Neha Kapoor", "email": "neha.kapoor@samsung.com", "mobile": "9871122334", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Neha Kapoor",
+        "email": "neha.kapoor@samsung.com",
+        "mobile": "9871122334",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Harsh Vardhan",
     "createdBy": "Harsh Vardhan",
     "createdOn": "2021-09-28"
@@ -102,7 +137,14 @@
     "deliveryCity": "Ludhiana",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Gagan Bhatia", "email": "gagan.bhatia@heroeco.com", "mobile": "9888822334", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Gagan Bhatia",
+        "email": "gagan.bhatia@heroeco.com",
+        "mobile": "9888822334",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Atish Bhalerao",
     "createdBy": "Harsh Vardhan",
     "createdOn": "2021-09-21"
@@ -120,7 +162,14 @@
     "deliveryCity": "Pune",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Suresh Pote", "email": "suresh@potetutorial.org", "mobile": "9822233445", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Suresh Pote",
+        "email": "suresh@potetutorial.org",
+        "mobile": "9822233445",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Prabhanjan Chapke",
     "createdBy": "Prabhanjan Chapke",
     "createdOn": "2021-09-16"
@@ -138,7 +187,14 @@
     "deliveryCity": "Kalyan",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Anjali Deshmukh", "email": "anjali@birlaschoolkalyan.com", "mobile": "9833344556", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Anjali Deshmukh",
+        "email": "anjali@birlaschoolkalyan.com",
+        "mobile": "9833344556",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Prabhanjan Chapke",
     "createdBy": "Prabhanjan Chapke",
     "createdOn": "2021-09-02"
@@ -156,7 +212,14 @@
     "deliveryCity": "Bengaluru",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Divya Rao", "email": "divya.rao@stelis.com", "mobile": "9845511223", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Divya Rao",
+        "email": "divya.rao@stelis.com",
+        "mobile": "9845511223",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Harsh Vardhan",
     "createdBy": "Harsh Vardhan",
     "createdOn": "2021-06-17"
@@ -174,7 +237,14 @@
     "deliveryCity": "Mumbai",
     "gstNo": "",
     "remark": "this is a test order 1. bulletin comment for QA testing purposes",
-    "spocs": [{ "name": "QA Bot", "email": "qa@test1.com", "mobile": "9800011122", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "QA Bot",
+        "email": "qa@test1.com",
+        "mobile": "9800011122",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Karan Mehta",
     "createdBy": "Super Admin A",
     "createdOn": "2021-06-04"
@@ -192,7 +262,14 @@
     "deliveryCity": "Mumbai",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Dr. Meera Joshi", "email": "meera.joshi@rtccs.co.in", "mobile": "9822244556", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Dr. Meera Joshi",
+        "email": "meera.joshi@rtccs.co.in",
+        "mobile": "9822244556",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Prabhanjan Chapke",
     "createdBy": "Prabhanjan Chapke",
     "createdOn": "2021-05-31"
@@ -210,7 +287,14 @@
     "deliveryCity": "Bengaluru",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Arjun Menon", "email": "arjun.menon@iibs.edu.in", "mobile": "9845533221", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Arjun Menon",
+        "email": "arjun.menon@iibs.edu.in",
+        "mobile": "9845533221",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Prabhanjan Chapke",
     "createdBy": "Prabhanjan Chapke",
     "createdOn": "2021-05-29"
@@ -228,7 +312,14 @@
     "deliveryCity": "Pune",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Prof. Sunil Patil", "email": "sunil.patil@ritindia.edu", "mobile": "9822255667", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Prof. Sunil Patil",
+        "email": "sunil.patil@ritindia.edu",
+        "mobile": "9822255667",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Prabhanjan Chapke",
     "createdBy": "Prabhanjan Chapke",
     "createdOn": "2021-05-25"
@@ -246,7 +337,14 @@
     "deliveryCity": "New Delhi",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Geetika Kohli", "email": "geetika.kohli@raffles.edu", "mobile": "9871133445", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Geetika Kohli",
+        "email": "geetika.kohli@raffles.edu",
+        "mobile": "9871133445",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Geetika Kohli",
     "createdBy": "Geetika Kohli",
     "createdOn": "2021-05-24"
@@ -264,7 +362,14 @@
     "deliveryCity": "Mumbai",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Dr. Vaishali More", "email": "vaishali.more@ckthakurcollege.net", "mobile": "9822266778", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Dr. Vaishali More",
+        "email": "vaishali.more@ckthakurcollege.net",
+        "mobile": "9822266778",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Prabhanjan Chapke",
     "createdBy": "Prabhanjan Chapke",
     "createdOn": "2021-03-09"
@@ -282,7 +387,14 @@
     "deliveryCity": "Bengaluru",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Ravi Shankar", "email": "ravi.shankar@infosysbpm.com", "mobile": "9845123456", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Ravi Shankar",
+        "email": "ravi.shankar@infosysbpm.com",
+        "mobile": "9845123456",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Priya Sharma",
     "createdBy": "Priya Sharma",
     "createdOn": "2024-04-18"
@@ -300,7 +412,14 @@
     "deliveryCity": "Mumbai",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Sneha Kulkarni", "email": "sneha.kulkarni@godrejcp.com", "mobile": "9820099887", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Sneha Kulkarni",
+        "email": "sneha.kulkarni@godrejcp.com",
+        "mobile": "9820099887",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Rahul Verma",
     "createdBy": "Rahul Verma",
     "createdOn": "2024-06-02"
@@ -318,9 +437,691 @@
     "deliveryCity": "Mysuru",
     "gstNo": "",
     "remark": "",
-    "spocs": [{ "name": "Dr. Kavita Rao", "email": "kavita.rao@manipal.edu", "mobile": "9845112233", "remarks": "" }],
+    "spocs": [
+      {
+        "name": "Dr. Kavita Rao",
+        "email": "kavita.rao@manipal.edu",
+        "mobile": "9845112233",
+        "remarks": ""
+      }
+    ],
     "clientManager": "Ananya Iyer",
     "createdBy": "Ananya Iyer",
     "createdOn": "2024-07-09"
+  },
+  {
+    "id": "cli-19",
+    "name": "Tata Consultancy Services",
+    "domain": "tcs.com",
+    "type": "Corporate",
+    "billingAddress": "Tata Consultancy Services, Mumbai",
+    "billingState": "Maharashtra",
+    "billingCity": "Mumbai",
+    "deliveryAddress": "Tata Consultancy Services, Mumbai",
+    "deliveryState": "Maharashtra",
+    "deliveryCity": "Mumbai",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Ritu Menon",
+        "email": "ritu.menon@tcs.com",
+        "mobile": "9810000000",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Harsh Vardhan",
+    "createdBy": "Harsh Vardhan",
+    "createdOn": "2021-01-01"
+  },
+  {
+    "id": "cli-20",
+    "name": "Wipro Enterprises",
+    "domain": "wiproenterprises.com",
+    "type": "Corporate",
+    "billingAddress": "Wipro Enterprises, New Delhi",
+    "billingState": "Delhi",
+    "billingCity": "New Delhi",
+    "deliveryAddress": "Wipro Enterprises, New Delhi",
+    "deliveryState": "Delhi",
+    "deliveryCity": "New Delhi",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Aman Reddy",
+        "email": "aman.reddy@wiproenterprises.com",
+        "mobile": "9810000137",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Rinku Agarwal",
+    "createdBy": "Rinku Agarwal",
+    "createdOn": "2022-04-08"
+  },
+  {
+    "id": "cli-21",
+    "name": "Larsen & Toubro",
+    "domain": "larsentoubro.com",
+    "type": "Corporate",
+    "billingAddress": "Larsen & Toubro, Bengaluru",
+    "billingState": "Karnataka",
+    "billingCity": "Bengaluru",
+    "deliveryAddress": "Larsen & Toubro, Bengaluru",
+    "deliveryState": "Karnataka",
+    "deliveryCity": "Bengaluru",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Sneha Kapoor",
+        "email": "sneha.kapoor@larsentoubro.com",
+        "mobile": "9810000274",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Sounak Datta",
+    "createdBy": "Sounak Datta",
+    "createdOn": "2023-07-15"
+  },
+  {
+    "id": "cli-22",
+    "name": "Asian Paints",
+    "domain": "asianpaints.com",
+    "type": "Corporate",
+    "billingAddress": "Asian Paints, Coimbatore",
+    "billingState": "Tamil Nadu",
+    "billingCity": "Coimbatore",
+    "deliveryAddress": "Asian Paints, Coimbatore",
+    "deliveryState": "Tamil Nadu",
+    "deliveryCity": "Coimbatore",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Rohit Nair",
+        "email": "rohit.nair@asianpaints.com",
+        "mobile": "9810000411",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Atish Bhalerao",
+    "createdBy": "Atish Bhalerao",
+    "createdOn": "2024-10-22"
+  },
+  {
+    "id": "cli-23",
+    "name": "Mahindra & Mahindra",
+    "domain": "mahindra.com",
+    "type": "Corporate",
+    "billingAddress": "Mahindra & Mahindra, Ahmedabad",
+    "billingState": "Gujarat",
+    "billingCity": "Ahmedabad",
+    "deliveryAddress": "Mahindra & Mahindra, Ahmedabad",
+    "deliveryState": "Gujarat",
+    "deliveryCity": "Ahmedabad",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Priyanka Bhat",
+        "email": "priyanka.bhat@mahindra.com",
+        "mobile": "9810000548",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Prabhanjan Chapke",
+    "createdBy": "Prabhanjan Chapke",
+    "createdOn": "2025-01-02"
+  },
+  {
+    "id": "cli-24",
+    "name": "Britannia Industries",
+    "domain": "britannia.co.in",
+    "type": "Corporate",
+    "billingAddress": "Britannia Industries, Howrah",
+    "billingState": "West Bengal",
+    "billingCity": "Howrah",
+    "deliveryAddress": "Britannia Industries, Howrah",
+    "deliveryState": "West Bengal",
+    "deliveryCity": "Howrah",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Kabir Joshi",
+        "email": "kabir.joshi@britannia.co.in",
+        "mobile": "9810000685",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Karan Mehta",
+    "createdBy": "Karan Mehta",
+    "createdOn": "2021-04-09"
+  },
+  {
+    "id": "cli-25",
+    "name": "Dabur India",
+    "domain": "dabur.com",
+    "type": "Corporate",
+    "billingAddress": "Dabur India, Hyderabad",
+    "billingState": "Telangana",
+    "billingCity": "Hyderabad",
+    "deliveryAddress": "Dabur India, Hyderabad",
+    "deliveryState": "Telangana",
+    "deliveryCity": "Hyderabad",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Isha Malhotra",
+        "email": "isha.malhotra@dabur.com",
+        "mobile": "9810000822",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Geetika Kohli",
+    "createdBy": "Geetika Kohli",
+    "createdOn": "2022-07-16"
+  },
+  {
+    "id": "cli-26",
+    "name": "Zomato",
+    "domain": "zomato.com",
+    "type": "Corporate",
+    "billingAddress": "Zomato, Ludhiana",
+    "billingState": "Punjab",
+    "billingCity": "Ludhiana",
+    "deliveryAddress": "Zomato, Ludhiana",
+    "deliveryState": "Punjab",
+    "deliveryCity": "Ludhiana",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Nikhil Chawla",
+        "email": "nikhil.chawla@zomato.com",
+        "mobile": "9810000959",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Priya Sharma",
+    "createdBy": "Priya Sharma",
+    "createdOn": "2023-10-23"
+  },
+  {
+    "id": "cli-27",
+    "name": "Swiggy",
+    "domain": "swiggy.com",
+    "type": "Corporate",
+    "billingAddress": "Swiggy, Lucknow",
+    "billingState": "Uttar Pradesh",
+    "billingCity": "Lucknow",
+    "deliveryAddress": "Swiggy, Lucknow",
+    "deliveryState": "Uttar Pradesh",
+    "deliveryCity": "Lucknow",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Pooja Bose",
+        "email": "pooja.bose@swiggy.com",
+        "mobile": "9810001096",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Rahul Verma",
+    "createdBy": "Rahul Verma",
+    "createdOn": "2024-01-03"
+  },
+  {
+    "id": "cli-28",
+    "name": "Flipkart Internet",
+    "domain": "flipkart.com",
+    "type": "Corporate",
+    "billingAddress": "Flipkart Internet, Udaipur",
+    "billingState": "Rajasthan",
+    "billingCity": "Udaipur",
+    "deliveryAddress": "Flipkart Internet, Udaipur",
+    "deliveryState": "Rajasthan",
+    "deliveryCity": "Udaipur",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Arjun Rao",
+        "email": "arjun.rao@flipkart.com",
+        "mobile": "9810001233",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Ananya Iyer",
+    "createdBy": "Ananya Iyer",
+    "createdOn": "2025-04-10"
+  },
+  {
+    "id": "cli-29",
+    "name": "Byju's",
+    "domain": "byjus.com",
+    "type": "Corporate",
+    "billingAddress": "Byju's, Mumbai",
+    "billingState": "Maharashtra",
+    "billingCity": "Mumbai",
+    "deliveryAddress": "Byju's, Mumbai",
+    "deliveryState": "Maharashtra",
+    "deliveryCity": "Mumbai",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Meera Pillai",
+        "email": "meera.pillai@byjus.com",
+        "mobile": "9810001370",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Neeraj Kapoor",
+    "createdBy": "Neeraj Kapoor",
+    "createdOn": "2021-07-17"
+  },
+  {
+    "id": "cli-30",
+    "name": "PhonePe",
+    "domain": "phonepe.com",
+    "type": "Corporate",
+    "billingAddress": "PhonePe, New Delhi",
+    "billingState": "Delhi",
+    "billingCity": "New Delhi",
+    "deliveryAddress": "PhonePe, New Delhi",
+    "deliveryState": "Delhi",
+    "deliveryCity": "New Delhi",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Sanjay Shah",
+        "email": "sanjay.shah@phonepe.com",
+        "mobile": "9810001507",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Suman Reddy",
+    "createdBy": "Suman Reddy",
+    "createdOn": "2022-10-24"
+  },
+  {
+    "id": "cli-31",
+    "name": "Paytm",
+    "domain": "paytm.com",
+    "type": "Corporate",
+    "billingAddress": "Paytm, Bengaluru",
+    "billingState": "Karnataka",
+    "billingCity": "Bengaluru",
+    "deliveryAddress": "Paytm, Bengaluru",
+    "deliveryState": "Karnataka",
+    "deliveryCity": "Bengaluru",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Divya Sharma",
+        "email": "divya.sharma@paytm.com",
+        "mobile": "9810001644",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Farah Sheikh",
+    "createdBy": "Farah Sheikh",
+    "createdOn": "2023-01-04"
+  },
+  {
+    "id": "cli-32",
+    "name": "ICICI Lombard",
+    "domain": "icicilombard.com",
+    "type": "Corporate",
+    "billingAddress": "ICICI Lombard, Coimbatore",
+    "billingState": "Tamil Nadu",
+    "billingCity": "Coimbatore",
+    "deliveryAddress": "ICICI Lombard, Coimbatore",
+    "deliveryState": "Tamil Nadu",
+    "deliveryCity": "Coimbatore",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Rahul Verma",
+        "email": "rahul.verma@icicilombard.com",
+        "mobile": "9810001781",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Vikas Chandra",
+    "createdBy": "Vikas Chandra",
+    "createdOn": "2024-04-11"
+  },
+  {
+    "id": "cli-33",
+    "name": "HDFC Ergo",
+    "domain": "hdfcergo.com",
+    "type": "Corporate",
+    "billingAddress": "HDFC Ergo, Ahmedabad",
+    "billingState": "Gujarat",
+    "billingCity": "Ahmedabad",
+    "deliveryAddress": "HDFC Ergo, Ahmedabad",
+    "deliveryState": "Gujarat",
+    "deliveryCity": "Ahmedabad",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Kavya Iyer",
+        "email": "kavya.iyer@hdfcergo.com",
+        "mobile": "9810001918",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Harsh Vardhan",
+    "createdBy": "Harsh Vardhan",
+    "createdOn": "2025-07-18"
+  },
+  {
+    "id": "cli-34",
+    "name": "Reliance Retail",
+    "domain": "relianceretail.com",
+    "type": "Corporate",
+    "billingAddress": "Reliance Retail, Howrah",
+    "billingState": "West Bengal",
+    "billingCity": "Howrah",
+    "deliveryAddress": "Reliance Retail, Howrah",
+    "deliveryState": "West Bengal",
+    "deliveryCity": "Howrah",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Varun Menon",
+        "email": "varun.menon@relianceretail.com",
+        "mobile": "9810002055",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Rinku Agarwal",
+    "createdBy": "Rinku Agarwal",
+    "createdOn": "2021-10-25"
+  },
+  {
+    "id": "cli-35",
+    "name": "Bajaj Finserv",
+    "domain": "bajajfinserv.in",
+    "type": "Corporate",
+    "billingAddress": "Bajaj Finserv, Hyderabad",
+    "billingState": "Telangana",
+    "billingCity": "Hyderabad",
+    "deliveryAddress": "Bajaj Finserv, Hyderabad",
+    "deliveryState": "Telangana",
+    "deliveryCity": "Hyderabad",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Neha Reddy",
+        "email": "neha.reddy@bajajfinserv.in",
+        "mobile": "9810002192",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Sounak Datta",
+    "createdBy": "Sounak Datta",
+    "createdOn": "2022-01-05"
+  },
+  {
+    "id": "cli-36",
+    "name": "Adani Enterprises",
+    "domain": "adani.com",
+    "type": "Corporate",
+    "billingAddress": "Adani Enterprises, Ludhiana",
+    "billingState": "Punjab",
+    "billingCity": "Ludhiana",
+    "deliveryAddress": "Adani Enterprises, Ludhiana",
+    "deliveryState": "Punjab",
+    "deliveryCity": "Ludhiana",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Aditya Kapoor",
+        "email": "aditya.kapoor@adani.com",
+        "mobile": "9810002329",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Atish Bhalerao",
+    "createdBy": "Atish Bhalerao",
+    "createdOn": "2023-04-12"
+  },
+  {
+    "id": "cli-37",
+    "name": "JSW Steel",
+    "domain": "jsw.in",
+    "type": "Corporate",
+    "billingAddress": "JSW Steel, Lucknow",
+    "billingState": "Uttar Pradesh",
+    "billingCity": "Lucknow",
+    "deliveryAddress": "JSW Steel, Lucknow",
+    "deliveryState": "Uttar Pradesh",
+    "deliveryCity": "Lucknow",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Simran Nair",
+        "email": "simran.nair@jsw.in",
+        "mobile": "9810002466",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Prabhanjan Chapke",
+    "createdBy": "Prabhanjan Chapke",
+    "createdOn": "2024-07-19"
+  },
+  {
+    "id": "cli-38",
+    "name": "UltraTech Cement",
+    "domain": "ultratechcement.com",
+    "type": "Corporate",
+    "billingAddress": "UltraTech Cement, Udaipur",
+    "billingState": "Rajasthan",
+    "billingCity": "Udaipur",
+    "deliveryAddress": "UltraTech Cement, Udaipur",
+    "deliveryState": "Rajasthan",
+    "deliveryCity": "Udaipur",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Yash Bhat",
+        "email": "yash.bhat@ultratechcement.com",
+        "mobile": "9810002603",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Karan Mehta",
+    "createdBy": "Karan Mehta",
+    "createdOn": "2025-10-26"
+  },
+  {
+    "id": "cli-39",
+    "name": "Amity University",
+    "domain": "amity.edu",
+    "type": "University",
+    "billingAddress": "Amity University, Mumbai",
+    "billingState": "Maharashtra",
+    "billingCity": "Mumbai",
+    "deliveryAddress": "Amity University, Mumbai",
+    "deliveryState": "Maharashtra",
+    "deliveryCity": "Mumbai",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Ritu Joshi",
+        "email": "ritu.joshi@amity.edu",
+        "mobile": "9810002740",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Geetika Kohli",
+    "createdBy": "Geetika Kohli",
+    "createdOn": "2021-01-06"
+  },
+  {
+    "id": "cli-40",
+    "name": "SRM Institute of Science and Technology",
+    "domain": "srmist.edu.in",
+    "type": "University",
+    "billingAddress": "SRM Institute of Science and Technology, New Delhi",
+    "billingState": "Delhi",
+    "billingCity": "New Delhi",
+    "deliveryAddress": "SRM Institute of Science and Technology, New Delhi",
+    "deliveryState": "Delhi",
+    "deliveryCity": "New Delhi",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Aman Malhotra",
+        "email": "aman.malhotra@srmist.edu.in",
+        "mobile": "9810002877",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Priya Sharma",
+    "createdBy": "Priya Sharma",
+    "createdOn": "2022-04-13"
+  },
+  {
+    "id": "cli-41",
+    "name": "VIT Vellore",
+    "domain": "vit.ac.in",
+    "type": "University",
+    "billingAddress": "VIT Vellore, Bengaluru",
+    "billingState": "Karnataka",
+    "billingCity": "Bengaluru",
+    "deliveryAddress": "VIT Vellore, Bengaluru",
+    "deliveryState": "Karnataka",
+    "deliveryCity": "Bengaluru",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Sneha Chawla",
+        "email": "sneha.chawla@vit.ac.in",
+        "mobile": "9810003014",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Rahul Verma",
+    "createdBy": "Rahul Verma",
+    "createdOn": "2023-07-20"
+  },
+  {
+    "id": "cli-42",
+    "name": "Symbiosis International University",
+    "domain": "siu.edu.in",
+    "type": "University",
+    "billingAddress": "Symbiosis International University, Coimbatore",
+    "billingState": "Tamil Nadu",
+    "billingCity": "Coimbatore",
+    "deliveryAddress": "Symbiosis International University, Coimbatore",
+    "deliveryState": "Tamil Nadu",
+    "deliveryCity": "Coimbatore",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Rohit Bose",
+        "email": "rohit.bose@siu.edu.in",
+        "mobile": "9810003151",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Ananya Iyer",
+    "createdBy": "Ananya Iyer",
+    "createdOn": "2024-10-27"
+  },
+  {
+    "id": "cli-43",
+    "name": "Christ University",
+    "domain": "christuniversity.in",
+    "type": "University",
+    "billingAddress": "Christ University, Ahmedabad",
+    "billingState": "Gujarat",
+    "billingCity": "Ahmedabad",
+    "deliveryAddress": "Christ University, Ahmedabad",
+    "deliveryState": "Gujarat",
+    "deliveryCity": "Ahmedabad",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Priyanka Rao",
+        "email": "priyanka.rao@christuniversity.in",
+        "mobile": "9810003288",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Neeraj Kapoor",
+    "createdBy": "Neeraj Kapoor",
+    "createdOn": "2025-01-07"
+  },
+  {
+    "id": "cli-44",
+    "name": "Lovely Professional University",
+    "domain": "lpu.in",
+    "type": "University",
+    "billingAddress": "Lovely Professional University, Howrah",
+    "billingState": "West Bengal",
+    "billingCity": "Howrah",
+    "deliveryAddress": "Lovely Professional University, Howrah",
+    "deliveryState": "West Bengal",
+    "deliveryCity": "Howrah",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Kabir Pillai",
+        "email": "kabir.pillai@lpu.in",
+        "mobile": "9810003425",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Suman Reddy",
+    "createdBy": "Suman Reddy",
+    "createdOn": "2021-04-14"
+  },
+  {
+    "id": "cli-45",
+    "name": "Chandigarh University",
+    "domain": "cuchd.in",
+    "type": "University",
+    "billingAddress": "Chandigarh University, Hyderabad",
+    "billingState": "Telangana",
+    "billingCity": "Hyderabad",
+    "deliveryAddress": "Chandigarh University, Hyderabad",
+    "deliveryState": "Telangana",
+    "deliveryCity": "Hyderabad",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Isha Shah",
+        "email": "isha.shah@cuchd.in",
+        "mobile": "9810003562",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Farah Sheikh",
+    "createdBy": "Farah Sheikh",
+    "createdOn": "2022-07-21"
   }
 ]

@@ -48,8 +48,16 @@ const financialPattern: ApprovalState[] = [
   "confirmed",
 ];
 
-// how many orders to generate per clients entry (same length as clients)
-const ORDER_COUNTS = [2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1];
+// 1-3 orders per client, cycling deterministically — no dependency on the
+// client list's length, so it stays in sync as clients.json grows.
+function orderCountFor(clientIndex: number): number {
+  return 1 + (clientIndex % 3);
+}
+
+// Varied agreement lengths (in months) so a healthy mix of Active, Agreement
+// Over, and open-ended (no fixed term) orders shows up against today's real
+// date, not just a flat 12 months for everything.
+const AGREEMENT_MONTHS_CYCLE: (number | null)[] = [12, 12, 6, 24, 3, null, 18, 12, 9, null];
 
 export const mockOrders: OrderRecord[] = [];
 
@@ -58,7 +66,7 @@ let globalSeq = 128;
 let fullyConfirmedCount = 0;
 
 clients.forEach((client, cliIdx) => {
-  const count = ORDER_COUNTS[cliIdx] ?? 1;
+  const count = orderCountFor(cliIdx);
   let baseNumber = "";
 
   for (let k = 0; k < count; k++) {
@@ -142,7 +150,7 @@ clients.forEach((client, cliIdx) => {
         ...product.mockDetails(orderIndex),
         firstBillingMonth: createdOn.slice(0, 7),
         billingCycle,
-        agreement: 12,
+        agreement: AGREEMENT_MONTHS_CYCLE[orderIndex % AGREEMENT_MONTHS_CYCLE.length],
         advance: null,
         tds: null,
         netAmount: amount,

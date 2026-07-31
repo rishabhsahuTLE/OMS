@@ -1,12 +1,13 @@
 import { Fragment, useMemo, useState } from "react";
 import type { ApprovalState, OrderRecord } from "../types";
 import { PRODUCT_NAMES } from "../products";
-import { formatDDMMYYYY, toggleSortState, type SortState } from "../utils";
+import { formatDDMMYYYY, toggleSortState, usePagination, type SortState } from "../utils";
 import type { DateRange } from "../components/DateRangePicker";
 import InlineDateRangeCalendar from "../components/InlineDateRangeCalendar";
 import SearchableSelect from "../components/SearchableSelect";
 import AmountRangeSlider from "../components/AmountRangeSlider";
 import FilterDrawer, { type FilterDrawerCategory } from "../components/FilterDrawer";
+import PaginationFooter from "../components/PaginationFooter";
 import SortArrow from "../components/SortArrow";
 
 interface ManagerReportProps {
@@ -14,7 +15,6 @@ interface ManagerReportProps {
 }
 
 const AMOUNT_MAX_LAKH = 50;
-const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
 const selectClass =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
@@ -240,8 +240,6 @@ function InnerSortableTh({
 
 function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
   const [search, setSearch] = useState("");
-  const [pageSize, setPageSize] = useState(10);
-  const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortState<InnerSortableKey>>({ key: null, direction: "asc" });
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -320,11 +318,7 @@ function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
     return result;
   }, [orders, applied, search, sort]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const pageRows = filtered.slice((currentPage - 1) * pageSize, (currentPage - 1) * pageSize + pageSize);
-  const rangeStart = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const rangeEnd = Math.min(filtered.length, currentPage * pageSize);
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(filtered);
 
   function renderCategoryContent() {
     switch (activeCategory) {
@@ -388,36 +382,18 @@ function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
     <div className="rounded-md border border-slate-200 bg-slate-50/60 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-sm text-slate-600">
-          Show
-          <select
-            value={pageSize}
+          Search:
+          <input
+            value={search}
             onChange={(e) => {
-              setPageSize(Number(e.target.value));
+              setSearch(e.target.value);
               setPage(1);
             }}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
-          >
-            {PAGE_SIZE_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-          entries
+            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          />
         </label>
 
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            Search:
-            <input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            />
-          </label>
           <button
             type="button"
             onClick={openDrawer}
@@ -480,30 +456,14 @@ function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
         </table>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
-        <span>
-          Showing {rangeStart} to {rangeEnd} of {filtered.length} entries
-        </span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage <= 1}
-            className="rounded-md border border-slate-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Previous
-          </button>
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-teal-600 text-xs font-semibold text-white">
-            {currentPage}
-          </span>
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage >= totalPages}
-            className="rounded-md border border-slate-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Next
-          </button>
-        </div>
-      </div>
+      <PaginationFooter
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+        totalRecords={totalRecords}
+      />
 
       <FilterDrawer
         open={drawerOpen}
@@ -597,6 +557,16 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
       return sort.direction === "asc" ? cmp : -cmp;
     });
   }, [filteredOrders, sort]);
+
+  const {
+    page: managerPage,
+    setPage: setManagerPage,
+    pageSize: managerPageSize,
+    setPageSize: setManagerPageSize,
+    totalPages: managerTotalPages,
+    pageRows: managerPageRows,
+    totalRecords: managerTotalRecords,
+  } = usePagination(managerStats);
 
   function renderCategoryContent() {
     switch (activeCategory) {
@@ -698,47 +668,48 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
         </p>
       </div>
 
-      <div className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="flex-1 overflow-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
             <tr>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                 <button onClick={() => toggleSort("manager")} className="flex items-center gap-1.5 hover:text-slate-900">
                   Account Manager
                   <SortArrow direction={sort.key === "manager" ? sort.direction : "asc"} active={sort.key === "manager"} />
                 </button>
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
                 <button onClick={() => toggleSort("total")} className="mx-auto flex items-center gap-1.5 hover:text-slate-900">
                   Total
                   <SortArrow direction={sort.key === "total" ? sort.direction : "asc"} active={sort.key === "total"} />
                 </button>
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
                 <button onClick={() => toggleSort("technical")} className="mx-auto flex items-center gap-1.5 hover:text-slate-900">
                   Technical
                   <SortArrow direction={sort.key === "technical" ? sort.direction : "asc"} active={sort.key === "technical"} />
                 </button>
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
                 <button onClick={() => toggleSort("financial")} className="mx-auto flex items-center gap-1.5 hover:text-slate-900">
                   Financial
                   <SortArrow direction={sort.key === "financial" ? sort.direction : "asc"} active={sort.key === "financial"} />
                 </button>
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
                 <button onClick={() => toggleSort("confirmed")} className="mx-auto flex items-center gap-1.5 hover:text-slate-900">
                   Confirmed
                   <SortArrow direction={sort.key === "confirmed" ? sort.direction : "asc"} active={sort.key === "confirmed"} />
                 </button>
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
                 <button onClick={() => toggleSort("rejected")} className="mx-auto flex items-center gap-1.5 hover:text-slate-900">
                   Rejected
                   <SortArrow direction={sort.key === "rejected" ? sort.direction : "asc"} active={sort.key === "rejected"} />
                 </button>
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-right font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-right font-semibold text-slate-600">
                 <button onClick={() => toggleSort("amount")} className="ml-auto flex items-center gap-1.5 hover:text-slate-900">
                   Amount
                   <SortArrow direction={sort.key === "amount" ? sort.direction : "asc"} active={sort.key === "amount"} />
@@ -747,7 +718,7 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {managerStats.map((stat) => {
+            {managerPageRows.map((stat) => {
               const open = openManagers.has(stat.manager);
               return (
                 <Fragment key={stat.manager}>
@@ -755,18 +726,18 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
                     onClick={() => toggleManager(stat.manager)}
                     className="cursor-pointer bg-slate-700 text-white hover:bg-slate-600"
                   >
-                    <td className="whitespace-nowrap px-4 py-3 font-medium">
+                    <td className="whitespace-nowrap px-4 py-2 font-medium">
                       <span className="flex items-center gap-2">
                         <ExpandIcon open={open} />
                         {stat.manager}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center">{stat.total}</td>
-                    <td className="px-4 py-3 text-center">{stat.technical}</td>
-                    <td className="px-4 py-3 text-center">{stat.financial}</td>
-                    <td className="px-4 py-3 text-center">{stat.confirmed}</td>
-                    <td className="px-4 py-3 text-center">{stat.rejected}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <td className="px-4 py-2 text-center">{stat.total}</td>
+                    <td className="px-4 py-2 text-center">{stat.technical}</td>
+                    <td className="px-4 py-2 text-center">{stat.financial}</td>
+                    <td className="px-4 py-2 text-center">{stat.confirmed}</td>
+                    <td className="px-4 py-2 text-center">{stat.rejected}</td>
+                    <td className="whitespace-nowrap px-4 py-2 text-right">
                       {stat.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
@@ -780,7 +751,7 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
                 </Fragment>
               );
             })}
-            {managerStats.length === 0 && (
+            {managerPageRows.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
                   No orders match your search/filter.
@@ -789,6 +760,15 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
             )}
           </tbody>
         </table>
+        </div>
+        <PaginationFooter
+          page={managerPage}
+          totalPages={managerTotalPages}
+          onPageChange={setManagerPage}
+          pageSize={managerPageSize}
+          onPageSizeChange={setManagerPageSize}
+          totalRecords={managerTotalRecords}
+        />
       </div>
 
       <FilterDrawer

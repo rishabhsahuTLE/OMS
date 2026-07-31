@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { BillingCycle, CancellationDetails, OrderDisplayStage, OrderRecord, OrderRecordDetails } from "./types";
 import { BILLING_CYCLE_LABELS } from "./types";
 import { getProduct } from "./products";
@@ -227,6 +228,26 @@ export function compareNullableNumber(a: number | null, b: number | null): numbe
   if (a === null) return 1;
   if (b === null) return -1;
   return a - b;
+}
+
+// Shared pagination for any record list — clamps the visible page down if a
+// filter shrinks the result set, same as every table already did by hand.
+export function usePagination<T>(items: T[], defaultPageSize = 10) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const pageRows = items.slice(start, start + pageSize);
+  return {
+    page: currentPage,
+    setPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    pageRows,
+    totalRecords: items.length,
+  };
 }
 
 export type ApprovalStageKey = "technical" | "financial" | "cancellationTechnical" | "cancellationFinancial";

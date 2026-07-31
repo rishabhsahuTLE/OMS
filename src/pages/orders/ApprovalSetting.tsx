@@ -4,8 +4,9 @@ import { DEPARTMENTS } from "../../types";
 import type { ApprovalSettingRow } from "../../types";
 import { mockApprovalSettings } from "../../data/mockApprovalSettings";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
+import PaginationFooter from "../../components/PaginationFooter";
 import SortArrow from "../../components/SortArrow";
-import { toggleSortState, type SortState } from "../../utils";
+import { toggleSortState, usePagination, type SortState } from "../../utils";
 
 const selectClass =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
@@ -40,7 +41,7 @@ function SortableTh({
 }) {
   return (
     <th
-      className={`sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 font-semibold text-slate-600 ${
+      className={`sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 font-semibold text-slate-600 ${
         align === "center" ? "text-center" : "text-left"
       }`}
     >
@@ -114,9 +115,6 @@ export default function ApprovalSetting() {
   const [applied, setApplied] = useState<DrawerFilters>(defaultDrawerFilters);
   const [sort, setSort] = useState<SortState<SortableKey>>({ key: null, direction: "asc" });
 
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(30);
-
   const [addOpen, setAddOpen] = useState(false);
   const [newRow, setNewRow] = useState<NewRowForm>(emptyNewRow);
 
@@ -164,9 +162,7 @@ export default function ApprovalSetting() {
     return result;
   }, [rows, applied, sort]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const pageRows = filtered.slice((currentPage - 1) * pageSize, (currentPage - 1) * pageSize + pageSize);
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(filtered, 30);
 
   function renderCategoryContent() {
     switch (activeCategory) {
@@ -292,29 +288,29 @@ export default function ApprovalSetting() {
             <tr>
               <SortableTh label="Approver" sortKey="approver" sort={sort} onClick={toggleSort} />
               <SortableTh label="Department" sortKey="department" sort={sort} onClick={toggleSort} />
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">Technical</th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">Financial</th>
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">Technical</th>
+              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">Financial</th>
               <SortableTh label="Status" sortKey="status" sort={sort} onClick={toggleSort} align="center" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {pageRows.map((r) => (
               <tr key={r.id} className="hover:bg-slate-50">
-                <td className="max-w-[220px] truncate px-4 py-3 font-medium text-slate-800" title={r.approver}>
+                <td className="max-w-[220px] truncate px-4 py-2 font-medium text-slate-800" title={r.approver}>
                   {r.approver}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-slate-700">{r.department}</td>
-                <td className="px-4 py-3 text-center">
+                <td className="whitespace-nowrap px-4 py-2 text-slate-700">{r.department}</td>
+                <td className="px-4 py-2 text-center">
                   <div className="flex justify-center">
                     <BoolIcon value={r.technical} />
                   </div>
                 </td>
-                <td className="px-4 py-3 text-center">
+                <td className="px-4 py-2 text-center">
                   <div className="flex justify-center">
                     <BoolIcon value={r.financial} />
                   </div>
                 </td>
-                <td className="px-4 py-3 text-center">
+                <td className="px-4 py-2 text-center">
                   <button
                     onClick={() => toggleStatus(r.id)}
                     title="Click to toggle"
@@ -340,45 +336,14 @@ export default function ApprovalSetting() {
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 px-6 py-4 text-sm text-slate-600">
-        <span>Pages</span>
-        <button
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={currentPage <= 1}
-          className="flex h-8 w-8 items-center justify-center rounded-md bg-teal-500 text-white disabled:opacity-40"
-        >
-          ‹
-        </button>
-        <input
-          value={currentPage}
-          readOnly
-          className="w-14 rounded-md border border-slate-300 px-2 py-1 text-center text-sm"
-        />
-        <button
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={currentPage >= totalPages}
-          className="flex h-8 w-8 items-center justify-center rounded-md bg-teal-500 text-white disabled:opacity-40"
-        >
-          ›
-        </button>
-        <span>of {totalPages}</span>
-        <span>| View</span>
-        <select
-          value={pageSize}
-          onChange={(e) => {
-            setPageSize(Number(e.target.value));
-            setPage(1);
-          }}
-          className="rounded-md border border-slate-300 px-2 py-1 text-sm"
-        >
-          {[10, 30, 50, 100].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-        <span>records | Found total {filtered.length} records</span>
-      </div>
+      <PaginationFooter
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+        totalRecords={totalRecords}
+      />
 
       <FilterDrawer
         open={drawerOpen}

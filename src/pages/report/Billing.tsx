@@ -7,8 +7,9 @@ import InlineDateRangeCalendar from "../../components/InlineDateRangeCalendar";
 import SearchableSelect from "../../components/SearchableSelect";
 import AmountRangeSlider from "../../components/AmountRangeSlider";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
+import PaginationFooter from "../../components/PaginationFooter";
 import SortArrow from "../../components/SortArrow";
-import { toggleSortState, type SortState } from "../../utils";
+import { toggleSortState, usePagination, type SortState } from "../../utils";
 
 interface BillingProps {
   orders: OrderRecord[];
@@ -252,7 +253,7 @@ function SortableTh({
 }) {
   return (
     <th
-      className={`sticky top-0 z-30 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600 ${colClass}`}
+      className={`sticky top-0 z-30 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600 ${colClass}`}
     >
       <button onClick={() => onClick(sortKey)} className="flex items-center gap-1.5 hover:text-slate-900">
         {label}
@@ -375,6 +376,10 @@ export default function Billing({ orders }: BillingProps) {
     [rows, fyColumns]
   );
   const grandYearlyTotal = monthTotals.reduce((a, b) => a + b, 0);
+
+  // Totals above are always computed over the full filtered set, not just
+  // the visible page.
+  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(rows);
 
   const restIdentityColSpan = 8; // Client Manager, T, F, OCD, OSD, FBD, BC, Amount
   const totalColumns = 3 + restIdentityColSpan + fyColumns.length + 1;
@@ -501,35 +506,36 @@ export default function Billing({ orders }: BillingProps) {
         <span className="font-medium text-slate-600">F:</span> Financially Cleared
       </p>
 
-      <div className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="flex-1 overflow-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
             <tr>
               <SortableTh label="Client" sortKey="client" sort={sort} onClick={toggleSort} colClass={CLIENT_COL} />
               <SortableTh label="Order #" sortKey="orderNo" sort={sort} onClick={toggleSort} colClass={ORDERNO_COL} />
               <SortableTh label="Product" sortKey="product" sort={sort} onClick={toggleSort} colClass={PRODUCT_COL} />
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                 Client Manager
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
                 T
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
                 F
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                 OCD
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                 OSD
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                 FBD
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                 BC
               </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-right font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-right font-semibold text-slate-600">
                 <span className="inline-flex items-center justify-end gap-1">
                   Amount (₹)
                   <InfoTooltip text="Amount of each billing cycle" />
@@ -538,100 +544,100 @@ export default function Billing({ orders }: BillingProps) {
               {fyColumns.map((col) => (
                 <th
                   key={`${col.year}-${col.month0}`}
-                  className={`sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 px-4 py-3 text-right font-semibold ${
+                  className={`sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 px-4 py-2 text-right font-semibold ${
                     col.isCurrent ? "bg-amber-100 text-amber-900" : "bg-slate-50 text-slate-600"
                   }`}
                 >
                   {col.label}
                 </th>
               ))}
-              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-right font-semibold text-slate-600">
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-right font-semibold text-slate-600">
                 Yearly Total (₹)
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             <tr className="font-semibold text-indigo-900">
-              <td colSpan={3} className="sticky left-0 top-11 z-20 whitespace-nowrap bg-indigo-50 px-4 py-3">
+              <td colSpan={3} className="sticky left-0 top-9 z-20 whitespace-nowrap bg-indigo-50 px-4 py-2">
                 Total Revenue
               </td>
-              <td colSpan={restIdentityColSpan} className="sticky top-11 z-10 whitespace-nowrap bg-indigo-50 px-4 py-3" />
+              <td colSpan={restIdentityColSpan} className="sticky top-9 z-10 whitespace-nowrap bg-indigo-50 px-4 py-2" />
               {monthTotals.map((total, idx) => (
                 <td
                   key={idx}
-                  className={`sticky top-11 z-10 whitespace-nowrap px-4 py-3 text-right ${
+                  className={`sticky top-9 z-10 whitespace-nowrap px-4 py-2 text-right ${
                     fyColumns[idx].isCurrent ? "bg-amber-100 text-amber-900" : "bg-indigo-50"
                   }`}
                 >
                   {total > 0 ? total.toLocaleString("en-IN") : "—"}
                 </td>
               ))}
-              <td className="sticky top-11 z-10 whitespace-nowrap bg-indigo-50 px-4 py-3 text-right">
+              <td className="sticky top-9 z-10 whitespace-nowrap bg-indigo-50 px-4 py-2 text-right">
                 {grandYearlyTotal.toLocaleString("en-IN")}
               </td>
             </tr>
 
-            {rows.map(({ order, monthly, yearlyTotal }) => {
+            {pageRows.map(({ order, monthly, yearlyTotal }) => {
               const highlight = rowHighlight(order);
               return (
               <tr key={order.id} className={`transition-colors ${highlight.row}`}>
                 <td
-                  className={`sticky z-10 truncate px-4 py-3 text-slate-700 ${highlight.frozen} ${CLIENT_COL}`}
+                  className={`sticky z-10 truncate px-4 py-2 text-slate-700 ${highlight.frozen} ${CLIENT_COL}`}
                   title={order.client}
                 >
                   {order.client}
                 </td>
-                <td className={`sticky z-10 whitespace-nowrap px-4 py-3 font-medium text-slate-800 ${highlight.frozen} ${ORDERNO_COL}`}>
+                <td className={`sticky z-10 whitespace-nowrap px-4 py-2 font-medium text-slate-800 ${highlight.frozen} ${ORDERNO_COL}`}>
                   {order.orderNo}
                 </td>
-                <td className={`sticky z-10 whitespace-nowrap px-4 py-3 text-slate-700 ${highlight.frozen} ${PRODUCT_COL}`}>
+                <td className={`sticky z-10 whitespace-nowrap px-4 py-2 text-slate-700 ${highlight.frozen} ${PRODUCT_COL}`}>
                   {order.product}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.clientManager}</td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-4 py-2 text-slate-700">{order.clientManager}</td>
+                <td className="px-4 py-2">
                   <StageIcon
                     confirmed={order.technical.status === "confirmed"}
                     rejected={order.technical.status === "rejected"}
                   />
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-2">
                   <StageIcon
                     confirmed={order.financial.status === "confirmed"}
                     rejected={order.financial.status === "rejected"}
                   />
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-slate-700">{formatDate(order.createdOn)}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-slate-700">{formatDate(order.dateOfSign)}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                <td className="whitespace-nowrap px-4 py-2 text-slate-700">{formatDate(order.createdOn)}</td>
+                <td className="whitespace-nowrap px-4 py-2 text-slate-700">{formatDate(order.dateOfSign)}</td>
+                <td className="whitespace-nowrap px-4 py-2 text-slate-700">
                   {formatFirstBillingMonth(order.details.firstBillingMonth)}
                 </td>
                 <td
-                  className="whitespace-nowrap px-4 py-3 text-slate-700"
+                  className="whitespace-nowrap px-4 py-2 text-slate-700"
                   title={order.billingCycle ? order.billingCycle : ""}
                 >
                   {order.billingCycle || "—"}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">
+                <td className="whitespace-nowrap px-4 py-2 text-right text-slate-700">
                   {order.amount.toLocaleString("en-IN")}
                 </td>
                 {monthly.map((amt, idx) => (
                   <td
                     key={idx}
-                    className={`whitespace-nowrap px-4 py-3 text-right text-slate-700 ${
+                    className={`whitespace-nowrap px-4 py-2 text-right text-slate-700 ${
                       fyColumns[idx].isCurrent ? "bg-amber-50" : ""
                     }`}
                   >
                     {amt > 0 ? amt.toLocaleString("en-IN") : "—"}
                   </td>
                 ))}
-                <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-slate-800">
+                <td className="whitespace-nowrap px-4 py-2 text-right font-medium text-slate-800">
                   {yearlyTotal.toLocaleString("en-IN")}
                 </td>
               </tr>
               );
             })}
 
-            {rows.length === 0 && (
+            {pageRows.length === 0 && (
               <tr>
                 <td colSpan={totalColumns} className="px-4 py-8 text-center text-slate-400">
                   No orders match your filters.
@@ -640,6 +646,15 @@ export default function Billing({ orders }: BillingProps) {
             )}
           </tbody>
         </table>
+        </div>
+        <PaginationFooter
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          totalRecords={totalRecords}
+        />
       </div>
 
       <FilterDrawer
