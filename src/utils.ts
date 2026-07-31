@@ -26,6 +26,84 @@ export function todayISO() {
   ).padStart(2, "0")}`;
 }
 
+export function daysBetween(a: string, b: string) {
+  const parse = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  };
+  return Math.round((parse(b).getTime() - parse(a).getTime()) / 86_400_000);
+}
+
+const MONTH_ABBR = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+// One recurring billing amount every N months; "O" (one-time) and unset
+// cycles are handled separately as a single occurrence.
+export const CYCLE_STEP: Partial<Record<BillingCycle, number>> = { M: 1, B: 2, Q: 3, H: 6, Y: 12 };
+
+export interface FyColumn {
+  year: number;
+  month0: number;
+  label: string;
+  isCurrent: boolean;
+}
+
+// Standard Indian fiscal year: April through March.
+export function buildFiscalYearColumns(reference: Date): FyColumn[] {
+  const fyStartYear = reference.getMonth() >= 3 ? reference.getFullYear() : reference.getFullYear() - 1;
+  return Array.from({ length: 12 }, (_, i) => {
+    const month0 = (3 + i) % 12;
+    const year = fyStartYear + Math.floor((3 + i) / 12);
+    const isCurrent = year === reference.getFullYear() && month0 === reference.getMonth();
+    return { year, month0, label: MONTH_ABBR[month0], isCurrent };
+  });
+}
+
+// Does this order bill its `amount` in the given fiscal-year column, based on
+// its first billing month, billing cycle, and agreement length (in months)?
+export function billsInColumn(order: OrderRecord, col: FyColumn): boolean {
+  const fbm = order.details.firstBillingMonth;
+  if (!fbm) return false;
+  const [fy, fm] = fbm.split("-").map(Number);
+  if (!fy || !fm) return false;
+
+  const startIdx = fy * 12 + (fm - 1);
+  const colIdx = col.year * 12 + col.month0;
+  if (colIdx < startIdx) return false;
+
+  const diff = colIdx - startIdx;
+  const agreementMonths = order.details.agreement;
+  if (agreementMonths != null && diff >= agreementMonths) return false;
+
+  const cycle = order.billingCycle;
+  if (!cycle || cycle === "O") return diff === 0;
+  const step = CYCLE_STEP[cycle] ?? 1;
+  return diff % step === 0;
+}
+
+// Every billing occurrence of `order` from its first billing month up to (and
+// including) `reference`'s month, bounded by agreement length if set — used
+// for "revenue collected to date" rather than a single fiscal-year window.
+export function totalBilledToDate(order: OrderRecord, reference: Date): number {
+  const fbm = order.details.firstBillingMonth;
+  if (!fbm) return 0;
+  const [fy, fm] = fbm.split("-").map(Number);
+  if (!fy || !fm) return 0;
+
+  const startIdx = fy * 12 + (fm - 1);
+  const refIdx = reference.getFullYear() * 12 + reference.getMonth();
+  if (refIdx < startIdx) return 0;
+
+  const span = refIdx - startIdx + 1;
+  const agreementMonths = order.details.agreement;
+  const bounded = agreementMonths != null ? Math.min(span, agreementMonths) : span;
+
+  const cycle = order.billingCycle;
+  if (!cycle || cycle === "O") return order.amount;
+  const step = CYCLE_STEP[cycle] ?? 1;
+  const occurrences = Math.floor((bounded - 1) / step) + 1;
+  return occurrences * order.amount;
+}
+
 interface OrderNoLike {
   orderNo: string;
   clientId: string;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { BillingCycle, OrderRecord } from "../../types";
+import type { OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
 import { formatDDMMYYYY } from "../../utils";
 import type { DateRange } from "../../components/DateRangePicker";
@@ -8,7 +8,7 @@ import SearchableSelect from "../../components/SearchableSelect";
 import AmountRangeSlider from "../../components/AmountRangeSlider";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
 import SortArrow from "../../components/SortArrow";
-import { toggleSortState, type SortState } from "../../utils";
+import { buildFiscalYearColumns, billsInColumn, toggleSortState, type SortState } from "../../utils";
 
 interface BillingProps {
   orders: OrderRecord[];
@@ -36,51 +36,6 @@ function statusBucketOf(o: OrderRecord): StatusBucketKey {
   return "neither";
 }
 
-const MONTH_ABBR = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-
-// One recurring billing amount every N months; "O" (one-time) and unset
-// cycles are handled separately as a single occurrence.
-const CYCLE_STEP: Partial<Record<BillingCycle, number>> = { M: 1, B: 2, Q: 3, H: 6, Y: 12 };
-
-interface FyColumn {
-  year: number;
-  month0: number;
-  label: string;
-  isCurrent: boolean;
-}
-
-// Standard Indian fiscal year: April through March.
-function buildFiscalYearColumns(reference: Date): FyColumn[] {
-  const fyStartYear = reference.getMonth() >= 3 ? reference.getFullYear() : reference.getFullYear() - 1;
-  return Array.from({ length: 12 }, (_, i) => {
-    const month0 = (3 + i) % 12;
-    const year = fyStartYear + Math.floor((3 + i) / 12);
-    const isCurrent = year === reference.getFullYear() && month0 === reference.getMonth();
-    return { year, month0, label: MONTH_ABBR[month0], isCurrent };
-  });
-}
-
-// Does this order bill its `amount` in the given fiscal-year column, based on
-// its first billing month, billing cycle, and agreement length (in months)?
-function billsInColumn(order: OrderRecord, col: FyColumn): boolean {
-  const fbm = order.details.firstBillingMonth;
-  if (!fbm) return false;
-  const [fy, fm] = fbm.split("-").map(Number);
-  if (!fy || !fm) return false;
-
-  const startIdx = fy * 12 + (fm - 1);
-  const colIdx = col.year * 12 + col.month0;
-  if (colIdx < startIdx) return false;
-
-  const diff = colIdx - startIdx;
-  const agreementMonths = order.details.agreement;
-  if (agreementMonths != null && diff >= agreementMonths) return false;
-
-  const cycle = order.billingCycle;
-  if (!cycle || cycle === "O") return diff === 0;
-  const step = CYCLE_STEP[cycle] ?? 1;
-  return diff % step === 0;
-}
 
 function parseISO(d: string) {
   const [y, m, day] = d.split("-").map(Number);

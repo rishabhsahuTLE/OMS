@@ -51,7 +51,7 @@ function App() {
   }
 
   function renderPage() {
-    if (activeTab === "dashboard") return <Dashboard />;
+    if (activeTab === "dashboard") return <Dashboard orders={orders} onNavigate={handleSelect} />;
     if (activeTab === "report") {
       if (activeReportSubTab === "approval") return <Approval orders={orders} />;
       if (activeReportSubTab === "billing") return <Billing orders={orders} />;
