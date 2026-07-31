@@ -165,12 +165,38 @@ export default function OrderApproval({
   const [editingOrder, setEditingOrder] = useState<OrderRecord | null>(null);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [pendingAmendment, setPendingAmendment] = useState<PendingAmendment | null>(null);
-  const [cancelTarget, setCancelTarget] = useState<OrderRecord | null>(null);
+  const [closeBatch, setCloseBatch] = useState<OrderRecord[] | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     if (tab === "all") return orders;
     return orders.filter((o) => getDisplayStage(o) === tab);
   }, [orders, tab]);
+
+  // Only closeable orders are selectable — Select All only ever touches the
+  // currently-filtered closeable rows, matching the checkboxes shown.
+  const closeableFiltered = useMemo(() => filtered.filter((o) => canInitiateClose(o)), [filtered]);
+  const allCloseableSelected = closeableFiltered.length > 0 && closeableFiltered.every((o) => selectedIds.has(o.id));
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      if (allCloseableSelected) {
+        const next = new Set(prev);
+        closeableFiltered.forEach((o) => next.delete(o.id));
+        return next;
+      }
+      return new Set([...prev, ...closeableFiltered.map((o) => o.id)]);
+    });
+  }
 
   function rowClass(order: OrderRecord) {
     if (order.lifecycleStatus === "cancelled") return "bg-rose-100 hover:bg-rose-200";
@@ -251,9 +277,14 @@ export default function OrderApproval({
     setPendingAmendment(null);
   }
 
-  function handleCloseConfirm(order: OrderRecord, details: CancellationDetails) {
-    onUpdateOrder(initiateClosure(order, details));
-    setCancelTarget(null);
+  function handleCloseConfirm(batch: OrderRecord[], details: CancellationDetails) {
+    batch.forEach((o) => onUpdateOrder(initiateClosure(o, details)));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      batch.forEach((o) => next.delete(o.id));
+      return next;
+    });
+    setCloseBatch(null);
   }
 
   // Same CreateOrderModal, same embedded rendering, same props it had as its
@@ -287,8 +318,8 @@ export default function OrderApproval({
     );
   }
 
-  if (cancelTarget) {
-    return <CancellationConfirm order={cancelTarget} onBack={() => setCancelTarget(null)} onConfirm={handleCloseConfirm} />;
+  if (closeBatch) {
+    return <CancellationConfirm orders={closeBatch} onBack={() => setCloseBatch(null)} onConfirm={handleCloseConfirm} />;
   }
 
   return (
@@ -311,14 +342,27 @@ export default function OrderApproval({
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
-        >
-          <PlusIcon />
-          Create
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const batch = orders.filter((o) => selectedIds.has(o.id) && canInitiateClose(o));
+              if (batch.length > 0) setCloseBatch(batch);
+            }}
+            disabled={selectedIds.size === 0}
+            className="rounded-md border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+          >
+            <PlusIcon />
+            Create
+          </button>
+        </div>
       </div>
 
       <p className="text-xs text-slate-500">
@@ -333,6 +377,15 @@ export default function OrderApproval({
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
             <tr>
+              <th className="sticky top-0 z-20 w-10 bg-slate-50 px-4 py-3 text-left">
+                <input
+                  type="checkbox"
+                  checked={allCloseableSelected}
+                  onChange={toggleSelectAll}
+                  disabled={closeableFiltered.length === 0}
+                  className="h-4 w-4"
+                />
+              </th>
               <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
                 Order #
               </th>
@@ -375,6 +428,18 @@ export default function OrderApproval({
               const canClose = canInitiateClose(order);
               return (
                 <tr key={order.id} className={`transition-colors ${rowClass(order)}`}>
+                  <td className="px-4 py-3">
+                    {canClose ? (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(order.id)}
+                        onChange={() => toggleRow(order.id)}
+                        className="h-4 w-4"
+                      />
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{order.orderNo}</td>
                   <td className="max-w-[200px] truncate px-4 py-3 text-slate-700" title={order.client}>
                     {order.client}
@@ -430,32 +495,23 @@ export default function OrderApproval({
                       })()}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {canAmend && (
-                        <button
-                          onClick={() => handleAmendClick(order)}
-                          className="rounded-md border border-teal-300 px-3 py-1.5 text-xs font-medium text-teal-600 hover:bg-teal-50"
-                        >
-                          Amend
-                        </button>
-                      )}
-                      {canClose && (
-                        <button
-                          onClick={() => setCancelTarget(order)}
-                          className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
-                        >
-                          Close
-                        </button>
-                      )}
-                      {!canAmend && !canClose && <span className="text-xs text-slate-400">—</span>}
-                    </div>
+                    {canAmend ? (
+                      <button
+                        onClick={() => handleAmendClick(order)}
+                        className="rounded-md border border-teal-300 px-3 py-1.5 text-xs font-medium text-teal-600 hover:bg-teal-50"
+                      >
+                        Amend
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
                   </td>
                 </tr>
               );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={12} className="px-4 py-8 text-center text-slate-400">
                   No orders match this view.
                 </td>
               </tr>

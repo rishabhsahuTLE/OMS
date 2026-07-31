@@ -1,11 +1,10 @@
 import { useState } from "react";
 import type { CancellationDetails, OrderRecord } from "../../types";
-import OrderDetailsReadOnly from "./OrderDetailsReadOnly";
 
 interface CancellationConfirmProps {
-  order: OrderRecord;
+  orders: OrderRecord[];
   onBack: () => void;
-  onConfirm: (order: OrderRecord, details: CancellationDetails) => void;
+  onConfirm: (orders: OrderRecord[], details: CancellationDetails) => void;
 }
 
 const inputClass =
@@ -15,15 +14,20 @@ function Required() {
   return <span className="text-rose-500">*</span>;
 }
 
-// The whole order shown strictly for reference (nothing editable), plus the
-// mandatory closure-request details collected here — the only place closure
-// is ever initiated from, by the order's client manager (Manage Orders tab).
-export default function CancellationConfirm({ order, onBack, onConfirm }: CancellationConfirmProps) {
+// The selected orders shown as a plain summary list (not full read-only
+// details — there can be several, of different clients/products), plus the
+// mandatory closure-request details collected here — applied identically to
+// every order in the selection. The only place closure is ever initiated
+// from, by the order's client manager (Manage Orders tab).
+export default function CancellationConfirm({ orders, onBack, onConfirm }: CancellationConfirmProps) {
   const [effectFromDate, setEffectFromDate] = useState("");
   const [outstandingBalance, setOutstandingBalance] = useState("");
   const [reason, setReason] = useState("");
   const [comments, setComments] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const hasInactive = orders.some((o) => o.lifecycleStatus === "inactive");
+  const hasActive = orders.some((o) => o.lifecycleStatus !== "inactive");
 
   function handleConfirm() {
     const nextErrors: Record<string, string> = {};
@@ -36,7 +40,7 @@ export default function CancellationConfirm({ order, onBack, onConfirm }: Cancel
       return;
     }
 
-    onConfirm(order, {
+    onConfirm(orders, {
       effectFromDate,
       outstandingBalance: Number(outstandingBalance),
       reason,
@@ -54,15 +58,45 @@ export default function CancellationConfirm({ order, onBack, onConfirm }: Cancel
           Back
         </button>
         <h2 className="text-sm font-semibold tracking-wide text-slate-700">
-          {order.orderNo} &nbsp;·&nbsp; {order.client}
+          Close {orders.length} Order{orders.length > 1 ? "s" : ""}
         </h2>
       </div>
 
-      <OrderDetailsReadOnly order={order} />
+      <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-6 py-3">
+          <h3 className="text-sm font-semibold tracking-wide text-slate-700">SELECTED ORDERS</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-4 py-2 text-left font-medium text-slate-600">Order #</th>
+                <th className="px-4 py-2 text-left font-medium text-slate-600">Client</th>
+                <th className="px-4 py-2 text-left font-medium text-slate-600">Product</th>
+                <th className="px-4 py-2 text-right font-medium text-slate-600">Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {orders.map((o) => (
+                <tr key={o.id}>
+                  <td className="px-4 py-2 font-medium text-slate-800">{o.orderNo}</td>
+                  <td className="max-w-[220px] truncate px-4 py-2 text-slate-700" title={o.client}>
+                    {o.client}
+                  </td>
+                  <td className="px-4 py-2 text-slate-700">{o.product}</td>
+                  <td className="px-4 py-2 text-right text-slate-700">{o.amount.toLocaleString("en-IN")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-3">
-          <h3 className="text-sm font-semibold tracking-wide text-slate-700">CLOSURE REQUEST</h3>
+          <h3 className="text-sm font-semibold tracking-wide text-slate-700">
+            CLOSURE REQUEST <span className="ml-1 text-xs font-normal text-slate-400">(applied to every order above)</span>
+          </h3>
         </div>
 
         <div className="space-y-4 px-6 py-6">
@@ -124,9 +158,11 @@ export default function CancellationConfirm({ order, onBack, onConfirm }: Cancel
 
       <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-6 py-4 shadow-sm">
         <p className="text-sm text-slate-500">
-          {order.lifecycleStatus === "inactive"
-            ? "This order hasn't been activated yet, so closing it goes straight to Closed — no Tech/Fin closure approval needed."
-            : "Closing this order moves it into Closure Pending, where it awaits TC/FC approval."}
+          {hasInactive && hasActive
+            ? "Approval Pending orders in this selection close straight to Closed; Active/Agreement Over ones move to Closure Pending, awaiting TC/FC approval."
+            : hasInactive
+            ? "These orders haven't been activated yet, so closing them goes straight to Closed — no Tech/Fin closure approval needed."
+            : "Closing these orders moves them into Closure Pending, where they await TC/FC approval."}
         </p>
         <div className="flex shrink-0 gap-3">
           <button onClick={onBack} className="rounded-md bg-slate-200 px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300">
