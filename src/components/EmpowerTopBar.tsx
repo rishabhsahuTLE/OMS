@@ -6,20 +6,6 @@ import { CURRENT_USER_EMAIL, deriveCreatedByName } from "../utils";
 // right are decorative only, matching the screenshot, not wired to anything.
 const INACTIVE_TABS = ["Debtors & CashFlow", "Budget & MIS", "Setting & Tools", "Pipeline Management", "Finance"];
 
-function LogoIcon() {
-  return (
-    <svg className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-      <path
-        fillRule="evenodd"
-        d="M10 2a5 5 0 00-5 5c0 1.6.73 3.02 1.88 3.96L6.5 15h7l-.38-4.04A5 5 0 0015 7a5 5 0 00-5-5zm-2 13.5h4L11.6 18a1 1 0 01-.9.5h-1.4a1 1 0 01-.9-.5l-.4-2.5z"
-        clipRule="evenodd"
-      />
-      <circle cx="8" cy="7" r="1" />
-      <circle cx="12" cy="7" r="1" />
-    </svg>
-  );
-}
-
 function ChevronDownIcon() {
   return (
     <svg className="h-3.5 w-3.5 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -64,13 +50,11 @@ export default function EmpowerTopBar() {
 
   return (
     <div className="shrink-0">
-      <div className="h-1 bg-slate-950" />
+      <div className="h-1 bg-indigo-950" />
       <div className="flex h-16 items-center justify-between gap-4 border-b border-slate-200 bg-white px-6">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-900">
-              <LogoIcon />
-            </span>
+            <img src="/empower-icon-black.png" alt="Empower" className="h-9 w-9 object-contain" />
             <span className="text-xl font-bold text-slate-900">Empower</span>
           </div>
 
@@ -88,7 +72,7 @@ export default function EmpowerTopBar() {
             ))}
             <button
               type="button"
-              className="rounded-full bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white"
+              className="rounded-full bg-indigo-900 px-4 py-1.5 text-sm font-semibold text-white"
             >
               OMS
             </button>

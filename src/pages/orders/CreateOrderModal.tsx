@@ -137,7 +137,7 @@ function UploadIcon() {
 
 function CartIcon() {
   return (
-    <svg className="h-5 w-5 text-teal-600" viewBox="0 0 20 20" fill="currentColor">
+    <svg className="h-5 w-5 text-indigo-600" viewBox="0 0 20 20" fill="currentColor">
       <path d="M2.5 3a.5.5 0 000 1h1.04l1.7 8.02A2 2 0 007.2 13.5h6.1a2 2 0 001.96-1.6l1.05-5.4a.5.5 0 00-.49-.6H5.02l-.3-1.42A1.5 1.5 0 003.26 3H2.5zM7 17a1.25 1.25 0 100-2.5A1.25 1.25 0 007 17zm7 0a1.25 1.25 0 100-2.5 1.25 1.25 0 000 2.5z" />
     </svg>
   );
@@ -181,7 +181,7 @@ function OrderFormStepper({
           const locked = isLocked(p.key);
           const disabled = isDisabled(p.key);
           const circleClass = current
-            ? "border-teal-600 bg-teal-600 text-white"
+            ? "border-indigo-600 bg-indigo-600 text-white"
             : complete
             ? "border-emerald-400 bg-emerald-50 text-emerald-600"
             : "border-slate-300 bg-white text-slate-400";
@@ -220,7 +220,7 @@ function OrderFormStepper({
           <div
             key={p.key}
             className={`flex-1 px-1 text-center text-[11px] font-medium leading-tight last:flex-none last:w-9 ${
-              p.key === activePage ? "text-teal-700" : "text-slate-500"
+              p.key === activePage ? "text-indigo-700" : "text-slate-500"
             }`}
           >
             {p.label}
@@ -762,7 +762,7 @@ export default function CreateOrderModal({
             {ready && client && currentProduct && (
               <>
                 <div className="flex items-center gap-2 border-y border-slate-200 px-6 py-4">
-                  <svg className="h-5 w-5 text-teal-600" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-5 w-5 text-indigo-600" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10 2a3 3 0 00-3 3v2H6a2 2 0 00-2 2v7a2 2 0 002 2h8a2 2 0 002-2V9a2 2 0 00-2-2h-1V5a3 3 0 00-3-3zm-1 5V5a1 1 0 112 0v2H9z" />
                   </svg>
                   <h2 className="text-sm font-semibold tracking-wide text-slate-700">CLIENT DETAILS</h2>
@@ -1233,7 +1233,7 @@ export default function CreateOrderModal({
               {isLastPage ? (
                 <button
                   onClick={handleSave}
-                  className="rounded-md bg-teal-600 px-5 py-2 text-sm font-medium text-white hover:bg-teal-700"
+                  className="rounded-md bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                 >
                   {editingOrder ? "Update" : "Save"}
                 </button>
@@ -1241,7 +1241,7 @@ export default function CreateOrderModal({
                 <button
                   type="button"
                   onClick={goNext}
-                  className="rounded-md bg-teal-600 px-5 py-2 text-sm font-medium text-white hover:bg-teal-700"
+                  className="rounded-md bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                 >
                   Next
                 </button>

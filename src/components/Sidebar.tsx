@@ -108,11 +108,11 @@ export default function Sidebar({
     <aside
       onMouseEnter={() => setExpanded(true)}
       onMouseLeave={collapseAll}
-      className={`flex h-full shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-slate-900 text-slate-200 transition-all duration-150 ${
+      className={`flex h-full shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-indigo-900 text-slate-200 transition-all duration-150 ${
         expanded ? "w-64" : "w-16"
       }`}
     >
-      <div className={`flex h-16 shrink-0 items-center gap-2 border-b border-slate-800 ${expanded ? "px-5" : "justify-center px-2"}`}>
+      <div className={`flex h-16 shrink-0 items-center gap-2 border-b border-indigo-800 ${expanded ? "px-5" : "justify-center px-2"}`}>
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-indigo-500 font-semibold text-white">
           O
         </div>
@@ -141,7 +141,7 @@ export default function Sidebar({
               !expanded ? "justify-center" : ""
             } ${
               activeTab === "report"
-                ? "bg-slate-800 text-white"
+                ? "bg-indigo-600 text-white"
                 : "text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
@@ -179,7 +179,7 @@ export default function Sidebar({
               !expanded ? "justify-center" : ""
             } ${
               activeTab === "orders"
-                ? "bg-slate-800 text-white"
+                ? "bg-indigo-600 text-white"
                 : "text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
@@ -217,7 +217,7 @@ export default function Sidebar({
               !expanded ? "justify-center" : ""
             } ${
               activeTab === "admin"
-                ? "bg-slate-800 text-white"
+                ? "bg-indigo-600 text-white"
                 : "text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >

@@ -235,7 +235,7 @@ export default function OrderApprovalReview({ order, orders, onBack, onUpdateOrd
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                className="rounded-md bg-teal-600 px-5 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-md bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Submit
               </button>

@@ -359,7 +359,7 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
             onClick={() => setTab(t.key)}
             className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
               tab === t.key
-                ? "bg-slate-800 text-white"
+                ? "border border-indigo-200 bg-indigo-50 text-indigo-700"
                 : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
             }`}
           >
@@ -471,7 +471,7 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
                       type="button"
                       onClick={() => setReviewOrderId(order.id)}
                       title="Review & process"
-                      className="text-teal-600 hover:text-teal-800"
+                      className="text-indigo-600 hover:text-indigo-800"
                     >
                       <EditIcon />
                     </button>

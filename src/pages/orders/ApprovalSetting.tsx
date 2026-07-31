@@ -266,7 +266,7 @@ export default function ApprovalSetting() {
           </button>
           <button
             onClick={() => setAddOpen(true)}
-            className="flex items-center gap-1.5 rounded-md border border-teal-300 px-4 py-2 text-sm font-medium text-teal-600 hover:bg-teal-50"
+            className="flex items-center gap-1.5 rounded-md border border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50"
           >
             <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
               <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
@@ -419,7 +419,7 @@ export default function ApprovalSetting() {
           </button>
           <button
             onClick={handleAdd}
-            className="rounded-md bg-teal-600 px-5 py-2 text-sm font-medium text-white hover:bg-teal-700"
+            className="rounded-md bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
             Add
           </button>

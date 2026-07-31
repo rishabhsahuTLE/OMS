@@ -23,7 +23,7 @@ export default function ConfirmDialog({ open, title, message, confirmLabel, onCo
         <div className="mt-6 flex gap-3">
           <button
             onClick={onConfirm}
-            className="rounded-md bg-teal-700 px-5 py-2 text-sm font-medium text-white hover:bg-teal-800"
+            className="rounded-md bg-indigo-700 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-800"
           >
             {confirmLabel}
           </button>

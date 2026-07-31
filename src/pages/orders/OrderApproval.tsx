@@ -582,8 +582,8 @@ export default function OrderApproval({
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 gap-2">
           {VIEW_TABS.map((t) => (
             <button
               key={t.key}
@@ -591,7 +591,7 @@ export default function OrderApproval({
               onClick={() => setTab(t.key)}
               className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                 tab === t.key
-                  ? "bg-slate-800 text-white"
+                  ? "border border-indigo-200 bg-indigo-50 text-indigo-700"
                   : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
               }`}
             >
@@ -600,31 +600,7 @@ export default function OrderApproval({
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              const batch = orders.filter((o) => selectedIds.has(o.id) && canInitiateClose(o));
-              if (batch.length > 0) setCloseBatch(batch);
-            }}
-            disabled={selectedIds.size === 0}
-            className="rounded-md border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Close
-          </button>
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="flex items-center gap-1.5 rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
-          >
-            <PlusIcon />
-            Create
-          </button>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+        <div className="relative w-64 shrink-0">
           <svg
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
             viewBox="0 0 20 20"
@@ -652,6 +628,28 @@ export default function OrderApproval({
           <FunnelIcon />
           {hasActiveFilters && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500" />}
         </button>
+
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const batch = orders.filter((o) => selectedIds.has(o.id) && canInitiateClose(o));
+              if (batch.length > 0) setCloseBatch(batch);
+            }}
+            disabled={selectedIds.size === 0}
+            className="rounded-md border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            <PlusIcon />
+            Create
+          </button>
+        </div>
       </div>
 
       <p className="text-xs text-slate-500">
@@ -776,7 +774,7 @@ export default function OrderApproval({
                     {canAmend ? (
                       <button
                         onClick={() => handleAmendClick(order)}
-                        className="rounded-md border border-teal-300 px-3 py-1.5 text-xs font-medium text-teal-600 hover:bg-teal-50"
+                        className="rounded-md border border-indigo-300 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50"
                       >
                         Amend
                       </button>

@@ -61,7 +61,7 @@ export default function PaginationFooter({
               onClick={() => onPageChange(p)}
               className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold transition-colors ${
                 p === page
-                  ? "bg-blue-600 text-white"
+                  ? "bg-indigo-600 text-white"
                   : "border border-slate-300 text-slate-600 hover:bg-slate-50"
               }`}
             >
