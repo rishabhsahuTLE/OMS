@@ -351,25 +351,25 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex gap-2">
-        {VIEW_TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              tab === t.key
-                ? "border border-indigo-200 bg-indigo-50 text-indigo-700"
-                : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 gap-2">
+          {VIEW_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                tab === t.key
+                  ? "border border-indigo-200 bg-indigo-50 text-indigo-700"
+                  : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
 
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+        <div className="relative w-64 shrink-0">
           <svg
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
             viewBox="0 0 20 20"
