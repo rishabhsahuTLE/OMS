@@ -7,6 +7,8 @@ import InlineDateRangeCalendar from "../../components/InlineDateRangeCalendar";
 import SearchableSelect from "../../components/SearchableSelect";
 import AmountRangeSlider from "../../components/AmountRangeSlider";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
+import SortArrow from "../../components/SortArrow";
+import { toggleSortState, type SortState } from "../../utils";
 
 interface BillingProps {
   orders: OrderRecord[];
@@ -220,8 +222,49 @@ const CLIENT_COL = "w-[180px] min-w-[180px] max-w-[180px] left-0";
 const ORDERNO_COL = "w-[130px] min-w-[130px] max-w-[130px] left-[180px]";
 const PRODUCT_COL = "w-[90px] min-w-[90px] max-w-[90px] left-[310px]";
 
+// Only the 3 frozen columns sort — the 12 rolling fiscal-year month columns
+// and the pinned Total row aren't meaningful to sort by.
+type SortableKey = "client" | "orderNo" | "product";
+
+function compareByKey(a: OrderRecord, b: OrderRecord, key: SortableKey): number {
+  switch (key) {
+    case "client":
+      return a.client.localeCompare(b.client);
+    case "orderNo":
+      return a.orderNo.localeCompare(b.orderNo);
+    case "product":
+      return a.product.localeCompare(b.product);
+  }
+}
+
+function SortableTh({
+  label,
+  sortKey,
+  sort,
+  onClick,
+  colClass,
+}: {
+  label: string;
+  sortKey: SortableKey;
+  sort: SortState<SortableKey>;
+  onClick: (key: SortableKey) => void;
+  colClass: string;
+}) {
+  return (
+    <th
+      className={`sticky top-0 z-30 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600 ${colClass}`}
+    >
+      <button onClick={() => onClick(sortKey)} className="flex items-center gap-1.5 hover:text-slate-900">
+        {label}
+        <SortArrow direction={sort.key === sortKey ? sort.direction : "asc"} active={sort.key === sortKey} />
+      </button>
+    </th>
+  );
+}
+
 export default function Billing({ orders }: BillingProps) {
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortState<SortableKey>>({ key: null, direction: "asc" });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(FILTER_CATEGORIES[0].key);
 
@@ -232,6 +275,10 @@ export default function Billing({ orders }: BillingProps) {
 
   const clientOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.client))).sort(), [orders]);
   const managerOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
+
+  function toggleSort(key: SortableKey) {
+    setSort((prev) => toggleSortState(prev, key));
+  }
 
   function toggleDraftBucket(key: StatusBucketKey) {
     setDraft((prev) => {
@@ -304,14 +351,23 @@ export default function Billing({ orders }: BillingProps) {
     return result;
   }, [orders, applied, search]);
 
+  const sortedOrders = useMemo(() => {
+    if (!sort.key) return filteredOrders;
+    const key = sort.key;
+    return [...filteredOrders].sort((a, b) => {
+      const cmp = compareByKey(a, b, key);
+      return sort.direction === "asc" ? cmp : -cmp;
+    });
+  }, [filteredOrders, sort]);
+
   const rows = useMemo(
     () =>
-      filteredOrders.map((o) => {
+      sortedOrders.map((o) => {
         const monthly = fyColumns.map((col) => (billsInColumn(o, col) ? o.amount : 0));
         const yearlyTotal = monthly.reduce((a, b) => a + b, 0);
         return { order: o, monthly, yearlyTotal };
       }),
-    [filteredOrders, fyColumns]
+    [sortedOrders, fyColumns]
   );
 
   const monthTotals = useMemo(
@@ -449,21 +505,9 @@ export default function Billing({ orders }: BillingProps) {
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
             <tr>
-              <th
-                className={`sticky top-0 z-30 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600 ${CLIENT_COL}`}
-              >
-                Client
-              </th>
-              <th
-                className={`sticky top-0 z-30 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600 ${ORDERNO_COL}`}
-              >
-                Order #
-              </th>
-              <th
-                className={`sticky top-0 z-30 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600 ${PRODUCT_COL}`}
-              >
-                Product
-              </th>
+              <SortableTh label="Client" sortKey="client" sort={sort} onClick={toggleSort} colClass={CLIENT_COL} />
+              <SortableTh label="Order #" sortKey="orderNo" sort={sort} onClick={toggleSort} colClass={ORDERNO_COL} />
+              <SortableTh label="Product" sortKey="product" sort={sort} onClick={toggleSort} colClass={PRODUCT_COL} />
               <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">
                 Client Manager
               </th>

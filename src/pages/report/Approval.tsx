@@ -2,21 +2,23 @@ import { useMemo, useState } from "react";
 import { BILLING_CYCLE_LABELS } from "../../types";
 import type { OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
-import DateRangePicker, { type DateRange } from "../../components/DateRangePicker";
+import type { DateRange } from "../../components/DateRangePicker";
+import InlineDateRangeCalendar from "../../components/InlineDateRangeCalendar";
 import AmountRangeSlider from "../../components/AmountRangeSlider";
+import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
+import SortArrow from "../../components/SortArrow";
+import {
+  compareNullableDate,
+  compareNullableNumber,
+  toggleSortState,
+  type SortState,
+} from "../../utils";
 
 interface ApprovalProps {
   orders: OrderRecord[];
 }
 
 type SortableKey = "orderNo" | "client" | "clientManager" | "dateOfSign" | "ocd" | "tc" | "fc" | "total" | "billingCycle" | "amount";
-
-type SortDirection = "asc" | "desc";
-
-interface SortState {
-  key: SortableKey | null;
-  direction: SortDirection;
-}
 
 interface LeafColumn {
   key: SortableKey;
@@ -43,6 +45,40 @@ const rightColumns: LeafColumn[] = [
 ];
 
 const AMOUNT_MAX_LAKH = 50;
+
+const selectClass =
+  "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
+
+const FILTER_CATEGORIES: FilterDrawerCategory[] = [
+  { key: "product", label: "Product" },
+  { key: "manager", label: "Manager" },
+  { key: "amount", label: "Amount" },
+  { key: "date", label: "Creation Date" },
+];
+
+interface DrawerFilters {
+  product: string;
+  manager: string;
+  minLakh: number;
+  maxLakh: number;
+  dateRange: DateRange;
+}
+
+const defaultDrawerFilters: DrawerFilters = {
+  product: "all",
+  manager: "all",
+  minLakh: 0,
+  maxLakh: AMOUNT_MAX_LAKH,
+  dateRange: { start: null, end: null },
+};
+
+function FunnelIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M3 4a1 1 0 011-1h12a1 1 0 01.8 1.6L12 12v4a1 1 0 01-.45.83l-2 1.34A1 1 0 018 17.3V12L3.2 4.6A1 1 0 013 4z" />
+    </svg>
+  );
+}
 
 function parseISO(d: string) {
   const [y, m, day] = d.split("-").map(Number);
@@ -73,20 +109,6 @@ function rowHighlightClass(order: OrderRecord) {
   return "hover:bg-slate-50";
 }
 
-function SortArrow({ direction, active }: { direction: SortDirection; active: boolean }) {
-  return (
-    <svg
-      className={`h-3.5 w-3.5 shrink-0 transition-transform ${direction === "desc" ? "rotate-180" : ""} ${
-        active ? "text-indigo-600" : "text-slate-400"
-      }`}
-      viewBox="0 0 20 20"
-      fill="currentColor"
-    >
-      <path d="M10 5l5 6H5l5-6z" />
-    </svg>
-  );
-}
-
 function DaysCell({ days, date }: { days: number; date: string | null }) {
   return (
     <span className="text-slate-700">
@@ -98,12 +120,12 @@ function DaysCell({ days, date }: { days: number; date: string | null }) {
 
 export default function Approval({ orders }: ApprovalProps) {
   const [search, setSearch] = useState("");
-  const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
-  const [productFilter, setProductFilter] = useState<string>("all");
-  const [managerFilter, setManagerFilter] = useState<string>("all");
-  const [minLakh, setMinLakh] = useState(0);
-  const [maxLakh, setMaxLakh] = useState(AMOUNT_MAX_LAKH);
-  const [sort, setSort] = useState<SortState>({ key: null, direction: "asc" });
+  const [sort, setSort] = useState<SortState<SortableKey>>({ key: null, direction: "asc" });
+
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState(FILTER_CATEGORIES[0].key);
+  const [draft, setDraft] = useState<DrawerFilters>(defaultDrawerFilters);
+  const [applied, setApplied] = useState<DrawerFilters>(defaultDrawerFilters);
 
   const clearedOrders = useMemo(() => orders.filter(isFullyCleared), [orders]);
 
@@ -113,25 +135,45 @@ export default function Approval({ orders }: ApprovalProps) {
   );
 
   function toggleSort(key: SortableKey) {
-    setSort((prev) => {
-      if (prev.key !== key) return { key, direction: "asc" };
-      return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
-    });
+    setSort((prev) => toggleSortState(prev, key));
   }
+
+  function openDrawer() {
+    setDraft(applied);
+    setDrawerOpen(true);
+  }
+
+  function handleApply() {
+    setApplied(draft);
+    setDrawerOpen(false);
+  }
+
+  function handleClear() {
+    setDraft(defaultDrawerFilters);
+    setApplied(defaultDrawerFilters);
+  }
+
+  const hasActiveFilters =
+    applied.product !== "all" ||
+    applied.manager !== "all" ||
+    applied.minLakh !== 0 ||
+    applied.maxLakh !== AMOUNT_MAX_LAKH ||
+    applied.dateRange.start !== null ||
+    applied.dateRange.end !== null;
 
   const filtered = useMemo(() => {
     let result: OrderRecord[] = clearedOrders;
 
-    if (productFilter !== "all") {
-      result = result.filter((o) => o.product === productFilter);
+    if (applied.product !== "all") {
+      result = result.filter((o) => o.product === applied.product);
     }
 
-    if (managerFilter !== "all") {
-      result = result.filter((o) => o.clientManager === managerFilter);
+    if (applied.manager !== "all") {
+      result = result.filter((o) => o.clientManager === applied.manager);
     }
 
-    const minRupees = minLakh * 100_000;
-    const maxRupees = maxLakh >= AMOUNT_MAX_LAKH ? Infinity : maxLakh * 100_000;
+    const minRupees = applied.minLakh * 100_000;
+    const maxRupees = applied.maxLakh >= AMOUNT_MAX_LAKH ? Infinity : applied.maxLakh * 100_000;
     result = result.filter((o) => o.amount >= minRupees && o.amount <= maxRupees);
 
     const q = search.trim().toLowerCase();
@@ -145,9 +187,9 @@ export default function Approval({ orders }: ApprovalProps) {
       );
     }
 
-    if (dateRange.start && dateRange.end) {
-      const startTime = dateRange.start.getTime();
-      const endTime = dateRange.end.getTime();
+    if (applied.dateRange.start && applied.dateRange.end) {
+      const startTime = applied.dateRange.start.getTime();
+      const endTime = applied.dateRange.end.getTime();
       result = result.filter((o) => {
         const t = parseISO(o.createdOn).getTime();
         return t >= startTime && t <= endTime;
@@ -163,86 +205,104 @@ export default function Approval({ orders }: ApprovalProps) {
     }
 
     return result;
-  }, [clearedOrders, search, dateRange, productFilter, managerFilter, minLakh, maxLakh, sort]);
+  }, [clearedOrders, search, applied, sort]);
+
+  function renderCategoryContent() {
+    switch (activeCategory) {
+      case "product":
+        return (
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">Product</label>
+            <select
+              value={draft.product}
+              onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
+              className={selectClass}
+            >
+              <option value="all">All products</option>
+              {PRODUCT_NAMES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      case "manager":
+        return (
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">Manager</label>
+            <select
+              value={draft.manager}
+              onChange={(e) => setDraft((prev) => ({ ...prev, manager: e.target.value }))}
+              className={selectClass}
+            >
+              <option value="all">All managers</option>
+              {managerOptions.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      case "amount":
+        return (
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">Amount</label>
+            <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
+              <AmountRangeSlider
+                min={0}
+                max={AMOUNT_MAX_LAKH}
+                minValue={draft.minLakh}
+                maxValue={draft.maxLakh}
+                onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
+              />
+            </div>
+          </div>
+        );
+      case "date":
+        return (
+          <InlineDateRangeCalendar
+            value={draft.dateRange}
+            onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
+          />
+        );
+      default:
+        return null;
+    }
+  }
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-3 flex flex-wrap items-end gap-3">
-        <div className="min-w-[220px] flex-1">
-          <label className="mb-1 block text-sm text-slate-600">Search</label>
-          <div className="relative">
-            <svg
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.6 4.2l3.6 3.6a1 1 0 01-1.4 1.4l-3.6-3.6A7 7 0 012 9z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by account, order #, or manager…"
-              className="w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">Creation Date</label>
-          <DateRangePicker value={dateRange} onChange={setDateRange} />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">Product</label>
-          <select
-            value={productFilter}
-            onChange={(e) => setProductFilter(e.target.value)}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+      <div className="mb-3 flex items-center gap-2">
+        <div className="relative flex-1">
+          <svg
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            viewBox="0 0 20 20"
+            fill="currentColor"
           >
-            <option value="all">All products</option>
-            {PRODUCT_NAMES.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">Manager</label>
-          <select
-            value={managerFilter}
-            onChange={(e) => setManagerFilter(e.target.value)}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-          >
-            <option value="all">All managers</option>
-            {managerOptions.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">Amount</label>
-          <div className="w-56 rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
-            <AmountRangeSlider
-              min={0}
-              max={AMOUNT_MAX_LAKH}
-              minValue={minLakh}
-              maxValue={maxLakh}
-              onChange={(mn, mx) => {
-                setMinLakh(mn);
-                setMaxLakh(mx);
-              }}
+            <path
+              fillRule="evenodd"
+              d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.6 4.2l3.6 3.6a1 1 0 01-1.4 1.4l-3.6-3.6A7 7 0 012 9z"
+              clipRule="evenodd"
             />
-          </div>
+          </svg>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by account, order #, or manager…"
+            className="w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          />
         </div>
+        <button
+          type="button"
+          onClick={openDrawer}
+          className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+          aria-label="Open filters"
+        >
+          <FunnelIcon />
+          {hasActiveFilters && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500" />}
+        </button>
       </div>
 
       <p className="mb-3 text-xs text-slate-500">
@@ -347,6 +407,19 @@ export default function Approval({ orders }: ApprovalProps) {
           </tbody>
         </table>
       </div>
+
+      <FilterDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="Approval Filters"
+        categories={FILTER_CATEGORIES}
+        activeCategory={activeCategory}
+        onSelectCategory={setActiveCategory}
+        onClear={handleClear}
+        onApply={handleApply}
+      >
+        {renderCategoryContent()}
+      </FilterDrawer>
     </div>
   );
 }
@@ -357,7 +430,7 @@ function SortButton({
   onClick,
 }: {
   col: LeafColumn;
-  sort: SortState;
+  sort: SortState<SortableKey>;
   onClick: (key: SortableKey) => void;
 }) {
   return (
@@ -396,18 +469,4 @@ function compareByKey(a: OrderRecord, b: OrderRecord, key: SortableKey): number 
     default:
       return 0;
   }
-}
-
-function compareNullableDate(a: string | null, b: string | null): number {
-  if (a === null && b === null) return 0;
-  if (a === null) return 1;
-  if (b === null) return -1;
-  return a.localeCompare(b);
-}
-
-function compareNullableNumber(a: number | null, b: number | null): number {
-  if (a === null && b === null) return 0;
-  if (a === null) return 1;
-  if (b === null) return -1;
-  return a - b;
 }

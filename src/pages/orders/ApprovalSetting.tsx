@@ -3,11 +3,71 @@ import Modal from "../../components/Modal";
 import { DEPARTMENTS } from "../../types";
 import type { ApprovalSettingRow } from "../../types";
 import { mockApprovalSettings } from "../../data/mockApprovalSettings";
+import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
+import SortArrow from "../../components/SortArrow";
+import { toggleSortState, type SortState } from "../../utils";
 
 const selectClass =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
 const inputClass =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
+
+type SortableKey = "approver" | "department" | "status";
+
+function compareByKey(a: ApprovalSettingRow, b: ApprovalSettingRow, key: SortableKey): number {
+  switch (key) {
+    case "approver":
+      return a.approver.localeCompare(b.approver);
+    case "department":
+      return a.department.localeCompare(b.department);
+    case "status":
+      return a.status.localeCompare(b.status);
+  }
+}
+
+function SortableTh({
+  label,
+  sortKey,
+  sort,
+  onClick,
+  align = "left",
+}: {
+  label: string;
+  sortKey: SortableKey;
+  sort: SortState<SortableKey>;
+  onClick: (key: SortableKey) => void;
+  align?: "left" | "center";
+}) {
+  return (
+    <th
+      className={`sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 font-semibold text-slate-600 ${
+        align === "center" ? "text-center" : "text-left"
+      }`}
+    >
+      <button
+        onClick={() => onClick(sortKey)}
+        className={`flex items-center gap-1.5 hover:text-slate-900 ${align === "center" ? "mx-auto" : ""}`}
+      >
+        {label}
+        <SortArrow direction={sort.key === sortKey ? sort.direction : "asc"} active={sort.key === sortKey} />
+      </button>
+    </th>
+  );
+}
+
+const FILTER_CATEGORIES: FilterDrawerCategory[] = [
+  { key: "department", label: "Department" },
+  { key: "approver", label: "Approver" },
+  { key: "status", label: "Status" },
+];
+
+interface DrawerFilters {
+  department: string;
+  approver: string;
+  status: string;
+}
+
+const defaultDrawerFilters: DrawerFilters = { department: "all", approver: "all", status: "all" };
 
 function UsersIcon() {
   return (
@@ -48,10 +108,11 @@ const emptyNewRow: NewRowForm = { approver: "", department: "", technical: false
 export default function ApprovalSetting() {
   const [rows, setRows] = useState<ApprovalSettingRow[]>(mockApprovalSettings);
 
-  const [departmentFilter, setDepartmentFilter] = useState("all");
-  const [approverFilter, setApproverFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [appliedFilters, setAppliedFilters] = useState({ department: "all", approver: "all", status: "all" });
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState(FILTER_CATEGORIES[0].key);
+  const [draft, setDraft] = useState<DrawerFilters>(defaultDrawerFilters);
+  const [applied, setApplied] = useState<DrawerFilters>(defaultDrawerFilters);
+  const [sort, setSort] = useState<SortState<SortableKey>>({ key: null, direction: "asc" });
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(30);
@@ -61,31 +122,109 @@ export default function ApprovalSetting() {
 
   const approverOptions = useMemo(() => Array.from(new Set(rows.map((r) => r.approver))).sort(), [rows]);
 
-  function handleSearch() {
-    setAppliedFilters({ department: departmentFilter, approver: approverFilter, status: statusFilter });
+  function toggleSort(key: SortableKey) {
+    setSort((prev) => toggleSortState(prev, key));
+  }
+
+  function openDrawer() {
+    setDraft(applied);
+    setDrawerOpen(true);
+  }
+
+  function handleApply() {
+    setApplied(draft);
+    setDrawerOpen(false);
     setPage(1);
   }
 
   function handleClear() {
-    setDepartmentFilter("all");
-    setApproverFilter("all");
-    setStatusFilter("all");
-    setAppliedFilters({ department: "all", approver: "all", status: "all" });
+    setDraft(defaultDrawerFilters);
+    setApplied(defaultDrawerFilters);
     setPage(1);
   }
 
+  const hasActiveFilters = applied.department !== "all" || applied.approver !== "all" || applied.status !== "all";
+
   const filtered = useMemo(() => {
-    return rows.filter((r) => {
-      if (appliedFilters.department !== "all" && r.department !== appliedFilters.department) return false;
-      if (appliedFilters.approver !== "all" && r.approver !== appliedFilters.approver) return false;
-      if (appliedFilters.status !== "all" && r.status !== appliedFilters.status) return false;
+    let result = rows.filter((r) => {
+      if (applied.department !== "all" && r.department !== applied.department) return false;
+      if (applied.approver !== "all" && r.approver !== applied.approver) return false;
+      if (applied.status !== "all" && r.status !== applied.status) return false;
       return true;
     });
-  }, [rows, appliedFilters]);
+
+    if (sort.key) {
+      const key = sort.key;
+      result = [...result].sort((a, b) => {
+        const cmp = compareByKey(a, b, key);
+        return sort.direction === "asc" ? cmp : -cmp;
+      });
+    }
+
+    return result;
+  }, [rows, applied, sort]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pageRows = filtered.slice((currentPage - 1) * pageSize, (currentPage - 1) * pageSize + pageSize);
+
+  function renderCategoryContent() {
+    switch (activeCategory) {
+      case "department":
+        return (
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">Department</label>
+            <select
+              value={draft.department}
+              onChange={(e) => setDraft((prev) => ({ ...prev, department: e.target.value }))}
+              className={selectClass}
+            >
+              <option value="all">--Select Department--</option>
+              {DEPARTMENTS.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      case "approver":
+        return (
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">Approver</label>
+            <select
+              value={draft.approver}
+              onChange={(e) => setDraft((prev) => ({ ...prev, approver: e.target.value }))}
+              className={selectClass}
+            >
+              <option value="all">--Select Approver--</option>
+              {approverOptions.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      case "status":
+        return (
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">Status</label>
+            <select
+              value={draft.status}
+              onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))}
+              className={selectClass}
+            >
+              <option value="all">All</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+        );
+      default:
+        return null;
+    }
+  }
 
   function toggleStatus(id: string) {
     setRows((prev) =>
@@ -112,62 +251,22 @@ export default function ApprovalSetting() {
 
   return (
     <div className="flex h-full flex-col rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center gap-2 border-b border-slate-200 px-6 py-4">
-        <UsersIcon />
-        <h2 className="text-lg font-semibold text-slate-800">Approval Setting</h2>
-      </div>
-
-      <div className="border-b border-slate-100 px-6 py-5">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Department</label>
-            <select
-              value={departmentFilter}
-              onChange={(e) => setDepartmentFilter(e.target.value)}
-              className={selectClass}
-            >
-              <option value="all">--Select Department--</option>
-              {DEPARTMENTS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Approver</label>
-            <select value={approverFilter} onChange={(e) => setApproverFilter(e.target.value)} className={selectClass}>
-              <option value="all">--Select Approver--</option>
-              {approverOptions.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Status</label>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectClass}>
-              <option value="all">All</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-6 py-4">
+        <div className="flex items-center gap-2">
+          <UsersIcon />
+          <h2 className="text-lg font-semibold text-slate-800">Approval Setting</h2>
         </div>
-
-        <div className="mt-4 flex justify-end gap-3">
+        <div className="flex items-center gap-3">
           <button
-            onClick={handleSearch}
-            className="flex items-center gap-1.5 rounded-md border border-teal-300 px-4 py-2 text-sm font-medium text-teal-600 hover:bg-teal-50"
+            type="button"
+            onClick={openDrawer}
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+            aria-label="Open filters"
           >
             <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-              <path
-                fillRule="evenodd"
-                d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.6 4.2l3.6 3.6a1 1 0 01-1.4 1.4l-3.6-3.6A7 7 0 012 9z"
-                clipRule="evenodd"
-              />
+              <path d="M3 4a1 1 0 011-1h12a1 1 0 01.8 1.6L12 12v4a1 1 0 01-.45.83l-2 1.34A1 1 0 018 17.3V12L3.2 4.6A1 1 0 013 4z" />
             </svg>
-            Search
+            {hasActiveFilters && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500" />}
           </button>
           <button
             onClick={() => setAddOpen(true)}
@@ -177,12 +276,6 @@ export default function ApprovalSetting() {
               <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
             </svg>
             Add
-          </button>
-          <button
-            onClick={handleClear}
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          >
-            Clear
           </button>
         </div>
       </div>
@@ -197,11 +290,11 @@ export default function ApprovalSetting() {
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
             <tr>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Approver</th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-left font-semibold text-slate-600">Department</th>
+              <SortableTh label="Approver" sortKey="approver" sort={sort} onClick={toggleSort} />
+              <SortableTh label="Department" sortKey="department" sort={sort} onClick={toggleSort} />
               <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">Technical</th>
               <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">Financial</th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-3 text-center font-semibold text-slate-600">Status</th>
+              <SortableTh label="Status" sortKey="status" sort={sort} onClick={toggleSort} align="center" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -286,6 +379,19 @@ export default function ApprovalSetting() {
         </select>
         <span>records | Found total {filtered.length} records</span>
       </div>
+
+      <FilterDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="Approval Setting Filters"
+        categories={FILTER_CATEGORIES}
+        activeCategory={activeCategory}
+        onSelectCategory={setActiveCategory}
+        onClear={handleClear}
+        onApply={handleApply}
+      >
+        {renderCategoryContent()}
+      </FilterDrawer>
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} widthClassName="max-w-lg">
         <div className="border-b border-slate-200 px-6 py-4">

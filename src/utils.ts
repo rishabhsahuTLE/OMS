@@ -198,6 +198,37 @@ export function getDisplayStage(order: OrderRecord): OrderDisplayStage {
   return isAgreementOver(order) ? "agreementOver" : "active";
 }
 
+export type SortDirection = "asc" | "desc";
+
+export interface SortState<K extends string> {
+  key: K | null;
+  direction: SortDirection;
+}
+
+// Click a new column resets to ascending; click the same column again flips
+// direction — the toggle behavior every sortable table header uses.
+export function toggleSortState<K extends string>(prev: SortState<K>, key: K): SortState<K> {
+  if (prev.key !== key) return { key, direction: "asc" };
+  return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
+}
+
+// Null-safe comparators for sortable columns whose value can be unset —
+// nulls always sort after every real value, regardless of direction (the
+// caller flips the comparator's sign for desc).
+export function compareNullableDate(a: string | null, b: string | null): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a.localeCompare(b);
+}
+
+export function compareNullableNumber(a: number | null, b: number | null): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a - b;
+}
+
 export type ApprovalStageKey = "technical" | "financial" | "cancellationTechnical" | "cancellationFinancial";
 
 export interface ActionableStage {
