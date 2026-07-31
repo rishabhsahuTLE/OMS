@@ -2,15 +2,13 @@ export type MainTabId = "dashboard" | "report" | "orders" | "admin";
 
 export type ReportSubTabId = "approval" | "billing" | "managerReport";
 
-export type OrdersSubTabId = "amendCancel" | "approval" | "closeBilling";
+export type OrdersSubTabId = "amendCancel" | "approval";
 
 export type AdminSubTabId = "approvalSetting";
 
 export type BillingCycle = "M" | "B" | "Q" | "H" | "Y" | "O";
 
 export type OrderStatusFilter = "all" | "closed" | "open";
-
-export type BillingStatus = "Open" | "Closed";
 
 export const BILLING_CYCLE_LABELS: Record<BillingCycle, string> = {
   M: "Monthly",
@@ -84,13 +82,22 @@ export interface StageStatus {
   remark?: string;
 }
 
-// The order lifecycle driven by Order Management's Approval tab:
-// inactive (awaiting T+F) -> active -> [cancellation requested] ->
-// cancellationInProgress (awaiting TC+FC) -> cancelled -> eligible for Close Billing.
-// An amendment successor (has `supersedes` set) takes a detour at the top:
-// inactive (awaiting T+F) -> pendingClosure (T+F done, but held until the
-// predecessor it supersedes has its billing closed) -> active.
-export type OrderLifecycleStatus = "inactive" | "pendingClosure" | "active" | "cancellationInProgress" | "cancelled";
+// The order lifecycle driven by Order Management's 2 tabs (Manage Orders /
+// Approvals): inactive (awaiting T+F) -> active -> [closure initiated] ->
+// cancellationInProgress (awaiting TC+FC) -> cancelled. Closure can be
+// initiated from "inactive" too, in which case it skips straight to
+// "cancelled" (nothing was ever activated, so there's nothing to unwind) —
+// see initiateClosure() in utils.ts. An amendment successor (has
+// `supersedes` set) stays "inactive" even after its own T+F clear, until the
+// predecessor it supersedes reaches "cancelled" (see promoteSuccessorOf() in
+// utils.ts) — it has no distinct stored status of its own for that wait, it
+// just keeps displaying as Approval Pending (see getDisplayStage()).
+export type OrderLifecycleStatus = "inactive" | "active" | "cancellationInProgress" | "cancelled";
+
+// The 5 user-facing stage names — a derived/display-only layer over
+// OrderLifecycleStatus (see getDisplayStage() in utils.ts). "agreementOver"
+// isn't a stored status; it's a date-driven overlay on "active".
+export type OrderDisplayStage = "approvalPending" | "active" | "agreementOver" | "closurePending" | "closed";
 
 export interface OrderRecord {
   id: string;
@@ -108,16 +115,15 @@ export interface OrderRecord {
   cancellationFinancial: StageStatus; // Financially Cleared (FC) — cancellation
   billingCycle: BillingCycle | "";
   amount: number;
-  billingStatus: BillingStatus;
-  billingRemarks: string;
   amended: boolean;
   // Set only on an amendment successor — the id of the order it was amended
   // from (the one immediately cancelled to make way for it). Used to look up
   // predecessor/successor pairs unambiguously, even across several
   // amendment generations of the same order.
   supersedes?: string;
-  // Placeholder order created via "Create Order Later" from Close Billing —
-  // still missing required order details, remains editable until completed.
+  // Placeholder order still missing required order details (e.g. the
+  // duplicate-order handoff before it's ever been completed) — remains
+  // editable until completed.
   incomplete?: boolean;
   // Collected once, at the point cancellation is initiated (CancellationConfirm.tsx) —
   // absent until then, permanent afterward.

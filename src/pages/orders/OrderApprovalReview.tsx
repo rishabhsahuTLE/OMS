@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ApprovalState, CancellationDetails, OrderRecord } from "../../types";
+import type { ApprovalState, OrderRecord } from "../../types";
 import {
   CURRENT_USER_EMAIL,
   deriveCreatedByName,
@@ -11,14 +11,12 @@ import {
   type ApprovalStageKey,
 } from "../../utils";
 import OrderDetailsReadOnly from "./OrderDetailsReadOnly";
-import CancellationConfirm from "./CancellationConfirm";
 
 interface OrderApprovalReviewProps {
   order: OrderRecord;
   orders: OrderRecord[];
   onBack: () => void;
   onUpdateOrder: (record: OrderRecord) => void;
-  onRequestCancellation: (order: OrderRecord, details: CancellationDetails) => void;
 }
 
 const readonlyClass = "w-full rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600";
@@ -45,18 +43,11 @@ const STAGE_LABELS: Record<ApprovalStageKey, string> = {
   cancellationFinancial: "FC",
 };
 
-export default function OrderApprovalReview({
-  order,
-  orders,
-  onBack,
-  onUpdateOrder,
-  onRequestCancellation,
-}: OrderApprovalReviewProps) {
+export default function OrderApprovalReview({ order, orders, onBack, onUpdateOrder }: OrderApprovalReviewProps) {
   const [status, setStatus] = useState("");
   const [agreementAmountInput, setAgreementAmountInput] = useState("");
   const [firstBillingMonth, setFirstBillingMonth] = useState(order.details.firstBillingMonth);
   const [remark, setRemark] = useState("");
-  const [requestingCancellation, setRequestingCancellation] = useState(false);
 
   const actionable = getNextActionableStage(order);
   const predecessor = order.supersedes ? orders.find((o) => o.id === order.supersedes) ?? null : null;
@@ -79,22 +70,6 @@ export default function OrderApprovalReview({
     });
     onUpdateOrder(updated);
     onBack();
-  }
-
-  // Same form Amend/Cancel's "Initiate Cancellation" uses — both entry
-  // points collect the same mandatory cancellation details before actually
-  // moving the order into cancellationInProgress.
-  if (requestingCancellation) {
-    return (
-      <CancellationConfirm
-        order={order}
-        onBack={() => setRequestingCancellation(false)}
-        onConfirm={(o, details) => {
-          onRequestCancellation(o, details);
-          onBack();
-        }}
-      />
-    );
   }
 
   return (
@@ -183,24 +158,9 @@ export default function OrderApprovalReview({
         </div>
 
         {order.lifecycleStatus === "active" ? (
-          <div className="flex items-center justify-between px-6 py-6">
-            <p className="text-sm text-slate-500">
-              Tech and Fin are both cleared — this order is Active. To move it into cancellation approval, request
-              cancellation.
-            </p>
-            <button
-              onClick={() => setRequestingCancellation(true)}
-              className="rounded-md border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50"
-            >
-              Request Cancellation
-            </button>
-          </div>
-        ) : order.lifecycleStatus === "pendingClosure" ? (
           <p className="px-6 py-6 text-sm text-slate-500">
-            Tech and Fin are both cleared, but this order won't go Active until{" "}
-            <span className="font-medium text-slate-700">{predecessor?.orderNo ?? "the order it supersedes"}</span>{" "}
-            finishes its own TC/FC cancellation approval and has its billing closed (Order Management &gt; Close
-            Billing).
+            Tech and Fin are both cleared — this order is Active. Closure can only be initiated from the Manage
+            Orders tab, by the order's client manager.
           </p>
         ) : !actionable ? (
           <p className="px-6 py-6 text-sm text-slate-400">

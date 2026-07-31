@@ -6,19 +6,11 @@ import Billing from "./pages/report/Billing";
 import OrderPage from "./pages/orders/OrderPage";
 import OrderApproval from "./pages/orders/OrderApproval";
 import ApprovalSetting from "./pages/orders/ApprovalSetting";
-import CloseBilling from "./pages/orders/CloseBilling";
 import ManagerReport from "./pages/ManagerReport";
 import clientsData from "./data/clients.json";
 import { mockOrders } from "./data/mockOrders";
-import type {
-  AdminSubTabId,
-  BillingStatus,
-  Client,
-  MainTabId,
-  OrderRecord,
-  OrdersSubTabId,
-  ReportSubTabId,
-} from "./types";
+import { promoteSuccessorOf } from "./utils";
+import type { AdminSubTabId, Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "./types";
 
 const clients = clientsData as Client[];
 
@@ -27,9 +19,8 @@ const TITLES: Record<string, string> = {
   "report/approval": "Report / Approval",
   "report/billing": "Report / Billing",
   "report/managerReport": "Report / Manager Report",
-  "orders/amendCancel": "Order Management / Amend / Cancel",
   "orders/approval": "Order Management / Manage Orders",
-  "orders/closeBilling": "Order Management / Close Billing",
+  "orders/amendCancel": "Order Management / Approvals",
   "admin/approvalSetting": "Admin / Approval Setting",
 };
 
@@ -41,8 +32,6 @@ function App() {
   const [orders, setOrders] = useState<OrderRecord[]>(mockOrders);
   const [createOrderPrefill, setCreateOrderPrefill] = useState<{ clientId: string; product: string } | null>(null);
   const [createOrderKey, setCreateOrderKey] = useState(0);
-  const [autoOpenOrderModal, setAutoOpenOrderModal] = useState(false);
-  const [editOrderId, setEditOrderId] = useState<string | null>(null);
 
   function handleSelect(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId | AdminSubTabId) {
     setActiveTab(tab);
@@ -60,43 +49,17 @@ function App() {
     setOrders((prev) => [record, ...prev]);
   }
 
+  // Central order-update handler — whenever an update lands an order on
+  // "cancelled" (Closed), also check whether some other order is an
+  // amendment successor waiting on this one and promote it to Active in the
+  // same pass (see promoteSuccessorOf in utils.ts).
   function handleUpdateOrder(record: OrderRecord) {
-    setOrders((prev) => prev.map((o) => (o.id === record.id ? record : o)));
-  }
-
-  // A duplicate-order check (University client + product already ordered)
-  // hands the existing order back here; jump to the Amend/Cancel tab and
-  // open it for editing there, and clear whatever was in progress on Create.
-  function handleRequestAmend(order: OrderRecord) {
-    setEditOrderId(order.id);
-    setAutoOpenOrderModal(true);
-    setActiveTab("orders");
-    setActiveOrdersSubTab("amendCancel");
-    handleResetCreateOrder();
-  }
-
-  // Closing billing on a cancelled order that was superseded by an amendment
-  // is also what finally activates that amendment's successor — see
-  // CloseBilling.tsx's isClosable(), which only allows closing such an order
-  // once its successor has already reached "pendingClosure".
-  function handleSetBillingStatus(ids: string[], billingStatus: BillingStatus) {
-    const idSet = new Set(ids);
     setOrders((prev) => {
-      const next = prev.map((o) => (idSet.has(o.id) ? { ...o, billingStatus } : o));
-      if (billingStatus !== "Closed") return next;
-      const successorIdsToActivate = new Set(
-        prev
-          .filter((o) => idSet.has(o.id))
-          .map((o) => prev.find((s) => s.supersedes === o.id && s.lifecycleStatus === "pendingClosure"))
-          .filter((s): s is OrderRecord => s !== undefined)
-          .map((s) => s.id)
-      );
-      return next.map((o) => (successorIdsToActivate.has(o.id) ? { ...o, lifecycleStatus: "active" } : o));
+      const next = prev.map((o) => (o.id === record.id ? record : o));
+      if (record.lifecycleStatus !== "cancelled") return next;
+      const promoted = promoteSuccessorOf(record, next);
+      return promoted ? next.map((o) => (o.id === promoted.id ? promoted : o)) : next;
     });
-  }
-
-  function handleUpdateBillingRemarks(id: string, billingRemarks: string) {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, billingRemarks } : o)));
   }
 
   let titleKey = "dashboard";
@@ -124,32 +87,9 @@ function App() {
             createOrderPrefill={createOrderPrefill}
             createOrderKey={createOrderKey}
             onResetCreateOrder={handleResetCreateOrder}
-            onRequestAmend={handleRequestAmend}
-            onNavigateToCloseBilling={() => setActiveOrdersSubTab("closeBilling")}
           />
         );
-      if (activeOrdersSubTab === "amendCancel")
-        return (
-          <OrderPage
-            clients={clients}
-            orders={orders}
-            onCreateOrder={handleCreateOrder}
-            onUpdateOrder={handleUpdateOrder}
-            autoOpen={autoOpenOrderModal}
-            editOrderId={editOrderId}
-            onAutoOpenHandled={() => {
-              setAutoOpenOrderModal(false);
-              setEditOrderId(null);
-            }}
-          />
-        );
-      return (
-        <CloseBilling
-          orders={orders}
-          onSetBillingStatus={handleSetBillingStatus}
-          onUpdateBillingRemarks={handleUpdateBillingRemarks}
-        />
-      );
+      return <OrderPage orders={orders} onUpdateOrder={handleUpdateOrder} />;
     }
     return null;
   }

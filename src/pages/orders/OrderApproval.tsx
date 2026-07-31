@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import type { ApprovalState, Client, OrderLifecycleStatus, OrderRecord } from "../../types";
-import OrderApprovalReview from "./OrderApprovalReview";
+import type { ApprovalState, CancellationDetails, Client, OrderDisplayStage, OrderRecord } from "../../types";
 import CreateOrderModal from "./CreateOrderModal";
-import { getNextActionableStage } from "../../utils";
+import CancellationConfirm from "./CancellationConfirm";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import { baseOrderNo, canInitiateClose, getDisplayStage, getNextActionableStage, initiateClosure } from "../../utils";
 
 interface OrderApprovalProps {
   orders: OrderRecord[];
@@ -14,40 +15,39 @@ interface OrderApprovalProps {
   createOrderPrefill: { clientId: string; product: string } | null;
   createOrderKey: number;
   onResetCreateOrder: () => void;
-  onRequestAmend: (order: OrderRecord) => void;
-  // Lets the Status info popover jump straight to Close Billing when that's
-  // the next step for an order (e.g. a cancelled predecessor).
-  onNavigateToCloseBilling: () => void;
 }
 
-type ViewTab = "all" | OrderLifecycleStatus;
+interface PendingAmendment {
+  original: OrderRecord;
+  updated: OrderRecord;
+  nextOrderNo: string;
+}
 
-// Chronological order the lifecycle actually flows in: inactive -> pendingClosure
-// (the amendment-successor detour, taken instead of going straight to active) ->
-// active -> cancellationInProgress -> cancelled. "All" stays first as the default view.
+type ViewTab = "all" | OrderDisplayStage;
+
 const VIEW_TABS: { key: ViewTab; label: string }[] = [
   { key: "all", label: "All" },
-  { key: "inactive", label: "Inactive" },
-  { key: "pendingClosure", label: "Pending Closure" },
+  { key: "approvalPending", label: "Approval Pending" },
   { key: "active", label: "Active" },
-  { key: "cancellationInProgress", label: "Cancellation In Progress" },
-  { key: "cancelled", label: "Cancelled" },
+  { key: "agreementOver", label: "Agreement Over" },
+  { key: "closurePending", label: "Closure Pending" },
+  { key: "closed", label: "Closed" },
 ];
 
-const LIFECYCLE_LABELS: Record<OrderLifecycleStatus, string> = {
-  inactive: "Inactive",
-  pendingClosure: "Pending Closure",
+const STAGE_LABELS: Record<OrderDisplayStage, string> = {
+  approvalPending: "Approval Pending",
   active: "Active",
-  cancellationInProgress: "Cancellation In Progress",
-  cancelled: "Cancelled",
+  agreementOver: "Agreement Over",
+  closurePending: "Closure Pending",
+  closed: "Closed",
 };
 
-const LIFECYCLE_BADGE_CLASS: Record<OrderLifecycleStatus, string> = {
-  inactive: "bg-slate-200 text-slate-700",
-  pendingClosure: "bg-indigo-100 text-indigo-700",
+const STAGE_BADGE_CLASS: Record<OrderDisplayStage, string> = {
+  approvalPending: "bg-slate-200 text-slate-700",
   active: "bg-emerald-100 text-emerald-700",
-  cancellationInProgress: "bg-amber-100 text-amber-800",
-  cancelled: "bg-rose-200 text-rose-800",
+  agreementOver: "bg-orange-100 text-orange-700",
+  closurePending: "bg-amber-100 text-amber-800",
+  closed: "bg-rose-200 text-rose-800",
 };
 
 function CheckIcon() {
@@ -82,14 +82,6 @@ function BackIcon() {
   );
 }
 
-function EditIcon() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-      <path d="M13.586 3.586a2 2 0 112.828 2.828l-8.5 8.5a2 2 0 01-.878.507l-3 .857a.5.5 0 01-.618-.618l.857-3a2 2 0 01.507-.878l8.5-8.5z" />
-    </svg>
-  );
-}
-
 function InfoIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
@@ -104,69 +96,46 @@ function InfoIcon() {
 
 interface NextStepInfo {
   message: string;
-  action?: { label: string; onClick: () => void };
 }
 
 // What the Status info popover tells the user for a given order — the next
-// concrete thing that has to happen before it moves further. A fully-closed
-// order (cancelled + billing closed) short-circuits to a plain "done"
-// message with no action, per the "nothing left to do here" case.
-function nextStepInfo(
-  order: OrderRecord,
-  orders: OrderRecord[],
-  reviewOrder: (id: string) => void,
-  goToCloseBilling: () => void
-): NextStepInfo {
-  if (order.lifecycleStatus === "cancelled" && order.billingStatus === "Closed") {
-    return { message: "Billing has been closed for this order." };
-  }
+// concrete thing that has to happen before it moves further.
+function nextStepInfo(order: OrderRecord, orders: OrderRecord[]): NextStepInfo {
+  const stage = getDisplayStage(order);
 
-  if (order.lifecycleStatus === "inactive") {
-    const stage = getNextActionableStage(order);
-    return { message: stage ? `Next step: awaiting ${stage.label} approval.` : "Awaiting activation." };
-  }
-
-  if (order.lifecycleStatus === "pendingClosure") {
-    const predecessor = order.supersedes ? orders.find((o) => o.id === order.supersedes) ?? null : null;
-    if (!predecessor) {
-      return { message: "Tech and Fin are cleared — awaiting billing closure on the order this superseded." };
+  if (stage === "approvalPending") {
+    if (order.supersedes && order.technical.status === "confirmed" && order.financial.status === "confirmed") {
+      const predecessor = orders.find((o) => o.id === order.supersedes) ?? null;
+      if (predecessor && predecessor.lifecycleStatus !== "cancelled") {
+        return {
+          message: `Tech and Fin are cleared — waiting on ${predecessor.orderNo} to close before this order can go Active.`,
+        };
+      }
     }
-    if (predecessor.lifecycleStatus === "cancellationInProgress") {
-      const stage = getNextActionableStage(predecessor);
-      return {
-        message: `Tech and Fin are cleared. Waiting on ${predecessor.orderNo}: it still needs ${
-          stage ? stage.label : "TC/FC"
-        } approval before its billing can be closed.`,
-        action: { label: `Review ${predecessor.orderNo}`, onClick: () => reviewOrder(predecessor.id) },
-      };
-    }
-    if (predecessor.lifecycleStatus === "cancelled" && predecessor.billingStatus !== "Closed") {
-      return {
-        message: `Tech and Fin are cleared. Close billing for ${predecessor.orderNo} to activate this order.`,
-        action: { label: "Go to Close Billing", onClick: goToCloseBilling },
-      };
-    }
-    return { message: `Waiting on ${predecessor.orderNo}'s billing closure.` };
+    const next = getNextActionableStage(order);
+    return { message: next ? `Next step: awaiting ${next.label} approval.` : "Awaiting activation." };
   }
 
-  if (order.lifecycleStatus === "active") {
-    return { message: "This order is Active. No approval action is needed unless you amend or cancel it." };
+  if (stage === "active") {
+    return { message: "This order is Active. No approval action is needed unless you amend or close it." };
   }
 
-  if (order.lifecycleStatus === "cancellationInProgress") {
-    const stage = getNextActionableStage(order);
-    return { message: stage ? `Next step: awaiting ${stage.label} approval.` : "Awaiting cancellation to complete." };
+  if (stage === "agreementOver") {
+    return {
+      message: "This order's agreement period has ended. No approval action is needed unless you amend or close it.",
+    };
   }
 
-  // cancelled, billing not yet closed
-  return {
-    message: "Cancellation is complete. Close its billing to finish this order off.",
-    action: { label: "Go to Close Billing", onClick: goToCloseBilling },
-  };
+  if (stage === "closurePending") {
+    const next = getNextActionableStage(order);
+    return { message: next ? `Next step: awaiting ${next.label} approval.` : "Awaiting closure to complete." };
+  }
+
+  return { message: "This order is Closed." };
 }
 
-// Display-only now — stage changes only happen through the review/process
-// page, one at a time, in order (see OrderApprovalReview.tsx).
+// Display-only — stage changes only happen through the Approvals tab, one at
+// a time, in order.
 function StageBadge({ status }: { status: ApprovalState }) {
   const cls =
     status === "confirmed"
@@ -189,17 +158,18 @@ export default function OrderApproval({
   createOrderPrefill,
   createOrderKey,
   onResetCreateOrder,
-  onRequestAmend,
-  onNavigateToCloseBilling,
 }: OrderApprovalProps) {
   const [tab, setTab] = useState<ViewTab>("all");
-  const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [openInfoOrderId, setOpenInfoOrderId] = useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = useState<OrderRecord | null>(null);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [pendingAmendment, setPendingAmendment] = useState<PendingAmendment | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<OrderRecord | null>(null);
 
   const filtered = useMemo(() => {
     if (tab === "all") return orders;
-    return orders.filter((o) => o.lifecycleStatus === tab);
+    return orders.filter((o) => getDisplayStage(o) === tab);
   }, [orders, tab]);
 
   function rowClass(order: OrderRecord) {
@@ -208,7 +178,83 @@ export default function OrderApproval({
     return "hover:bg-slate-50";
   }
 
-  const reviewOrder = reviewOrderId ? orders.find((o) => o.id === reviewOrderId) ?? null : null;
+  function closeOrderModal() {
+    setOrderModalOpen(false);
+    setEditingOrder(null);
+  }
+
+  function handleAmendClick(order: OrderRecord) {
+    setEditingOrder(order);
+    setOrderModalOpen(true);
+  }
+
+  // University clients only ever get one order per product — if Create hits
+  // that duplicate guard, it hands the existing order back here. Since
+  // Amend lives in this same tab now, just switch straight into editing it —
+  // no cross-tab jump needed.
+  function handleRequestAmendFromDuplicate(order: OrderRecord) {
+    setCreating(false);
+    handleAmendClick(order);
+  }
+
+  // The CreateOrderModal's "onUpdate" for the Amend flow. When the order
+  // being edited is active, don't commit yet — stash it and let
+  // confirmAmendment (behind the ConfirmDialog below) do the actual
+  // two-order mutation once the user confirms. Anything not yet active
+  // (e.g. reached via the duplicate-order handoff, before ever activating)
+  // has no "live" version to preserve, so it's just updated in place with no
+  // confirmation needed.
+  function handleModalUpdate(updatedRecord: OrderRecord) {
+    const original = orders.find((o) => o.id === updatedRecord.id);
+    if (original && original.lifecycleStatus === "active") {
+      const base = baseOrderNo(original.orderNo);
+      const priorVersions = orders
+        .filter((o) => baseOrderNo(o.orderNo) === base && o.orderNo.includes("/"))
+        .map((o) => parseInt(o.orderNo.split("/")[1], 10))
+        .filter((n) => !Number.isNaN(n));
+      const nextVersion = priorVersions.length > 0 ? Math.max(...priorVersions) + 1 : 1;
+      setPendingAmendment({ original, updated: updatedRecord, nextOrderNo: `${base}/${nextVersion}` });
+    } else {
+      onUpdateOrder(updatedRecord);
+      setEditingOrder(null);
+    }
+  }
+
+  // Confirmed: spawn the successor at "inactive" (Approval Pending, its own
+  // fresh Tech/Fin approval) linked back via `supersedes`, and immediately
+  // move the predecessor into "cancellationInProgress" (Closure Pending) —
+  // its TC/FC approval and the successor's Tech/Fin now run independently
+  // and in parallel. Only once both finish does the successor actually go
+  // Active (see promoteSuccessorOf in utils.ts, wired through App.tsx).
+  function confirmAmendment() {
+    if (!pendingAmendment) return;
+    const { original, updated, nextOrderNo } = pendingAmendment;
+    onCreateOrder({
+      ...updated,
+      id: `ord-${Math.random().toString(36).slice(2, 10)}`,
+      orderNo: nextOrderNo,
+      amended: true,
+      supersedes: original.id,
+      lifecycleStatus: "inactive",
+      technical: { status: "pending", date: null },
+      financial: { status: "pending", date: null },
+      cancellationTechnical: { status: "pending", date: null },
+      cancellationFinancial: { status: "pending", date: null },
+    });
+    onUpdateOrder({ ...original, lifecycleStatus: "cancellationInProgress" });
+    setPendingAmendment(null);
+    setEditingOrder(null);
+    setOrderModalOpen(false);
+  }
+
+  function cancelPendingAmendment() {
+    setPendingAmendment(null);
+  }
+
+  function handleCloseConfirm(order: OrderRecord, details: CancellationDetails) {
+    onUpdateOrder(initiateClosure(order, details));
+    setCancelTarget(null);
+  }
 
   // Same CreateOrderModal, same embedded rendering, same props it had as its
   // own tab — only the entry point (a button here instead of a sidebar tab)
@@ -235,24 +281,14 @@ export default function OrderApproval({
           onUpdate={onUpdateOrder}
           onClose={() => {}}
           onReset={onResetCreateOrder}
-          onRequestAmend={onRequestAmend}
+          onRequestAmend={handleRequestAmendFromDuplicate}
         />
       </div>
     );
   }
 
-  if (reviewOrder) {
-    return (
-      <OrderApprovalReview
-        order={reviewOrder}
-        orders={orders}
-        onBack={() => setReviewOrderId(null)}
-        onUpdateOrder={onUpdateOrder}
-        onRequestCancellation={(order, details) => {
-          onUpdateOrder({ ...order, lifecycleStatus: "cancellationInProgress", cancellationDetails: details });
-        }}
-      />
-    );
+  if (cancelTarget) {
+    return <CancellationConfirm order={cancelTarget} onBack={() => setCancelTarget(null)} onConfirm={handleCloseConfirm} />;
   }
 
   return (
@@ -289,8 +325,8 @@ export default function OrderApproval({
         <span className="font-medium text-slate-600">Tech</span> — Technical Approval and{" "}
         <span className="font-medium text-slate-600">Fin</span> — Financial Approval decide activation;{" "}
         <span className="font-medium text-slate-600">TC</span>/<span className="font-medium text-slate-600">FC</span>{" "}
-        are their cancellation-stage counterparts. Statuses are shown here for reference only — open a row's Edit
-        action to process it; approvals happen strictly in order (Tech before Fin, TC before FC).
+        are their closure-stage counterparts. Statuses are shown here for reference only — approvals/rejections happen
+        on the Approvals tab, strictly in order (Tech before Fin, TC before FC).
       </p>
 
       <div className="flex-1 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -333,96 +369,90 @@ export default function OrderApproval({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtered.map((order) => (
-              <tr key={order.id} className={`transition-colors ${rowClass(order)}`}>
-                <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{order.orderNo}</td>
-                <td className="max-w-[200px] truncate px-4 py-3 text-slate-700" title={order.client}>
-                  {order.client}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.product}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.clientManager}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">
-                  {order.amount.toLocaleString("en-IN")}
-                </td>
-                <td className="px-4 py-3">
-                  <StageBadge status={order.technical.status} />
-                </td>
-                <td className="px-4 py-3">
-                  <StageBadge status={order.financial.status} />
-                </td>
-                <td className="px-4 py-3">
-                  <StageBadge status={order.cancellationTechnical.status} />
-                </td>
-                <td className="px-4 py-3">
-                  <StageBadge status={order.cancellationFinancial.status} />
-                </td>
-                <td className="relative whitespace-nowrap px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${LIFECYCLE_BADGE_CLASS[order.lifecycleStatus]}`}
-                    >
-                      {LIFECYCLE_LABELS[order.lifecycleStatus]}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setOpenInfoOrderId((id) => (id === order.id ? null : order.id))}
-                      title="What's next?"
-                      className="text-slate-400 hover:text-slate-600"
-                    >
-                      <InfoIcon />
-                    </button>
-                  </div>
-                  {openInfoOrderId === order.id &&
-                    (() => {
-                      const info = nextStepInfo(
-                        order,
-                        orders,
-                        (id) => {
-                          setOpenInfoOrderId(null);
-                          setReviewOrderId(id);
-                        },
-                        () => {
-                          setOpenInfoOrderId(null);
-                          onNavigateToCloseBilling();
-                        }
-                      );
-                      return (
-                        <div className="absolute left-4 top-full z-30 mt-1 w-72 rounded-md border border-slate-200 bg-white p-3 text-left text-xs font-normal normal-case text-slate-600 shadow-lg">
-                          <p>{info.message}</p>
-                          <div className="mt-2 flex justify-end gap-2">
-                            {info.action && (
+            {filtered.map((order) => {
+              const stage = getDisplayStage(order);
+              const canAmend = order.lifecycleStatus === "active";
+              const canClose = canInitiateClose(order);
+              return (
+                <tr key={order.id} className={`transition-colors ${rowClass(order)}`}>
+                  <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-800">{order.orderNo}</td>
+                  <td className="max-w-[200px] truncate px-4 py-3 text-slate-700" title={order.client}>
+                    {order.client}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.product}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">{order.clientManager}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">
+                    {order.amount.toLocaleString("en-IN")}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StageBadge status={order.technical.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <StageBadge status={order.financial.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <StageBadge status={order.cancellationTechnical.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <StageBadge status={order.cancellationFinancial.status} />
+                  </td>
+                  <td className="relative whitespace-nowrap px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STAGE_BADGE_CLASS[stage]}`}>
+                        {STAGE_LABELS[stage]}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setOpenInfoOrderId((id) => (id === order.id ? null : order.id))}
+                        title="What's next?"
+                        className="text-slate-400 hover:text-slate-600"
+                      >
+                        <InfoIcon />
+                      </button>
+                    </div>
+                    {openInfoOrderId === order.id &&
+                      (() => {
+                        const info = nextStepInfo(order, orders);
+                        return (
+                          <div className="absolute left-4 top-full z-30 mt-1 w-72 rounded-md border border-slate-200 bg-white p-3 text-left text-xs font-normal normal-case text-slate-600 shadow-lg">
+                            <p>{info.message}</p>
+                            <div className="mt-2 flex justify-end">
                               <button
                                 type="button"
-                                onClick={info.action.onClick}
-                                className="rounded-md bg-teal-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-teal-700"
+                                onClick={() => setOpenInfoOrderId(null)}
+                                className="rounded-md bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-300"
                               >
-                                {info.action.label}
+                                Close
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setOpenInfoOrderId(null)}
-                              className="rounded-md bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-300"
-                            >
-                              Close
-                            </button>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })()}
-                </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => setReviewOrderId(order.id)}
-                    title="Review & process"
-                    className="text-teal-600 hover:text-teal-800"
-                  >
-                    <EditIcon />
-                  </button>
-                </td>
-              </tr>
-            ))}
+                        );
+                      })()}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {canAmend && (
+                        <button
+                          onClick={() => handleAmendClick(order)}
+                          className="rounded-md border border-teal-300 px-3 py-1.5 text-xs font-medium text-teal-600 hover:bg-teal-50"
+                        >
+                          Amend
+                        </button>
+                      )}
+                      {canClose && (
+                        <button
+                          onClick={() => setCancelTarget(order)}
+                          className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                        >
+                          Close
+                        </button>
+                      )}
+                      {!canAmend && !canClose && <span className="text-xs text-slate-400">—</span>}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={11} className="px-4 py-8 text-center text-slate-400">
@@ -433,6 +463,30 @@ export default function OrderApproval({
           </tbody>
         </table>
       </div>
+
+      <CreateOrderModal
+        open={orderModalOpen}
+        onClose={closeOrderModal}
+        clients={clients}
+        orders={orders}
+        editingOrder={editingOrder}
+        onCreate={onCreateOrder}
+        onUpdate={handleModalUpdate}
+        onRequestAmend={handleAmendClick}
+      />
+
+      <ConfirmDialog
+        open={pendingAmendment !== null}
+        title="Confirm Amendment"
+        message={
+          pendingAmendment
+            ? `${pendingAmendment.nextOrderNo} will be created as Approval Pending, needing fresh Tech/Fin approval. ${pendingAmendment.original.orderNo} will immediately have closure initiated, needing TC/FC approval. Once all four are done, ${pendingAmendment.nextOrderNo} will become Active.`
+            : ""
+        }
+        confirmLabel="Confirm Amendment"
+        onConfirm={confirmAmendment}
+        onCancel={cancelPendingAmendment}
+      />
     </div>
   );
 }

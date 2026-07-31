@@ -121,7 +121,7 @@ export default function OrderDetailsReadOnly({ order }: { order: OrderRecord }) 
       </Section>
 
       {order.cancellationDetails && (
-        <Section title="CANCELLATION DETAILS">
+        <Section title="CLOSURE DETAILS">
           <ReadRow label="Effect From Date" value={formatDDMMYYYY(order.cancellationDetails.effectFromDate)} />
           <ReadRow
             label="Outstanding Balance (₹)"

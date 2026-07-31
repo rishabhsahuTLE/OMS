@@ -122,8 +122,6 @@ clients.forEach((client, cliIdx) => {
       cancellationFinancial,
       billingCycle,
       amount,
-      billingStatus: isFullyConfirmed && orderIndex % 4 === 0 ? "Closed" : "Open",
-      billingRemarks: "",
       amended: isFullyConfirmed && orderIndex % 11 === 3,
       details: {
         clientManager,

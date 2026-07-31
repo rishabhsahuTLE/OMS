@@ -1,4 +1,4 @@
-import type { BillingCycle, OrderRecord, OrderRecordDetails } from "./types";
+import type { BillingCycle, CancellationDetails, OrderDisplayStage, OrderRecord, OrderRecordDetails } from "./types";
 import { BILLING_CYCLE_LABELS } from "./types";
 import { getProduct } from "./products";
 
@@ -114,17 +114,18 @@ export function diffOrderDetails(prev: OrderRecord, next: OrderRecord): DiffRow[
 // next lifecycle stage — inactive -> active once both activation stages are
 // confirmed, cancellationInProgress -> cancelled once both cancellation
 // stages are confirmed. Any other lifecycle stage is left untouched. An
-// amendment successor (has `supersedes` set) goes to "pendingClosure"
-// instead of straight to "active" — it only actually activates once the
-// predecessor it supersedes has its billing closed (see CloseBilling.tsx /
-// App.tsx's handleSetBillingStatus).
+// amendment successor (has `supersedes` set) stays "inactive" even once its
+// own Tech+Fin clear — it only actually activates once the predecessor it
+// supersedes reaches "cancelled" (see promoteSuccessorOf(), called
+// separately from App.tsx wherever an order update lands on "cancelled").
 export function withRecomputedLifecycle(order: OrderRecord): OrderRecord {
   if (
     order.lifecycleStatus === "inactive" &&
+    !order.supersedes &&
     order.technical.status === "confirmed" &&
     order.financial.status === "confirmed"
   ) {
-    return { ...order, lifecycleStatus: order.supersedes ? "pendingClosure" : "active" };
+    return { ...order, lifecycleStatus: "active" };
   }
   if (
     order.lifecycleStatus === "cancellationInProgress" &&
@@ -136,6 +137,67 @@ export function withRecomputedLifecycle(order: OrderRecord): OrderRecord {
   return order;
 }
 
+// Runs whenever an update makes `closedOrder.lifecycleStatus` become
+// "cancelled" — finds the successor (if any) waiting on it, i.e. the order
+// whose `supersedes` points here and whose own Tech+Fin are already
+// confirmed, and promotes just that one to "active". Returns null if no
+// successor is waiting yet (e.g. its own Tech+Fin haven't cleared).
+export function promoteSuccessorOf(closedOrder: OrderRecord, allOrders: OrderRecord[]): OrderRecord | null {
+  const successor = allOrders.find(
+    (o) =>
+      o.supersedes === closedOrder.id &&
+      o.lifecycleStatus === "inactive" &&
+      o.technical.status === "confirmed" &&
+      o.financial.status === "confirmed"
+  );
+  return successor ? { ...successor, lifecycleStatus: "active" } : null;
+}
+
+// Whether closure can be initiated on this order right now — any stage
+// except Closure Pending/Closed (see getDisplayStage()).
+export function canInitiateClose(order: OrderRecord): boolean {
+  const stage = getDisplayStage(order);
+  return stage !== "closurePending" && stage !== "closed";
+}
+
+// Closing an order still "inactive" (Approval Pending) skips TC/FC entirely
+// and goes straight to Closed — nothing was ever activated, so there's
+// nothing to unwind. Closing from Active/Agreement Over goes to Closure
+// Pending, same as before, awaiting TC/FC.
+export function initiateClosure(order: OrderRecord, details: CancellationDetails): OrderRecord {
+  return {
+    ...order,
+    cancellationDetails: details,
+    lifecycleStatus: order.lifecycleStatus === "inactive" ? "cancelled" : "cancellationInProgress",
+  };
+}
+
+// An order's contract term has lapsed if it has both a firstBillingMonth and
+// a fixed agreement length, and that many months have passed since — an
+// open-ended order (no agreement set) never lapses. Compared against the
+// real current date (todayISO()), not the mock reference date, same as
+// Billing.tsx's fiscal-year columns.
+export function isAgreementOver(order: OrderRecord): boolean {
+  const { firstBillingMonth, agreement } = order.details;
+  if (!agreement || !firstBillingMonth) return false;
+  const [y, m] = firstBillingMonth.split("-").map(Number);
+  const endMonthIndex = y * 12 + (m - 1) + agreement;
+  const [ty, tm] = todayISO().split("-").map(Number);
+  const todayMonthIndex = ty * 12 + (tm - 1);
+  return todayMonthIndex >= endMonthIndex;
+}
+
+// The 5 user-facing stage names, derived from lifecycleStatus (+ the
+// date-driven Agreement Over overlay on "active") — see types.ts's
+// OrderDisplayStage. This is what every list/badge/filter shows; the raw
+// lifecycleStatus keeps driving the actual approval mechanics.
+export function getDisplayStage(order: OrderRecord): OrderDisplayStage {
+  if (order.lifecycleStatus === "inactive") return "approvalPending";
+  if (order.lifecycleStatus === "cancellationInProgress") return "closurePending";
+  if (order.lifecycleStatus === "cancelled") return "closed";
+  return isAgreementOver(order) ? "agreementOver" : "active";
+}
+
 export type ApprovalStageKey = "technical" | "financial" | "cancellationTechnical" | "cancellationFinancial";
 
 export interface ActionableStage {
@@ -144,10 +206,15 @@ export interface ActionableStage {
 }
 
 // The one stage an approver can act on right now, enforcing strict order —
-// Tech must be confirmed before Fin becomes actionable, and (once
-// cancellation is requested) TC before FC. Returns null once every stage
-// relevant to the order's current lifecycle position is confirmed.
+// Tech must be confirmed before Fin becomes actionable, and (once closure is
+// requested) TC before FC. Returns null once every stage relevant to the
+// order's current lifecycle position is confirmed, or once the order is
+// terminal ("cancelled"/Closed) regardless of stage statuses — an order
+// closed straight from Approval Pending never gets its Tech/Fin confirmed at
+// all, so without this check it would wrongly still show Tech as actionable.
 export function getNextActionableStage(order: OrderRecord): ActionableStage | null {
+  if (order.lifecycleStatus === "cancelled") return null;
+
   const sequence: ActionableStage[] =
     order.lifecycleStatus === "cancellationInProgress"
       ? [

@@ -16,10 +16,8 @@ function Required() {
 }
 
 // The whole order shown strictly for reference (nothing editable), plus the
-// mandatory cancellation-request details collected here — the only place
-// cancellation is ever actually initiated from (both Amend/Cancel's
-// "Initiate Cancellation" and the review page's "Request Cancellation"
-// route through this same form).
+// mandatory closure-request details collected here — the only place closure
+// is ever initiated from, by the order's client manager (Manage Orders tab).
 export default function CancellationConfirm({ order, onBack, onConfirm }: CancellationConfirmProps) {
   const [effectFromDate, setEffectFromDate] = useState("");
   const [outstandingBalance, setOutstandingBalance] = useState("");
@@ -64,7 +62,7 @@ export default function CancellationConfirm({ order, onBack, onConfirm }: Cancel
 
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-3">
-          <h3 className="text-sm font-semibold tracking-wide text-slate-700">CANCELLATION REQUEST</h3>
+          <h3 className="text-sm font-semibold tracking-wide text-slate-700">CLOSURE REQUEST</h3>
         </div>
 
         <div className="space-y-4 px-6 py-6">
@@ -126,7 +124,9 @@ export default function CancellationConfirm({ order, onBack, onConfirm }: Cancel
 
       <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-6 py-4 shadow-sm">
         <p className="text-sm text-slate-500">
-          Initiating cancellation moves this order into Cancellation In Progress, where it awaits TC/FC approval.
+          {order.lifecycleStatus === "inactive"
+            ? "This order hasn't been activated yet, so closing it goes straight to Closed — no Tech/Fin closure approval needed."
+            : "Closing this order moves it into Closure Pending, where it awaits TC/FC approval."}
         </p>
         <div className="flex shrink-0 gap-3">
           <button onClick={onBack} className="rounded-md bg-slate-200 px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300">
@@ -136,7 +136,7 @@ export default function CancellationConfirm({ order, onBack, onConfirm }: Cancel
             onClick={handleConfirm}
             className="rounded-md border border-rose-300 px-5 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50"
           >
-            Cancellation Initiation
+            Confirm Closure
           </button>
         </div>
       </div>
