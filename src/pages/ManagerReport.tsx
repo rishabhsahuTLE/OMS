@@ -185,29 +185,6 @@ function compareInnerByKey(a: OrderRecord, b: OrderRecord, key: InnerSortableKey
   }
 }
 
-interface InnerFilters {
-  client: string;
-  product: string;
-  minLakh: number;
-  maxLakh: number;
-  dateRange: DateRange;
-}
-
-const defaultInnerFilters: InnerFilters = {
-  client: "all",
-  product: "all",
-  minLakh: 0,
-  maxLakh: AMOUNT_MAX_LAKH,
-  dateRange: { start: null, end: null },
-};
-
-const INNER_FILTER_CATEGORIES: FilterDrawerCategory[] = [
-  { key: "client", label: "Client" },
-  { key: "product", label: "Product" },
-  { key: "amount", label: "Amount" },
-  { key: "date", label: "Date" },
-];
-
 function InnerSortableTh({
   label,
   sortKey,
@@ -239,173 +216,23 @@ function InnerSortableTh({
 }
 
 function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
-  const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortState<InnerSortableKey>>({ key: null, direction: "asc" });
-
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState(INNER_FILTER_CATEGORIES[0].key);
-  const [draft, setDraft] = useState<InnerFilters>(defaultInnerFilters);
-  const [applied, setApplied] = useState<InnerFilters>(defaultInnerFilters);
-
-  const clientOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.client))).sort(), [orders]);
 
   function toggleSort(key: InnerSortableKey) {
     setSort((prev) => toggleSortState(prev, key));
   }
 
-  function openDrawer() {
-    setDraft(applied);
-    setDrawerOpen(true);
-  }
-
-  function handleApply() {
-    setApplied(draft);
-    setDrawerOpen(false);
-    setPage(1);
-  }
-
-  function handleClear() {
-    setDraft(defaultInnerFilters);
-    setApplied(defaultInnerFilters);
-    setPage(1);
-  }
-
-  const hasActiveFilters =
-    applied.client !== "all" ||
-    applied.product !== "all" ||
-    applied.minLakh !== 0 ||
-    applied.maxLakh !== AMOUNT_MAX_LAKH ||
-    applied.dateRange.start !== null ||
-    applied.dateRange.end !== null;
-
-  const filtered = useMemo(() => {
-    let result = orders;
-
-    if (applied.client !== "all") result = result.filter((o) => o.client === applied.client);
-    if (applied.product !== "all") result = result.filter((o) => o.product === applied.product);
-
-    const minRupees = applied.minLakh * 100_000;
-    const maxRupees = applied.maxLakh >= AMOUNT_MAX_LAKH ? Infinity : applied.maxLakh * 100_000;
-    result = result.filter((o) => o.amount >= minRupees && o.amount <= maxRupees);
-
-    if (applied.dateRange.start && applied.dateRange.end) {
-      const startTime = applied.dateRange.start.getTime();
-      const endTime = applied.dateRange.end.getTime();
-      result = result.filter((o) => {
-        const t = parseISO(o.createdOn).getTime();
-        return t >= startTime && t <= endTime;
-      });
-    }
-
-    const q = search.trim().toLowerCase();
-    if (q) {
-      result = result.filter(
-        (o) =>
-          o.orderNo.toLowerCase().includes(q) ||
-          o.product.toLowerCase().includes(q) ||
-          o.client.toLowerCase().includes(q)
-      );
-    }
-
-    if (sort.key) {
-      const key = sort.key;
-      result = [...result].sort((a, b) => {
-        const cmp = compareInnerByKey(a, b, key);
-        return sort.direction === "asc" ? cmp : -cmp;
-      });
-    }
-
-    return result;
-  }, [orders, applied, search, sort]);
-
-  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(filtered);
-
-  function renderCategoryContent() {
-    switch (activeCategory) {
-      case "client":
-        return (
-          <SearchableSelect
-            label="Client"
-            allLabel="All Clients"
-            options={clientOptions}
-            value={draft.client}
-            onChange={(v) => setDraft((prev) => ({ ...prev, client: v }))}
-            searchPlaceholder="Search clients…"
-          />
-        );
-      case "product":
-        return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Product</label>
-            <select
-              value={draft.product}
-              onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
-              className={selectClass}
-            >
-              <option value="all">All</option>
-              {PRODUCT_NAMES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-        );
-      case "amount":
-        return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Amount</label>
-            <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
-              <AmountRangeSlider
-                min={0}
-                max={AMOUNT_MAX_LAKH}
-                minValue={draft.minLakh}
-                maxValue={draft.maxLakh}
-                onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
-              />
-            </div>
-          </div>
-        );
-      case "date":
-        return (
-          <InlineDateRangeCalendar
-            value={draft.dateRange}
-            onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
-          />
-        );
-      default:
-        return null;
-    }
-  }
+  const sortedOrders = useMemo(() => {
+    if (!sort.key) return orders;
+    const key = sort.key;
+    return [...orders].sort((a, b) => {
+      const cmp = compareInnerByKey(a, b, key);
+      return sort.direction === "asc" ? cmp : -cmp;
+    });
+  }, [orders, sort]);
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50/60 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          Search:
-          <input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-          />
-        </label>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={openDrawer}
-            className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
-            aria-label="Open filters"
-          >
-            <FunnelIcon />
-            {hasActiveFilters && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500" />}
-          </button>
-        </div>
-      </div>
-
       <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
@@ -421,7 +248,7 @@ function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {pageRows.map((o) => (
+            {sortedOrders.map((o) => (
               <tr key={o.id} className={`transition-colors ${rowHighlightClass(o)}`}>
                 <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-800">#{o.orderNo}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-slate-700">{o.product}</td>
@@ -445,38 +272,16 @@ function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
                 </td>
               </tr>
             ))}
-            {pageRows.length === 0 && (
+            {sortedOrders.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-3 py-6 text-center text-slate-400">
-                  No orders match your search.
+                  No orders for this manager.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-
-      <PaginationFooter
-        page={page}
-        totalPages={totalPages}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        totalRecords={totalRecords}
-      />
-
-      <FilterDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        title="Order Filters"
-        categories={INNER_FILTER_CATEGORIES}
-        activeCategory={activeCategory}
-        onSelectCategory={setActiveCategory}
-        onClear={handleClear}
-        onApply={handleApply}
-      >
-        {renderCategoryContent()}
-      </FilterDrawer>
     </div>
   );
 }
@@ -724,7 +529,7 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
                 <Fragment key={stat.manager}>
                   <tr
                     onClick={() => toggleManager(stat.manager)}
-                    className="cursor-pointer bg-slate-700 text-white hover:bg-slate-600"
+                    className="cursor-pointer bg-slate-50 font-medium text-slate-800 hover:bg-slate-100"
                   >
                     <td className="whitespace-nowrap px-4 py-2 font-medium">
                       <span className="flex items-center gap-2">

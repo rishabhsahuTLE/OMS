@@ -369,7 +369,7 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
           ))}
         </div>
 
-        <div className="relative flex-1">
+        <div className="relative w-64 shrink-0">
           <svg
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
             viewBox="0 0 20 20"

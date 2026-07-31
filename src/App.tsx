@@ -6,12 +6,11 @@ import Approval from "./pages/report/Approval";
 import Billing from "./pages/report/Billing";
 import OrderPage from "./pages/orders/OrderPage";
 import OrderApproval from "./pages/orders/OrderApproval";
-import ApprovalSetting from "./pages/orders/ApprovalSetting";
 import ManagerReport from "./pages/ManagerReport";
 import clientsData from "./data/clients.json";
 import { mockOrders } from "./data/mockOrders";
 import { promoteSuccessorOf } from "./utils";
-import type { AdminSubTabId, Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "./types";
+import type { Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "./types";
 
 const clients = clientsData as Client[];
 
@@ -19,16 +18,14 @@ function App() {
   const [activeTab, setActiveTab] = useState<MainTabId>("report");
   const [activeReportSubTab, setActiveReportSubTab] = useState<ReportSubTabId>("approval");
   const [activeOrdersSubTab, setActiveOrdersSubTab] = useState<OrdersSubTabId>("approval");
-  const [activeAdminSubTab, setActiveAdminSubTab] = useState<AdminSubTabId>("approvalSetting");
   const [orders, setOrders] = useState<OrderRecord[]>(mockOrders);
   const [createOrderPrefill, setCreateOrderPrefill] = useState<{ clientId: string; product: string } | null>(null);
   const [createOrderKey, setCreateOrderKey] = useState(0);
 
-  function handleSelect(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId | AdminSubTabId) {
+  function handleSelect(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) {
     setActiveTab(tab);
     if (tab === "report" && subTab) setActiveReportSubTab(subTab as ReportSubTabId);
     if (tab === "orders" && subTab) setActiveOrdersSubTab(subTab as OrdersSubTabId);
-    if (tab === "admin" && subTab) setActiveAdminSubTab(subTab as AdminSubTabId);
   }
 
   function handleResetCreateOrder() {
@@ -60,9 +57,6 @@ function App() {
       if (activeReportSubTab === "billing") return <Billing orders={orders} />;
       return <ManagerReport orders={orders} />;
     }
-    if (activeTab === "admin") {
-      return <ApprovalSetting />;
-    }
     if (activeTab === "orders") {
       if (activeOrdersSubTab === "approval")
         return (
@@ -89,7 +83,6 @@ function App() {
           activeTab={activeTab}
           activeReportSubTab={activeReportSubTab}
           activeOrdersSubTab={activeOrdersSubTab}
-          activeAdminSubTab={activeAdminSubTab}
           onSelect={handleSelect}
         />
         <div className="flex flex-1 flex-col overflow-hidden">

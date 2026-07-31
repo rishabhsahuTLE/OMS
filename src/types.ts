@@ -1,10 +1,8 @@
-export type MainTabId = "dashboard" | "report" | "orders" | "admin";
+export type MainTabId = "dashboard" | "report" | "orders";
 
 export type ReportSubTabId = "approval" | "billing" | "managerReport";
 
 export type OrdersSubTabId = "amendCancel" | "approval";
-
-export type AdminSubTabId = "approvalSetting";
 
 export type BillingCycle = "M" | "B" | "Q" | "H" | "Y" | "O";
 
@@ -178,17 +176,6 @@ export interface OrderRecordDetails {
   creditPeriod: number | null;
   documents: { name: string; fileName: string }[];
   remarks: string;
-}
-
-export type ApprovalSettingStatus = "Active" | "Inactive";
-
-export interface ApprovalSettingRow {
-  id: string;
-  approver: string;
-  department: string;
-  technical: boolean;
-  financial: boolean;
-  status: ApprovalSettingStatus;
 }
 
 // Department roster, as sourced from zingHR.

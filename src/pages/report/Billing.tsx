@@ -7,9 +7,8 @@ import InlineDateRangeCalendar from "../../components/InlineDateRangeCalendar";
 import SearchableSelect from "../../components/SearchableSelect";
 import AmountRangeSlider from "../../components/AmountRangeSlider";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
-import PaginationFooter from "../../components/PaginationFooter";
 import SortArrow from "../../components/SortArrow";
-import { toggleSortState, usePagination, type SortState } from "../../utils";
+import { toggleSortState, type SortState } from "../../utils";
 
 interface BillingProps {
   orders: OrderRecord[];
@@ -377,10 +376,6 @@ export default function Billing({ orders }: BillingProps) {
   );
   const grandYearlyTotal = monthTotals.reduce((a, b) => a + b, 0);
 
-  // Totals above are always computed over the full filtered set, not just
-  // the visible page.
-  const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(rows);
-
   const restIdentityColSpan = 8; // Client Manager, T, F, OCD, OSD, FBD, BC, Amount
   const totalColumns = 3 + restIdentityColSpan + fyColumns.length + 1;
 
@@ -577,7 +572,7 @@ export default function Billing({ orders }: BillingProps) {
               </td>
             </tr>
 
-            {pageRows.map(({ order, monthly, yearlyTotal }) => {
+            {rows.map(({ order, monthly, yearlyTotal }) => {
               const highlight = rowHighlight(order);
               return (
               <tr key={order.id} className={`transition-colors ${highlight.row}`}>
@@ -637,7 +632,7 @@ export default function Billing({ orders }: BillingProps) {
               );
             })}
 
-            {pageRows.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td colSpan={totalColumns} className="px-4 py-8 text-center text-slate-400">
                   No orders match your filters.
@@ -647,14 +642,6 @@ export default function Billing({ orders }: BillingProps) {
           </tbody>
         </table>
         </div>
-        <PaginationFooter
-          page={page}
-          totalPages={totalPages}
-          onPageChange={setPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          totalRecords={totalRecords}
-        />
       </div>
 
       <FilterDrawer
