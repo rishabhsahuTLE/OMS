@@ -56,6 +56,34 @@ const PRODUCT_COLORS: Record<string, string> = {
   Quirio: "#eb6834",
 };
 
+// A macOS-style sliding switch (Wi-Fi/Bluetooth toggle look) rather than two
+// independently-colored buttons — one pill glides between the two slots on
+// click, with the labels layered on top so it still reads as text, not a
+// bare on/off. Assumes exactly two options (true for PRODUCT_NAMES today).
+function ProductToggle({ value, onChange }: { value: string; onChange: (product: string) => void }) {
+  const activeIndex = PRODUCT_NAMES.indexOf(value);
+  return (
+    <div className="relative flex w-40 shrink-0 rounded-full border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium">
+      <div
+        className="absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-indigo-600 shadow-sm transition-transform duration-200 ease-out"
+        style={{ transform: `translateX(${activeIndex * 100}%)` }}
+      />
+      {PRODUCT_NAMES.map((product) => (
+        <button
+          key={product}
+          type="button"
+          onClick={() => onChange(product)}
+          className={`relative z-10 flex-1 rounded-full px-3 py-1.5 text-center transition-colors duration-200 ${
+            value === product ? "text-white" : "text-slate-600 hover:text-slate-800"
+          }`}
+        >
+          {product}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const STAGE_PIE_COLORS: Record<ApprovalStageKey, string> = {
   technical: "#e87ba4",
   financial: "#008300",
@@ -368,20 +396,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
           <h3 className="text-sm font-semibold text-slate-700">
             {selectedProduct} Revenue — FY {fyColumns[0].year}–{fyColumns[11].year}
           </h3>
-          <div className="flex w-40 shrink-0 rounded-full border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium">
-            {PRODUCT_NAMES.map((product) => (
-              <button
-                key={product}
-                type="button"
-                onClick={() => setSelectedProduct(product)}
-                className={`flex-1 rounded-full px-3 py-1.5 text-center transition-colors ${
-                  selectedProduct === product ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                {product}
-              </button>
-            ))}
-          </div>
+          <ProductToggle value={selectedProduct} onChange={setSelectedProduct} />
         </div>
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={selectedProductMonthly} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -490,22 +505,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
           <h3 className="text-sm font-semibold text-slate-700">
             Revenue Projection by Account Manager — FY {fyColumns[0].year}–{fyColumns[11].year}
           </h3>
-          <div className="flex w-40 shrink-0 rounded-full border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium">
-            {PRODUCT_NAMES.map((product) => (
-              <button
-                key={product}
-                type="button"
-                onClick={() => setSelectedProjectionProduct(product)}
-                className={`flex-1 rounded-full px-3 py-1.5 text-center transition-colors ${
-                  selectedProjectionProduct === product
-                    ? "bg-indigo-600 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                {product}
-              </button>
-            ))}
-          </div>
+          <ProductToggle value={selectedProjectionProduct} onChange={setSelectedProjectionProduct} />
         </div>
         <ResponsiveContainer width="100%" height={Math.max(220, managerProjectionChartData.length * 32)}>
           <BarChart
