@@ -696,7 +696,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
               fill={PRODUCT_COLORS.LMS}
               className="cursor-pointer"
               onClick={(data) =>
-                onNavigate("report", "managerReport", { manager: (data as { manager: string }).manager })
+                onNavigate("report", "managerReport", { manager: (data.payload as { manager: string }).manager })
               }
             />
             <Bar
@@ -706,7 +706,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
               radius={[0, 4, 4, 0]}
               className="cursor-pointer"
               onClick={(data) =>
-                onNavigate("report", "managerReport", { manager: (data as { manager: string }).manager })
+                onNavigate("report", "managerReport", { manager: (data.payload as { manager: string }).manager })
               }
             />
           </BarChart>
@@ -749,7 +749,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
               fill={PRODUCT_COLORS[selectedProjectionProduct]}
               className="cursor-pointer"
               onClick={(data) =>
-                onNavigate("report", "managerReport", { manager: (data as { manager: string }).manager })
+                onNavigate("report", "managerReport", { manager: (data.payload as { manager: string }).manager })
               }
             />
           </BarChart>
