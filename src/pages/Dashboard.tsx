@@ -112,9 +112,22 @@ interface AttentionItem {
   age: number;
 }
 
-// Auto-advances one tile at a time, pausing ATTENTION_STEP_MS between steps;
-// hovering (mouse over the strip) suspends it entirely so it's readable.
+// Auto-advances one tile at a time (looping), pausing ATTENTION_STEP_MS
+// between steps; hovering the carousel suspends it so it's readable, and the
+// arrow buttons step manually (also looping) independent of the timer.
 const ATTENTION_STEP_MS = 2500;
+
+function ChevronArrowIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path
+        d={direction === "left" ? "M12.5 5l-5 5 5 5" : "M7.5 5l5 5-5 5"}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function AttentionTiles({
   items,
@@ -123,46 +136,61 @@ function AttentionTiles({
   items: AttentionItem[];
   onNavigate: (tab: MainTabId, subTab?: OrdersSubTabId) => void;
 }) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const indexRef = useRef(0);
+  const [index, setIndex] = useState(0);
   const pausedRef = useRef(false);
 
   useEffect(() => {
     if (items.length <= 1) return;
     const id = setInterval(() => {
-      if (pausedRef.current) return;
-      indexRef.current = (indexRef.current + 1) % items.length;
-      const track = trackRef.current;
-      const tile = track?.children[indexRef.current] as HTMLElement | undefined;
-      if (track && tile) track.scrollTo({ left: tile.offsetLeft, behavior: "smooth" });
+      if (!pausedRef.current) setIndex((i) => (i + 1) % items.length);
     }, ATTENTION_STEP_MS);
     return () => clearInterval(id);
   }, [items.length]);
 
+  function step(delta: number) {
+    setIndex((i) => (i + delta + items.length) % items.length);
+  }
+
+  const item = items[index % items.length];
+
   return (
     <div
-      ref={trackRef}
       onMouseEnter={() => (pausedRef.current = true)}
       onMouseLeave={() => (pausedRef.current = false)}
-      className="flex gap-3 overflow-x-hidden scroll-smooth"
+      className="flex items-center gap-2"
     >
-      {items.map((item) => (
-        <button
-          key={item.order.id}
-          type="button"
-          onClick={() =>
-            onNavigate("orders", item.order.lifecycleStatus === "cancellationInProgress" ? "amendCancel" : "approval")
-          }
-          className={`flex w-48 shrink-0 flex-col gap-1.5 rounded-lg border border-slate-200 p-3 text-left shadow-sm transition-colors hover:border-indigo-300 ${
-            item.order.amended ? "bg-yellow-50" : "bg-white"
-          }`}
-        >
-          <span className="truncate text-sm font-medium text-slate-800">{item.order.orderNo}</span>
-          <span className="truncate text-xs text-slate-500">{item.order.client}</span>
-          <span className="text-xs text-slate-500">{item.reason}</span>
-          <span className="text-xs font-semibold text-rose-600">{item.age} days</span>
-        </button>
-      ))}
+      <button
+        type="button"
+        onClick={() => step(-1)}
+        aria-label="Previous"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:bg-slate-50"
+      >
+        <ChevronArrowIcon direction="left" />
+      </button>
+
+      <button
+        type="button"
+        onClick={() =>
+          onNavigate("orders", item.order.lifecycleStatus === "cancellationInProgress" ? "amendCancel" : "approval")
+        }
+        className={`flex flex-1 flex-col gap-1.5 rounded-lg border border-slate-200 p-3 text-left shadow-sm transition-colors hover:border-indigo-300 ${
+          item.order.amended ? "bg-yellow-50" : "bg-white"
+        }`}
+      >
+        <span className="truncate text-sm font-medium text-slate-800">{item.order.orderNo}</span>
+        <span className="truncate text-xs text-slate-500">{item.order.client}</span>
+        <span className="text-xs text-slate-500">{item.reason}</span>
+        <span className="text-xs font-semibold text-rose-600">{item.age} days</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => step(1)}
+        aria-label="Next"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:bg-slate-50"
+      >
+        <ChevronArrowIcon direction="right" />
+      </button>
     </div>
   );
 }
@@ -417,13 +445,13 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
           <h3 className="text-sm font-semibold text-slate-700">
             {selectedProduct} Revenue — FY {fyColumns[0].year}–{fyColumns[11].year}
           </h3>
-          <div className="flex shrink-0 rounded-full border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium">
+          <div className="flex w-40 shrink-0 rounded-full border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium">
             {PRODUCT_NAMES.map((product) => (
               <button
                 key={product}
                 type="button"
                 onClick={() => setSelectedProduct(product)}
-                className={`rounded-full px-3 py-1 transition-colors ${
+                className={`flex-1 rounded-full px-3 py-1.5 text-center transition-colors ${
                   selectedProduct === product ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
