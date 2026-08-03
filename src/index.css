@@ -52,17 +52,3 @@ body {
   cursor: pointer;
 }
 
-/* Dashboard.tsx's "needs attention" ticker: the row list is duplicated once
-   so translating exactly -50% loops seamlessly; hover pauses it for reading. */
-@keyframes attention-scroll {
-  from { transform: translateY(0); }
-  to { transform: translateY(-50%); }
-}
-.attention-scroll-track {
-  animation-name: attention-scroll;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-}
-.attention-scroll-track:hover {
-  animation-play-state: paused;
-}

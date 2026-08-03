@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -8,9 +8,11 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
+  Sector,
   Tooltip,
   XAxis,
   YAxis,
+  type PieSectorDataItem,
 } from "recharts";
 import type { MainTabId, OrderDisplayStage, OrderRecord, OrdersSubTabId } from "../types";
 import { PRODUCT_NAMES } from "../products";
@@ -67,6 +69,103 @@ const STAGE_PIE_LABELS: Record<ApprovalStageKey, string> = {
   cancellationTechnical: "TC Pending",
   cancellationFinancial: "FC Pending",
 };
+
+// Tech/Fin are activation-side (reviewed from Manage Orders); TC/FC are
+// cancellation-side (reviewed from Approvals) — same split the "needs
+// attention" ticker below uses for its own click destinations.
+const STAGE_PIE_DEST: Record<ApprovalStageKey, OrdersSubTabId> = {
+  technical: "approval",
+  financial: "approval",
+  cancellationTechnical: "amendCancel",
+  cancellationFinancial: "amendCancel",
+};
+
+// Recharts' activeShape render prop — the hovered slice draws itself slightly
+// larger and grows a centered name/value readout, replacing the always-on
+// text labels this chart used to render around the ring.
+function renderActivePieSlice(props: PieSectorDataItem) {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, value } = props;
+  return (
+    <g>
+      <text x={cx} y={(cy ?? 0) - 6} textAnchor="middle" className="fill-slate-800 text-sm font-semibold">
+        {(payload as { label: string }).label}
+      </text>
+      <text x={cx} y={(cy ?? 0) + 14} textAnchor="middle" className="fill-slate-500 text-xs">
+        {value} order{value === 1 ? "" : "s"}
+      </text>
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={(outerRadius ?? 0) + 8}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+      />
+    </g>
+  );
+}
+
+interface AttentionItem {
+  order: OrderRecord;
+  reason: string;
+  age: number;
+}
+
+// Auto-advances one tile at a time, pausing ATTENTION_STEP_MS between steps;
+// hovering (mouse over the strip) suspends it entirely so it's readable.
+const ATTENTION_STEP_MS = 2500;
+
+function AttentionTiles({
+  items,
+  onNavigate,
+}: {
+  items: AttentionItem[];
+  onNavigate: (tab: MainTabId, subTab?: OrdersSubTabId) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const indexRef = useRef(0);
+  const pausedRef = useRef(false);
+
+  useEffect(() => {
+    if (items.length <= 1) return;
+    const id = setInterval(() => {
+      if (pausedRef.current) return;
+      indexRef.current = (indexRef.current + 1) % items.length;
+      const track = trackRef.current;
+      const tile = track?.children[indexRef.current] as HTMLElement | undefined;
+      if (track && tile) track.scrollTo({ left: tile.offsetLeft, behavior: "smooth" });
+    }, ATTENTION_STEP_MS);
+    return () => clearInterval(id);
+  }, [items.length]);
+
+  return (
+    <div
+      ref={trackRef}
+      onMouseEnter={() => (pausedRef.current = true)}
+      onMouseLeave={() => (pausedRef.current = false)}
+      className="flex gap-3 overflow-x-hidden scroll-smooth"
+    >
+      {items.map((item) => (
+        <button
+          key={item.order.id}
+          type="button"
+          onClick={() =>
+            onNavigate("orders", item.order.lifecycleStatus === "cancellationInProgress" ? "amendCancel" : "approval")
+          }
+          className={`flex w-48 shrink-0 flex-col gap-1.5 rounded-lg border border-slate-200 p-3 text-left shadow-sm transition-colors hover:border-indigo-300 ${
+            item.order.amended ? "bg-yellow-50" : "bg-white"
+          }`}
+        >
+          <span className="truncate text-sm font-medium text-slate-800">{item.order.orderNo}</span>
+          <span className="truncate text-xs text-slate-500">{item.order.client}</span>
+          <span className="text-xs text-slate-500">{item.reason}</span>
+          <span className="text-xs font-semibold text-rose-600">{item.age} days</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 interface ManagerRevenueRow {
   manager: string;
@@ -200,6 +299,8 @@ function RevenueTable({
 }
 
 export default function Dashboard({ orders, onNavigate }: DashboardProps) {
+  const [selectedProduct, setSelectedProduct] = useState(PRODUCT_NAMES[0]);
+
   const stageCounts = useMemo(() => {
     const counts: Record<TileKey, number> = {
       all: orders.length,
@@ -230,6 +331,11 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
       return { product, monthly };
     });
   }, [orders, fyColumns]);
+
+  const selectedProductMonthly = useMemo(
+    () => revenueByProduct.find((r) => r.product === selectedProduct)?.monthly ?? [],
+    [revenueByProduct, selectedProduct]
+  );
 
   const stageStuck = useMemo(() => {
     const counts: Record<ApprovalStageKey, number> = {
@@ -306,38 +412,50 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {revenueByProduct.map(({ product, monthly }) => (
-          <div key={product} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-slate-700">
-              {product} Revenue — FY {fyColumns[0].year}–{fyColumns[11].year}
-            </h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={monthly} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid vertical={false} stroke="#e1e0d9" />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fontSize: 11, fill: "#898781" }}
-                  axisLine={{ stroke: "#c3c2b7" }}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "#898781" }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={48}
-                  tickFormatter={(v: number) => `₹${(v / 100000).toFixed(0)}L`}
-                />
-                <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                <Bar dataKey="amount" radius={[4, 4, 0, 0]} fill={PRODUCT_COLORS[product]}>
-                  {monthly.map((m, i) => (
-                    <Cell key={i} fillOpacity={m.isCurrent ? 1 : 0.7} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-slate-700">
+            {selectedProduct} Revenue — FY {fyColumns[0].year}–{fyColumns[11].year}
+          </h3>
+          <div className="flex shrink-0 rounded-full border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium">
+            {PRODUCT_NAMES.map((product) => (
+              <button
+                key={product}
+                type="button"
+                onClick={() => setSelectedProduct(product)}
+                className={`rounded-full px-3 py-1 transition-colors ${
+                  selectedProduct === product ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {product}
+              </button>
+            ))}
           </div>
-        ))}
+        </div>
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={selectedProductMonthly} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="#e1e0d9" />
+            <XAxis
+              dataKey="month"
+              tick={{ fontSize: 11, fill: "#898781" }}
+              axisLine={{ stroke: "#c3c2b7" }}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "#898781" }}
+              axisLine={false}
+              tickLine={false}
+              width={48}
+              tickFormatter={(v: number) => `₹${(v / 100000).toFixed(0)}L`}
+            />
+            <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Bar dataKey="amount" radius={[4, 4, 0, 0]} fill={PRODUCT_COLORS[selectedProduct]}>
+              {selectedProductMonthly.map((m, i) => (
+                <Cell key={i} fillOpacity={m.isCurrent ? 1 : 0.7} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -347,24 +465,32 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
             <p className="py-16 text-center text-sm text-slate-400">Nothing pending right now.</p>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
-              <PieChart margin={{ top: 24, bottom: 0, left: 8, right: 8 }}>
+              <PieChart>
                 <Pie
                   data={stageStuck}
                   dataKey="value"
                   nameKey="label"
-                  cy="52%"
+                  cx="50%"
+                  cy="50%"
                   innerRadius={50}
                   outerRadius={80}
                   paddingAngle={2}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  labelLine={false}
+                  activeShape={renderActivePieSlice}
+                  onClick={(entry) => {
+                    const key = (entry.payload as { key: ApprovalStageKey }).key;
+                    onNavigate("orders", STAGE_PIE_DEST[key]);
+                  }}
+                  className="cursor-pointer"
                 >
                   {stageStuck.map((s) => (
                     <Cell key={s.key} fill={STAGE_PIE_COLORS[s.key]} />
                   ))}
                 </Pie>
+                {/* No visual tooltip box — its mouse-tracking is what drives
+                    activeShape's hover-to-enlarge above, so it stays mounted
+                    but renders nothing of its own. */}
+                <Tooltip content={() => null} cursor={false} />
                 <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 12 }} />
-                <Tooltip formatter={(v) => `${v} order${Number(v) === 1 ? "" : "s"}`} />
               </PieChart>
             </ResponsiveContainer>
           )}
@@ -375,33 +501,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
           {attentionItems.length === 0 ? (
             <p className="py-16 text-center text-sm text-slate-400">All caught up — nothing needs attention.</p>
           ) : (
-            <div className="relative h-56 overflow-hidden">
-              <div
-                className="attention-scroll-track absolute inset-x-0 top-0"
-                style={{ animationDuration: `${attentionItems.length * 4}s` }}
-              >
-                {[...attentionItems, ...attentionItems].map((item, i) => (
-                  <button
-                    key={`${item.order.id}-${i}`}
-                    type="button"
-                    onClick={() =>
-                      onNavigate("orders", item.order.lifecycleStatus === "cancellationInProgress" ? "amendCancel" : "approval")
-                    }
-                    className={`flex w-full items-center justify-between gap-3 border-b border-slate-100 px-1 py-2.5 text-left text-sm transition-colors hover:bg-slate-50 ${
-                      item.order.amended ? "bg-yellow-50" : ""
-                    }`}
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      <span className="font-medium text-slate-800">{item.order.orderNo}</span>{" "}
-                      <span className="text-slate-500">— {item.order.client}</span>
-                    </span>
-                    <span className="shrink-0 text-xs text-slate-500">
-                      {item.reason} · {item.age}d
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <AttentionTiles items={attentionItems} onNavigate={onNavigate} />
           )}
         </div>
       </div>
