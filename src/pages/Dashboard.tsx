@@ -14,7 +14,7 @@ import {
   YAxis,
   type PieSectorDataItem,
 } from "recharts";
-import type { MainTabId, OrderDisplayStage, OrderRecord, OrdersSubTabId } from "../types";
+import type { MainTabId, OrderDisplayStage, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../types";
 import { PRODUCT_NAMES } from "../products";
 import {
   billsInColumn,
@@ -30,7 +30,7 @@ import {
 
 interface DashboardProps {
   orders: OrderRecord[];
-  onNavigate: (tab: MainTabId, subTab?: OrdersSubTabId) => void;
+  onNavigate: (tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) => void;
 }
 
 function formatINR(n: number) {
@@ -97,6 +97,27 @@ const STAGE_PIE_LABELS: Record<ApprovalStageKey, string> = {
   cancellationTechnical: "TC Pending",
   cancellationFinancial: "FC Pending",
 };
+
+const APPROVAL_STAGE_NAMES: Record<ApprovalStageKey, string> = {
+  technical: "Technical",
+  financial: "Financial",
+  cancellationTechnical: "Cancellation Technical",
+  cancellationFinancial: "Cancellation Financial",
+};
+
+const APPROVAL_STAGE_KEYS: ApprovalStageKey[] = [
+  "technical",
+  "financial",
+  "cancellationTechnical",
+  "cancellationFinancial",
+];
+
+interface NotificationItem {
+  order: OrderRecord;
+  key: ApprovalStageKey;
+  outcome: "confirmed" | "rejected";
+  date: string;
+}
 
 // Tech/Fin are activation-side (reviewed from Manage Orders); TC/FC are
 // cancellation-side (reviewed from Approvals) — same split the "needs
@@ -223,6 +244,48 @@ function AttentionTiles({
   );
 }
 
+// A synthesized activity feed — there's no real notification backend, so
+// this is derived entirely from the same StageStatus dates already on every
+// order (skips anything still "pending", since only confirmed/rejected
+// stages carry an actual event date).
+function NotificationTile({
+  items,
+  onNavigate,
+}: {
+  items: NotificationItem[];
+  onNavigate: (tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) => void;
+}) {
+  const today = todayISO();
+  return (
+    <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
+      {items.map((n, i) => (
+        <button
+          key={`${n.order.id}-${n.key}-${i}`}
+          type="button"
+          onClick={() =>
+            onNavigate(
+              "orders",
+              n.key === "cancellationTechnical" || n.key === "cancellationFinancial" ? "amendCancel" : "approval"
+            )
+          }
+          className="flex items-start gap-2 py-2 text-left first:pt-0 hover:bg-slate-50"
+        >
+          <span
+            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.outcome === "confirmed" ? "bg-emerald-500" : "bg-rose-500"}`}
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm text-slate-700">
+              <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {APPROVAL_STAGE_NAMES[n.key]}{" "}
+              {n.outcome === "confirmed" ? "approved" : "rejected"}
+            </span>
+            <span className="text-xs text-slate-400">{daysBetween(n.date, today)}d ago</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 interface ManagerRevenueRow {
   manager: string;
   perProduct: { product: string; ytd: number; total: number }[];
@@ -338,6 +401,18 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
       .slice(0, 10);
   }, [orders]);
 
+  const notificationItems = useMemo(() => {
+    const events: NotificationItem[] = orders.flatMap((o) =>
+      APPROVAL_STAGE_KEYS.filter((key) => o[key].status !== "pending" && o[key].date).map((key) => ({
+        order: o,
+        key,
+        outcome: o[key].status as "confirmed" | "rejected",
+        date: o[key].date as string,
+      }))
+    );
+    return events.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, 8);
+  }, [orders]);
+
   const managers = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
 
   const revenueSummaryRows = useMemo(
@@ -415,7 +490,13 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
               tickFormatter={(v: number) => `₹${(v / 100000).toFixed(0)}L`}
             />
             <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-            <Bar dataKey="amount" radius={[4, 4, 0, 0]} fill={PRODUCT_COLORS[selectedProduct]}>
+            <Bar
+              dataKey="amount"
+              radius={[4, 4, 0, 0]}
+              fill={PRODUCT_COLORS[selectedProduct]}
+              className="cursor-pointer"
+              onClick={() => onNavigate("report", "billing")}
+            >
               {selectedProductMonthly.map((m, i) => (
                 <Cell key={i} fillOpacity={m.isCurrent ? 1 : 0.7} />
               ))}
@@ -424,7 +505,16 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">Notifications</h3>
+          {notificationItems.length === 0 ? (
+            <p className="py-16 text-center text-sm text-slate-400">No recent activity.</p>
+          ) : (
+            <NotificationTile items={notificationItems} onNavigate={onNavigate} />
+          )}
+        </div>
+
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold text-slate-700">Orders Stuck by Approval Stage</h3>
           {stageStuck.length === 0 ? (
@@ -494,8 +584,21 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
             />
             <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="LMS" stackId="revenue" fill={PRODUCT_COLORS.LMS} />
-            <Bar dataKey="Quirio" stackId="revenue" fill={PRODUCT_COLORS.Quirio} radius={[0, 4, 4, 0]} />
+            <Bar
+              dataKey="LMS"
+              stackId="revenue"
+              fill={PRODUCT_COLORS.LMS}
+              className="cursor-pointer"
+              onClick={() => onNavigate("report", "managerReport")}
+            />
+            <Bar
+              dataKey="Quirio"
+              stackId="revenue"
+              fill={PRODUCT_COLORS.Quirio}
+              radius={[0, 4, 4, 0]}
+              className="cursor-pointer"
+              onClick={() => onNavigate("report", "managerReport")}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -530,7 +633,13 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
               tickLine={false}
             />
             <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-            <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={PRODUCT_COLORS[selectedProjectionProduct]} />
+            <Bar
+              dataKey="value"
+              radius={[0, 4, 4, 0]}
+              fill={PRODUCT_COLORS[selectedProjectionProduct]}
+              className="cursor-pointer"
+              onClick={() => onNavigate("report", "managerReport")}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>

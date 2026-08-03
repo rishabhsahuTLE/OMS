@@ -6,12 +6,6 @@ interface SubTab<T extends string> {
   label: string;
 }
 
-const reportSubTabs: SubTab<ReportSubTabId>[] = [
-  { id: "approval", label: "Approval" },
-  { id: "billing", label: "Billing" },
-  { id: "managerReport", label: "Manager Report" },
-];
-
 const ordersSubTabs: SubTab<OrdersSubTabId>[] = [
   { id: "approval", label: "Manage Orders" },
   { id: "amendCancel", label: "Approvals" },
@@ -19,7 +13,6 @@ const ordersSubTabs: SubTab<OrdersSubTabId>[] = [
 
 interface SidebarProps {
   activeTab: MainTabId;
-  activeReportSubTab: ReportSubTabId;
   activeOrdersSubTab: OrdersSubTabId;
   onSelect: (
     tab: MainTabId,
@@ -69,7 +62,6 @@ function OrdersIcon() {
 
 export default function Sidebar({
   activeTab,
-  activeReportSubTab,
   activeOrdersSubTab,
   onSelect,
 }: SidebarProps) {
@@ -77,12 +69,10 @@ export default function Sidebar({
   // sub-item list drops down on hover of that category and collapses when
   // the cursor leaves it — both independent of click state.
   const [expanded, setExpanded] = useState(false);
-  const [reportHovered, setReportHovered] = useState(false);
   const [ordersHovered, setOrdersHovered] = useState(false);
 
   function collapseAll() {
     setExpanded(false);
-    setReportHovered(false);
     setOrdersHovered(false);
   }
 
@@ -116,43 +106,19 @@ export default function Sidebar({
           {expanded && <span className="whitespace-nowrap">Dashboard</span>}
         </button>
 
-        <div onMouseEnter={() => setReportHovered(true)} onMouseLeave={() => setReportHovered(false)}>
-          <button
-            onClick={() => onSelect("report", activeReportSubTab)}
-            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-              !expanded ? "justify-center" : ""
-            } ${
-              activeTab === "report"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <ReportIcon />
-            {expanded && (
-              <>
-                <span className="flex-1 whitespace-nowrap text-left">Report</span>
-                <ChevronIcon open={reportHovered} />
-              </>
-            )}
-          </button>
-          {expanded && reportHovered && (
-            <div className="mt-1 space-y-0.5 pl-9">
-              {reportSubTabs.map((sub) => (
-                <button
-                  key={sub.id}
-                  onClick={() => onSelect("report", sub.id)}
-                  className={`block w-full whitespace-nowrap rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
-                    activeTab === "report" && activeReportSubTab === sub.id
-                      ? "bg-indigo-600 text-white"
-                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
-                  }`}
-                >
-                  {sub.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <button
+          onClick={() => onSelect("report", "approval")}
+          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            !expanded ? "justify-center" : ""
+          } ${
+            activeTab === "report"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-300 hover:bg-slate-800 hover:text-white"
+          }`}
+        >
+          <ReportIcon />
+          {expanded && <span className="whitespace-nowrap">Report</span>}
+        </button>
 
         <div onMouseEnter={() => setOrdersHovered(true)} onMouseLeave={() => setOrdersHovered(false)}>
           <button

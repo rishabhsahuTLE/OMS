@@ -1,12 +1,11 @@
 import { useState } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import EmpowerTopBar from "./components/EmpowerTopBar";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
-import Approval from "./pages/report/Approval";
-import Billing from "./pages/report/Billing";
+import Report from "./pages/Report";
 import OrderPage from "./pages/orders/OrderPage";
 import OrderApproval from "./pages/orders/OrderApproval";
-import ManagerReport from "./pages/ManagerReport";
 import clientsData from "./data/clients.json";
 import { mockOrders } from "./data/mockOrders";
 import { promoteSuccessorOf } from "./utils";
@@ -14,18 +13,26 @@ import type { Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } f
 
 const clients = clientsData as Client[];
 
+function buildPath(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) {
+  if (tab === "dashboard") return "/dashboard";
+  return subTab ? `/${tab}/${subTab}` : `/${tab}`;
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState<MainTabId>("dashboard");
-  const [activeReportSubTab, setActiveReportSubTab] = useState<ReportSubTabId>("approval");
-  const [activeOrdersSubTab, setActiveOrdersSubTab] = useState<OrdersSubTabId>("approval");
+  const location = useLocation();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<OrderRecord[]>(mockOrders);
   const [createOrderPrefill, setCreateOrderPrefill] = useState<{ clientId: string; product: string } | null>(null);
   const [createOrderKey, setCreateOrderKey] = useState(0);
 
+  // Sidebar's active-tab/sub-tab highlighting is derived straight from the
+  // URL rather than app state — Sidebar itself needs no changes for this.
+  const [, tabSeg, subSeg] = location.pathname.split("/");
+  const activeTab = (tabSeg || "dashboard") as MainTabId;
+  const activeOrdersSubTab = (subSeg as OrdersSubTabId) || "approval";
+
   function handleSelect(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) {
-    setActiveTab(tab);
-    if (tab === "report" && subTab) setActiveReportSubTab(subTab as ReportSubTabId);
-    if (tab === "orders" && subTab) setActiveOrdersSubTab(subTab as OrdersSubTabId);
+    navigate(buildPath(tab, subTab));
   }
 
   function handleResetCreateOrder() {
@@ -50,43 +57,37 @@ function App() {
     });
   }
 
-  function renderPage() {
-    if (activeTab === "dashboard") return <Dashboard orders={orders} onNavigate={handleSelect} />;
-    if (activeTab === "report") {
-      if (activeReportSubTab === "approval") return <Approval orders={orders} />;
-      if (activeReportSubTab === "billing") return <Billing orders={orders} />;
-      return <ManagerReport orders={orders} />;
-    }
-    if (activeTab === "orders") {
-      if (activeOrdersSubTab === "approval")
-        return (
-          <OrderApproval
-            orders={orders}
-            onUpdateOrder={handleUpdateOrder}
-            clients={clients}
-            onCreateOrder={handleCreateOrder}
-            createOrderPrefill={createOrderPrefill}
-            createOrderKey={createOrderKey}
-            onResetCreateOrder={handleResetCreateOrder}
-          />
-        );
-      return <OrderPage orders={orders} onUpdateOrder={handleUpdateOrder} />;
-    }
-    return null;
-  }
-
   return (
     <div className="flex h-screen w-screen flex-col bg-slate-100">
       <EmpowerTopBar />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          activeTab={activeTab}
-          activeReportSubTab={activeReportSubTab}
-          activeOrdersSubTab={activeOrdersSubTab}
-          onSelect={handleSelect}
-        />
+        <Sidebar activeTab={activeTab} activeOrdersSubTab={activeOrdersSubTab} onSelect={handleSelect} />
         <div className="flex flex-1 flex-col overflow-hidden">
-          <main className="flex-1 overflow-auto p-6">{renderPage()}</main>
+          <main className="flex-1 overflow-auto p-6">
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Dashboard orders={orders} onNavigate={handleSelect} />} />
+              <Route path="/report" element={<Navigate to="/report/approval" replace />} />
+              <Route path="/report/:subTab" element={<Report orders={orders} />} />
+              <Route path="/orders" element={<Navigate to="/orders/approval" replace />} />
+              <Route
+                path="/orders/approval"
+                element={
+                  <OrderApproval
+                    orders={orders}
+                    onUpdateOrder={handleUpdateOrder}
+                    clients={clients}
+                    onCreateOrder={handleCreateOrder}
+                    createOrderPrefill={createOrderPrefill}
+                    createOrderKey={createOrderKey}
+                    onResetCreateOrder={handleResetCreateOrder}
+                  />
+                }
+              />
+              <Route path="/orders/amendCancel" element={<OrderPage orders={orders} onUpdateOrder={handleUpdateOrder} />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </main>
         </div>
       </div>
     </div>
