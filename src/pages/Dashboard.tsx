@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -226,108 +226,9 @@ function buildManagerRows(
   });
 }
 
-function RevenueTable({
-  title,
-  subtitle,
-  rows,
-}: {
-  title: string;
-  subtitle: string;
-  rows: ManagerRevenueRow[];
-}) {
-  const totals = useMemo(() => {
-    const perProduct = PRODUCT_NAMES.map((product, idx) => ({
-      product,
-      ytd: rows.reduce((s, r) => s + r.perProduct[idx].ytd, 0),
-      total: rows.reduce((s, r) => s + r.perProduct[idx].total, 0),
-    }));
-    const grandTotal = rows.reduce((s, r) => s + r.grandTotal, 0);
-    return { perProduct, grandTotal };
-  }, [rows]);
-
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-4 py-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{title}</h3>
-        <p className="text-xs text-slate-500">{subtitle}</p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead>
-            <tr>
-              <th className="whitespace-nowrap bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
-                Account Manager
-              </th>
-              {PRODUCT_NAMES.map((product) => (
-                <th
-                  key={product}
-                  colSpan={2}
-                  className="whitespace-nowrap border-l border-slate-200 bg-indigo-50 px-4 py-1.5 text-center font-semibold text-indigo-800"
-                >
-                  {product}
-                </th>
-              ))}
-              <th className="whitespace-nowrap border-l border-slate-200 bg-slate-50 px-4 py-2 text-right font-semibold text-slate-600">
-                Grand Total
-              </th>
-            </tr>
-            <tr>
-              <th className="whitespace-nowrap bg-slate-50 px-4 py-1"></th>
-              {PRODUCT_NAMES.map((product) => (
-                <Fragment key={product}>
-                  <th className="whitespace-nowrap border-l border-slate-200 bg-slate-50 px-4 py-1.5 text-right font-medium text-slate-500">
-                    YTD
-                  </th>
-                  <th className="whitespace-nowrap bg-slate-50 px-4 py-1.5 text-right font-medium text-slate-500">
-                    Total
-                  </th>
-                </Fragment>
-              ))}
-              <th className="whitespace-nowrap border-l border-slate-200 bg-slate-50 px-4 py-1"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((r) => (
-              <tr key={r.manager} className="hover:bg-slate-50">
-                <td className="whitespace-nowrap px-4 py-2 text-slate-700">{r.manager}</td>
-                {r.perProduct.map((p) => (
-                  <Fragment key={p.product}>
-                    <td className="whitespace-nowrap border-l border-slate-100 px-4 py-2 text-right text-slate-700">
-                      {p.ytd > 0 ? formatINR(p.ytd) : "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2 text-right text-slate-700">
-                      {p.total > 0 ? formatINR(p.total) : "—"}
-                    </td>
-                  </Fragment>
-                ))}
-                <td className="whitespace-nowrap border-l border-slate-100 px-4 py-2 text-right font-medium text-slate-800">
-                  {r.grandTotal > 0 ? formatINR(r.grandTotal) : "—"}
-                </td>
-              </tr>
-            ))}
-            <tr className="bg-slate-50 font-semibold text-slate-800">
-              <td className="whitespace-nowrap px-4 py-2">Total</td>
-              {totals.perProduct.map((p) => (
-                <Fragment key={p.product}>
-                  <td className="whitespace-nowrap border-l border-slate-200 px-4 py-2 text-right">
-                    {formatINR(p.ytd)}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-2 text-right">{formatINR(p.total)}</td>
-                </Fragment>
-              ))}
-              <td className="whitespace-nowrap border-l border-slate-200 px-4 py-2 text-right">
-                {formatINR(totals.grandTotal)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 export default function Dashboard({ orders, onNavigate }: DashboardProps) {
   const [selectedProduct, setSelectedProduct] = useState(PRODUCT_NAMES[0]);
+  const [selectedProjectionProduct, setSelectedProjectionProduct] = useState(PRODUCT_NAMES[0]);
 
   const stageCounts = useMemo(() => {
     const counts: Record<TileKey, number> = {
@@ -433,6 +334,17 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
           ...Object.fromEntries(r.perProduct.map((p) => [p.product, p.total])),
         })),
     [revenueSummaryRows]
+  );
+
+  const managerProjectionChartData = useMemo(
+    () =>
+      revenueProjectionRows
+        .map((r) => ({
+          manager: r.manager,
+          value: r.perProduct.find((p) => p.product === selectedProjectionProduct)?.total ?? 0,
+        }))
+        .sort((a, b) => b.value - a.value),
+    [revenueProjectionRows, selectedProjectionProduct]
   );
 
   return (
@@ -573,17 +485,55 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
         </ResponsiveContainer>
       </div>
 
-      <RevenueTable
-        title="Revenue Summary"
-        subtitle="Revenue collected to date, by account manager and product"
-        rows={revenueSummaryRows}
-      />
-
-      <RevenueTable
-        title="Revenue Projection"
-        subtitle={`Full fiscal year ${fyColumns[0].year}–${fyColumns[11].year} projection, by account manager and product`}
-        rows={revenueProjectionRows}
-      />
+      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-slate-700">
+            Revenue Projection by Account Manager — FY {fyColumns[0].year}–{fyColumns[11].year}
+          </h3>
+          <div className="flex w-40 shrink-0 rounded-full border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium">
+            {PRODUCT_NAMES.map((product) => (
+              <button
+                key={product}
+                type="button"
+                onClick={() => setSelectedProjectionProduct(product)}
+                className={`flex-1 rounded-full px-3 py-1.5 text-center transition-colors ${
+                  selectedProjectionProduct === product
+                    ? "bg-indigo-600 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {product}
+              </button>
+            ))}
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={Math.max(220, managerProjectionChartData.length * 32)}>
+          <BarChart
+            data={managerProjectionChartData}
+            layout="vertical"
+            margin={{ top: 4, right: 16, left: 8, bottom: 0 }}
+          >
+            <CartesianGrid horizontal={false} stroke="#e1e0d9" />
+            <XAxis
+              type="number"
+              tick={{ fontSize: 11, fill: "#898781" }}
+              axisLine={{ stroke: "#c3c2b7" }}
+              tickLine={false}
+              tickFormatter={(v: number) => `₹${(v / 100000).toFixed(0)}L`}
+            />
+            <YAxis
+              type="category"
+              dataKey="manager"
+              width={130}
+              tick={{ fontSize: 11, fill: "#52514e" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={PRODUCT_COLORS[selectedProjectionProduct]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
