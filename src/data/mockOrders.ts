@@ -48,10 +48,12 @@ const financialPattern: ApprovalState[] = [
   "confirmed",
 ];
 
-// 1-3 orders per client, cycling deterministically — no dependency on the
-// client list's length, so it stays in sync as clients.json grows.
+// 3-4 orders per client, cycling deterministically — no dependency on the
+// client list's length, so it stays in sync as clients.json grows. Bumped up
+// from 1-3 so every lifecycle/approval bucket has more than a single demo
+// entry once spread across a small (university-only) client list.
 function orderCountFor(clientIndex: number): number {
-  return 1 + (clientIndex % 3);
+  return 3 + (clientIndex % 2);
 }
 
 // Varied agreement lengths (in months) so a healthy mix of Active, Agreement

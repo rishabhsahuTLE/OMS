@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* The app's brand blue is the original Empower site's actual accent
+   (#2596be), not Tailwind's stock indigo — overriding the indigo scale here
+   means every existing indigo-* utility across the app (and its hover/focus
+   variants) picks it up automatically, with no component changes needed. */
+@theme {
+  --color-indigo-50: #eaf6fb;
+  --color-indigo-100: #d4eef7;
+  --color-indigo-200: #aadcee;
+  --color-indigo-300: #76c8e4;
+  --color-indigo-400: #3fb1da;
+  --color-indigo-500: #279ec9;
+  --color-indigo-600: #2596be;
+  --color-indigo-700: #1c7391;
+  --color-indigo-800: #165b73;
+  --color-indigo-900: #114355;
+  --color-indigo-950: #0b2c37;
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
@@ -36,7 +54,7 @@ body {
   height: 16px;
   width: 16px;
   border-radius: 9999px;
-  background: #4f46e5;
+  background: #2596be;
   border: 2px solid white;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.4);
   cursor: pointer;
@@ -46,7 +64,7 @@ body {
   height: 16px;
   width: 16px;
   border-radius: 9999px;
-  background: #4f46e5;
+  background: #2596be;
   border: 2px solid white;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.4);
   cursor: pointer;
