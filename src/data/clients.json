@@ -223,5 +223,55 @@
     "clientManager": "Farah Sheikh",
     "createdBy": "Farah Sheikh",
     "createdOn": "2022-07-21"
+  },
+  {
+    "id": "cli-46",
+    "name": "Anna University",
+    "domain": "annauniv.edu",
+    "type": "University",
+    "billingAddress": "Anna University, Sardar Patel Road, Guindy",
+    "billingState": "Tamil Nadu",
+    "billingCity": "Chennai",
+    "deliveryAddress": "Anna University, Sardar Patel Road, Guindy",
+    "deliveryState": "Tamil Nadu",
+    "deliveryCity": "Chennai",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Deepa Krishnan",
+        "email": "deepa.krishnan@annauniv.edu",
+        "mobile": "9840011223",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Rahul Verma",
+    "createdBy": "Rahul Verma",
+    "createdOn": "2026-06-15"
+  },
+  {
+    "id": "cli-47",
+    "name": "Jamia Millia Islamia",
+    "domain": "jmi.ac.in",
+    "type": "University",
+    "billingAddress": "Jamia Millia Islamia, Jamia Nagar, Okhla",
+    "billingState": "Delhi",
+    "billingCity": "New Delhi",
+    "deliveryAddress": "Jamia Millia Islamia, Jamia Nagar, Okhla",
+    "deliveryState": "Delhi",
+    "deliveryCity": "New Delhi",
+    "gstNo": "",
+    "remark": "",
+    "spocs": [
+      {
+        "name": "Arjun Malhotra",
+        "email": "arjun.malhotra@jmi.ac.in",
+        "mobile": "9911002233",
+        "remarks": ""
+      }
+    ],
+    "clientManager": "Suman Reddy",
+    "createdBy": "Suman Reddy",
+    "createdOn": "2026-07-02"
   }
 ]

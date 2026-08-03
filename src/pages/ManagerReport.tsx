@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { ApprovalState, OrderRecord } from "../types";
 import { PRODUCT_NAMES } from "../products";
 import { formatDDMMYYYY, toggleSortState, usePagination, type SortState } from "../utils";
@@ -287,12 +288,19 @@ function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
 }
 
 export default function ManagerReport({ orders }: ManagerReportProps) {
+  // The Dashboard's account-manager charts land here with ?manager= to open
+  // already filtered to (and expanded on) whichever manager's bar was
+  // clicked — read once on mount.
+  const [searchParams] = useSearchParams();
+  const initialManager = searchParams.get("manager");
+  const initialFilters: Filters = initialManager ? { ...defaultFilters, manager: initialManager } : defaultFilters;
+
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(OUTER_FILTER_CATEGORIES[0].key);
-  const [draft, setDraft] = useState<Filters>(defaultFilters);
-  const [applied, setApplied] = useState<Filters>(defaultFilters);
+  const [draft, setDraft] = useState<Filters>(initialFilters);
+  const [applied, setApplied] = useState<Filters>(initialFilters);
   const [sort, setSort] = useState<SortState<OuterSortableKey>>({ key: null, direction: "asc" });
-  const [openManagers, setOpenManagers] = useState<Set<string>>(new Set());
+  const [openManagers, setOpenManagers] = useState<Set<string>>(new Set(initialManager ? [initialManager] : []));
 
   const managerOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
 

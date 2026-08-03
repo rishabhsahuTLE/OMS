@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { ApprovalState, CancellationDetails, Client, OrderDisplayStage, OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
 import CreateOrderModal from "./CreateOrderModal";
@@ -271,7 +272,11 @@ export default function OrderApproval({
   createOrderKey,
   onResetCreateOrder,
 }: OrderApprovalProps) {
-  const [tab, setTab] = useState<ViewTab>("all");
+  // Dashboard tiles/charts land here with ?stage=&q= to open already-filtered
+  // instead of always defaulting to "all" — read once on mount, not kept in
+  // sync afterward (this page owns its own filter state from here on).
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<ViewTab>((searchParams.get("stage") as ViewTab) || "all");
   const [creating, setCreating] = useState(false);
   const [openInfoOrderId, setOpenInfoOrderId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<OrderRecord | null>(null);
@@ -280,7 +285,7 @@ export default function OrderApproval({
   const [closeBatch, setCloseBatch] = useState<OrderRecord[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [sort, setSort] = useState<SortState<SortableKey>>({ key: null, direction: "asc" });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(FILTER_CATEGORIES[0].key);

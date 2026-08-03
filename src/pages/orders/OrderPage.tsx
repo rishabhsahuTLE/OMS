@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { ApprovalState, OrderDisplayStage, OrderRecord } from "../../types";
 import type { DateRange } from "../../components/DateRangePicker";
 import OrderApprovalReview from "./OrderApprovalReview";
@@ -183,10 +184,14 @@ function StageBadge({ status }: { status: ApprovalState }) {
 // Closure Pending). Create/Amend/Close all live on the Manage Orders tab —
 // this tab only ever approves or rejects.
 export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
-  const [tab, setTab] = useState<ViewTab>("all");
+  // Dashboard tiles/charts land here with ?stage=&q= to open already-filtered
+  // instead of always defaulting to "all" — read once on mount, not kept in
+  // sync afterward (this page owns its own filter state from here on).
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<ViewTab>((searchParams.get("stage") as ViewTab) || "all");
   const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [sort, setSort] = useState<SortState<SortableKey>>({ key: null, direction: "asc" });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(FILTER_CATEGORIES[0].key);

@@ -13,9 +13,14 @@ import type { Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } f
 
 const clients = clientsData as Client[];
 
-function buildPath(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) {
-  if (tab === "dashboard") return "/dashboard";
-  return subTab ? `/${tab}/${subTab}` : `/${tab}`;
+function buildPath(
+  tab: MainTabId,
+  subTab?: ReportSubTabId | OrdersSubTabId,
+  params?: Record<string, string>
+) {
+  const base = tab === "dashboard" ? "/dashboard" : subTab ? `/${tab}/${subTab}` : `/${tab}`;
+  if (!params || Object.keys(params).length === 0) return base;
+  return `${base}?${new URLSearchParams(params).toString()}`;
 }
 
 function App() {
@@ -31,8 +36,12 @@ function App() {
   const activeTab = (tabSeg || "dashboard") as MainTabId;
   const activeOrdersSubTab = (subSeg as OrdersSubTabId) || "approval";
 
-  function handleSelect(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) {
-    navigate(buildPath(tab, subTab));
+  function handleSelect(
+    tab: MainTabId,
+    subTab?: ReportSubTabId | OrdersSubTabId,
+    params?: Record<string, string>
+  ) {
+    navigate(buildPath(tab, subTab, params));
   }
 
   function handleResetCreateOrder() {

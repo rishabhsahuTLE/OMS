@@ -37,29 +37,37 @@ const technicalPattern: ApprovalState[] = [
   "pending",
   "confirmed",
 ];
+// "rejected" sits at index 4, not 6 — financial is only ever consulted when
+// technical is "confirmed" (index 1, 2, 4, or 7 in technicalPattern above),
+// so a "rejected" placed at an index technical never confirms on (like the
+// original index 6, itself "pending") could never actually be reached.
 const financialPattern: ApprovalState[] = [
   "pending",
   "pending",
   "confirmed",
   "pending",
-  "pending",
-  "pending",
   "rejected",
+  "pending",
+  "pending",
   "confirmed",
 ];
 
-// 3-4 orders per client, cycling deterministically — no dependency on the
-// client list's length, so it stays in sync as clients.json grows. Bumped up
-// from 1-3 so every lifecycle/approval bucket has more than a single demo
-// entry once spread across a small (university-only) client list.
+// 4-6 orders per client, cycling deterministically — no dependency on the
+// client list's length, so it stays in sync as clients.json grows. The last
+// two clients are deliberately left at zero: a client with no existing order
+// for either product, so the duplicate-order guard never fires and the full
+// create -> Technical -> Financial -> Active flow can be walked end to end.
 function orderCountFor(clientIndex: number): number {
-  return 3 + (clientIndex % 2);
+  if (clientIndex >= clients.length - 2) return 0;
+  return 4 + (clientIndex % 3);
 }
 
 // Varied agreement lengths (in months) so a healthy mix of Active, Agreement
 // Over, and open-ended (no fixed term) orders shows up against today's real
-// date, not just a flat 12 months for everything.
-const AGREEMENT_MONTHS_CYCLE: (number | null)[] = [12, 12, 6, 24, 3, null, 18, 12, 9, null];
+// date, not just a flat 12 months for everything — the two short lengths at
+// the end (1, 2 months) are what actually gets an Active order to tip into
+// Agreement Over against the real current date.
+const AGREEMENT_MONTHS_CYCLE: (number | null)[] = [12, 12, 6, 24, 3, null, 18, 12, 9, null, 1, 2];
 
 export const mockOrders: OrderRecord[] = [];
 
@@ -101,8 +109,13 @@ clients.forEach((client, cliIdx) => {
     let lifecycleStatus: OrderLifecycleStatus = "inactive";
     let cancellationTechnical: StageStatus = { status: "pending", date: null };
     let cancellationFinancial: StageStatus = { status: "pending", date: null };
+    // Keyed off the fully-confirmed sequence itself (not orderIndex) so it's
+    // guaranteed to land on an actual fully-confirmed order regardless of how
+    // technicalPattern/financialPattern happen to line up at any given index.
+    let amended = false;
     if (isFullyConfirmed) {
       const bucket = fullyConfirmedCount % 3;
+      amended = fullyConfirmedCount % 5 === 2;
       if (bucket === 2) {
         lifecycleStatus = "cancelled";
         cancellationTechnical = withMeta({ status: "confirmed", date: makeDate(finOffset + 5) }, orderIndex);
@@ -132,7 +145,7 @@ clients.forEach((client, cliIdx) => {
       cancellationFinancial,
       billingCycle,
       amount,
-      amended: isFullyConfirmed && orderIndex % 11 === 3,
+      amended,
       details: {
         clientManager,
         billingAddress: client.billingAddress,

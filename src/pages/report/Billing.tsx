@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
 import { formatDDMMYYYY } from "../../utils";
@@ -218,13 +219,21 @@ function SortableTh({
 }
 
 export default function Billing({ orders }: BillingProps) {
+  // The Dashboard's revenue-trend chart lands here with ?product= to open
+  // already filtered to whichever product was showing — read once on mount.
+  const [searchParams] = useSearchParams();
+  const initialProduct = searchParams.get("product");
+  const initialFilters: DrawerFilters = initialProduct
+    ? { ...defaultDrawerFilters, product: initialProduct }
+    : defaultDrawerFilters;
+
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortState<SortableKey>>({ key: null, direction: "asc" });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(FILTER_CATEGORIES[0].key);
 
-  const [draft, setDraft] = useState<DrawerFilters>(defaultDrawerFilters);
-  const [applied, setApplied] = useState<DrawerFilters>(defaultDrawerFilters);
+  const [draft, setDraft] = useState<DrawerFilters>(initialFilters);
+  const [applied, setApplied] = useState<DrawerFilters>(initialFilters);
 
   const fyColumns = useMemo(() => buildFiscalYearColumns(new Date()), []);
 

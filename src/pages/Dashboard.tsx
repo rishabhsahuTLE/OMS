@@ -28,9 +28,15 @@ import {
   type FyColumn,
 } from "../utils";
 
+type NavigateFn = (
+  tab: MainTabId,
+  subTab?: ReportSubTabId | OrdersSubTabId,
+  params?: Record<string, string>
+) => void;
+
 interface DashboardProps {
   orders: OrderRecord[];
-  onNavigate: (tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) => void;
+  onNavigate: NavigateFn;
 }
 
 function formatINR(n: number) {
@@ -190,14 +196,25 @@ function buildOrderNotifications(order: OrderRecord): NotificationItem[] {
   return events;
 }
 
-// Tech/Fin are activation-side (reviewed from Manage Orders); TC/FC are
-// cancellation-side (reviewed from Approvals) — same split the "needs
-// attention" ticker below uses for its own click destinations.
+// Every one of the four approval decisions — Tech, Fin, Cancellation-Tech,
+// Cancellation-Fin — is actually made on the Approvals screen; Manage Orders
+// has no approve/reject action at all (create/amend/close-initiate only).
 const STAGE_PIE_DEST: Record<ApprovalStageKey, OrdersSubTabId> = {
-  technical: "approval",
-  financial: "approval",
+  technical: "amendCancel",
+  financial: "amendCancel",
   cancellationTechnical: "amendCancel",
   cancellationFinancial: "amendCancel",
+};
+
+// Tech/Fin pending both fall under the "Approval Pending" stage tab; TC/FC
+// pending both fall under "Closure Pending" — the finest-grained filter the
+// existing stage tabs can express (there's no separate filter for exactly
+// which of the pair is next).
+const STAGE_PIE_FILTER: Record<ApprovalStageKey, OrderDisplayStage> = {
+  technical: "approvalPending",
+  financial: "approvalPending",
+  cancellationTechnical: "closurePending",
+  cancellationFinancial: "closurePending",
 };
 
 // Recharts' activeShape render prop — the hovered slice draws itself slightly
@@ -249,13 +266,7 @@ function ChevronArrowIcon({ direction }: { direction: "left" | "right" }) {
   );
 }
 
-function AttentionTiles({
-  items,
-  onNavigate,
-}: {
-  items: AttentionItem[];
-  onNavigate: (tab: MainTabId, subTab?: OrdersSubTabId) => void;
-}) {
+function AttentionTiles({ items, onNavigate }: { items: AttentionItem[]; onNavigate: NavigateFn }) {
   const [index, setIndex] = useState(0);
   const pausedRef = useRef(false);
 
@@ -302,7 +313,8 @@ function AttentionTiles({
                 onClick={() =>
                   onNavigate(
                     "orders",
-                    item.order.lifecycleStatus === "cancellationInProgress" ? "amendCancel" : "approval"
+                    item.order.lifecycleStatus === "cancellationInProgress" ? "amendCancel" : "approval",
+                    { stage: getDisplayStage(item.order), q: item.order.orderNo }
                   )
                 }
                 className={`flex h-full w-full flex-col justify-between gap-2 rounded-lg border p-3 text-left shadow-sm transition-colors ${
@@ -354,13 +366,7 @@ function AttentionTiles({
 // this is derived entirely from the same StageStatus dates already on every
 // order (skips anything still "pending", since only confirmed/rejected
 // stages carry an actual event date).
-function NotificationTile({
-  items,
-  onNavigate,
-}: {
-  items: NotificationItem[];
-  onNavigate: (tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId) => void;
-}) {
+function NotificationTile({ items, onNavigate }: { items: NotificationItem[]; onNavigate: NavigateFn }) {
   const today = todayISO();
   return (
     <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
@@ -368,7 +374,12 @@ function NotificationTile({
         <button
           key={`${n.order.id}-${i}`}
           type="button"
-          onClick={() => onNavigate("orders", n.dept === "BD" ? "approval" : "amendCancel")}
+          onClick={() =>
+            onNavigate("orders", n.dept === "BD" ? "approval" : "amendCancel", {
+              stage: getDisplayStage(n.order),
+              q: n.order.orderNo,
+            })
+          }
           className={`flex items-start gap-2 border-l-4 py-2 pl-2 text-left first:pt-0 hover:bg-slate-50 ${DEPT_STYLES[n.dept].border}`}
         >
           <span className="min-w-0 flex-1">
@@ -550,7 +561,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
           <button
             key={t.key}
             type="button"
-            onClick={() => onNavigate("orders", t.dest)}
+            onClick={() => onNavigate("orders", t.dest, t.key === "all" ? undefined : { stage: t.key })}
             className="flex flex-col items-start gap-1 rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-indigo-300 hover:shadow-md"
           >
             <span className="text-xs font-medium text-slate-500">{t.label}</span>
@@ -588,7 +599,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
               radius={[4, 4, 0, 0]}
               fill={PRODUCT_COLORS[selectedProduct]}
               className="cursor-pointer"
-              onClick={() => onNavigate("report", "billing")}
+              onClick={() => onNavigate("report", "billing", { product: selectedProduct })}
             >
               {selectedProductMonthly.map((m, i) => (
                 <Cell key={i} fillOpacity={m.isCurrent ? 1 : 0.7} />
@@ -627,7 +638,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
                   activeShape={renderActivePieSlice}
                   onClick={(entry) => {
                     const key = (entry.payload as { key: ApprovalStageKey }).key;
-                    onNavigate("orders", STAGE_PIE_DEST[key]);
+                    onNavigate("orders", STAGE_PIE_DEST[key], { stage: STAGE_PIE_FILTER[key] });
                   }}
                   className="cursor-pointer"
                 >
@@ -684,7 +695,9 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
               stackId="revenue"
               fill={PRODUCT_COLORS.LMS}
               className="cursor-pointer"
-              onClick={() => onNavigate("report", "managerReport")}
+              onClick={(data) =>
+                onNavigate("report", "managerReport", { manager: (data as { manager: string }).manager })
+              }
             />
             <Bar
               dataKey="Quirio"
@@ -692,7 +705,9 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
               fill={PRODUCT_COLORS.Quirio}
               radius={[0, 4, 4, 0]}
               className="cursor-pointer"
-              onClick={() => onNavigate("report", "managerReport")}
+              onClick={(data) =>
+                onNavigate("report", "managerReport", { manager: (data as { manager: string }).manager })
+              }
             />
           </BarChart>
         </ResponsiveContainer>
@@ -733,7 +748,9 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
               radius={[0, 4, 4, 0]}
               fill={PRODUCT_COLORS[selectedProjectionProduct]}
               className="cursor-pointer"
-              onClick={() => onNavigate("report", "managerReport")}
+              onClick={(data) =>
+                onNavigate("report", "managerReport", { manager: (data as { manager: string }).manager })
+              }
             />
           </BarChart>
         </ResponsiveContainer>
