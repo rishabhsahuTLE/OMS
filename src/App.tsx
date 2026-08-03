@@ -15,7 +15,7 @@ import type { Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } f
 const clients = clientsData as Client[];
 
 function App() {
-  const [activeTab, setActiveTab] = useState<MainTabId>("report");
+  const [activeTab, setActiveTab] = useState<MainTabId>("dashboard");
   const [activeReportSubTab, setActiveReportSubTab] = useState<ReportSubTabId>("approval");
   const [activeOrdersSubTab, setActiveOrdersSubTab] = useState<OrdersSubTabId>("approval");
   const [orders, setOrders] = useState<OrderRecord[]>(mockOrders);

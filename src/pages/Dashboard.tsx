@@ -424,6 +424,17 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
     [managers, orders, fyColumns, currentColIdx]
   );
 
+  const managerChartData = useMemo(
+    () =>
+      [...revenueSummaryRows]
+        .sort((a, b) => b.grandTotal - a.grandTotal)
+        .map((r) => ({
+          manager: r.manager,
+          ...Object.fromEntries(r.perProduct.map((p) => [p.product, p.total])),
+        })),
+    [revenueSummaryRows]
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -532,6 +543,34 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
             <AttentionTiles items={attentionItems} onNavigate={onNavigate} />
           )}
         </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold text-slate-700">Revenue by Account Manager</h3>
+        <ResponsiveContainer width="100%" height={Math.max(220, managerChartData.length * 32)}>
+          <BarChart data={managerChartData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
+            <CartesianGrid horizontal={false} stroke="#e1e0d9" />
+            <XAxis
+              type="number"
+              tick={{ fontSize: 11, fill: "#898781" }}
+              axisLine={{ stroke: "#c3c2b7" }}
+              tickLine={false}
+              tickFormatter={(v: number) => `₹${(v / 100000).toFixed(0)}L`}
+            />
+            <YAxis
+              type="category"
+              dataKey="manager"
+              width={130}
+              tick={{ fontSize: 11, fill: "#52514e" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="LMS" stackId="revenue" fill={PRODUCT_COLORS.LMS} />
+            <Bar dataKey="Quirio" stackId="revenue" fill={PRODUCT_COLORS.Quirio} radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       <RevenueTable
