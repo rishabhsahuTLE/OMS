@@ -281,7 +281,7 @@ function AttentionTiles({
         type="button"
         onClick={() => step(-1)}
         aria-label="Previous"
-        className="flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:bg-slate-50"
+        className="flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-full border border-rose-300 bg-white/70 text-rose-600 hover:bg-rose-100"
       >
         <ChevronArrowIcon direction="left" />
       </button>
@@ -305,13 +305,15 @@ function AttentionTiles({
                     item.order.lifecycleStatus === "cancellationInProgress" ? "amendCancel" : "approval"
                   )
                 }
-                className={`flex h-full w-full flex-col justify-between gap-2 rounded-lg border p-3 text-left shadow-sm transition-colors hover:border-indigo-300 ${
-                  item.order.amended ? "border-yellow-200 bg-yellow-50" : "border-rose-200 bg-rose-50/60"
+                className={`flex h-full w-full flex-col justify-between gap-2 rounded-lg border p-3 text-left shadow-sm transition-colors ${
+                  item.order.amended
+                    ? "border-yellow-300 bg-yellow-100 hover:border-yellow-400"
+                    : "border-rose-300 bg-rose-100 hover:border-rose-400"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="truncate text-sm font-semibold text-slate-800">{item.order.orderNo}</span>
-                  <span className="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
+                  <span className="shrink-0 rounded-full bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white">
                     {item.age}d
                   </span>
                 </div>
@@ -340,7 +342,7 @@ function AttentionTiles({
         type="button"
         onClick={() => step(1)}
         aria-label="Next"
-        className="flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:bg-slate-50"
+        className="flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-full border border-rose-300 bg-white/70 text-rose-600 hover:bg-rose-100"
       >
         <ChevronArrowIcon direction="right" />
       </button>
@@ -643,10 +645,10 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
           )}
         </div>
 
-        <div className="flex flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 shrink-0 text-sm font-semibold text-slate-700">Needs Immediate Attention</h3>
+        <div className="flex flex-col rounded-lg border border-rose-200 bg-rose-50 p-4 shadow-sm">
+          <h3 className="mb-3 shrink-0 text-sm font-semibold text-rose-800">Needs Immediate Attention</h3>
           {attentionItems.length === 0 ? (
-            <p className="py-16 text-center text-sm text-slate-400">All caught up — nothing needs attention.</p>
+            <p className="py-16 text-center text-sm text-rose-400">All caught up — nothing needs attention.</p>
           ) : (
             <div className="min-h-0 flex-1">
               <AttentionTiles items={attentionItems} onNavigate={onNavigate} />
