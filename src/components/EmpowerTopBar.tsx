@@ -34,15 +34,6 @@ function BellIcon() {
   );
 }
 
-function DecorativeDropdown({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm">
-      {label}
-      <ChevronDownIcon />
-    </div>
-  );
-}
-
 export default function EmpowerTopBar() {
   const displayName = deriveCreatedByName(CURRENT_USER_EMAIL);
   const initial = displayName.charAt(0).toUpperCase();
@@ -80,8 +71,6 @@ export default function EmpowerTopBar() {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          <DecorativeDropdown label="Lakhs" />
-          <DecorativeDropdown label="This Month" />
           <button type="button" className="text-slate-500 hover:text-slate-700" aria-label="Help">
             <HelpIcon />
           </button>

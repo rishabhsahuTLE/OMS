@@ -98,25 +98,96 @@ const STAGE_PIE_LABELS: Record<ApprovalStageKey, string> = {
   cancellationFinancial: "FC Pending",
 };
 
-const APPROVAL_STAGE_NAMES: Record<ApprovalStageKey, string> = {
-  technical: "Technical",
-  financial: "Financial",
-  cancellationTechnical: "Cancellation Technical",
-  cancellationFinancial: "Cancellation Financial",
-};
+// Who a notification is for — BD submits, Tech decides first, then Finance;
+// a rejection at either stage always bounces back to BD, an approval always
+// hands off to whoever acts next. Same pattern for the cancellation pair
+// (BD initiates closure -> Tech -> Finance). Eventually this filters by the
+// logged-in user's actual role/team; for now every notification is shown to
+// everyone, color-coded and labeled with its destined department instead.
+type NotificationDept = "BD" | "Tech" | "Finance";
 
-const APPROVAL_STAGE_KEYS: ApprovalStageKey[] = [
-  "technical",
-  "financial",
-  "cancellationTechnical",
-  "cancellationFinancial",
-];
+const DEPT_STYLES: Record<NotificationDept, { border: string; text: string }> = {
+  BD: { border: "border-indigo-400", text: "text-indigo-600" },
+  Tech: { border: "border-amber-400", text: "text-amber-600" },
+  Finance: { border: "border-emerald-400", text: "text-emerald-600" },
+};
 
 interface NotificationItem {
   order: OrderRecord;
-  key: ApprovalStageKey;
-  outcome: "confirmed" | "rejected";
+  dept: NotificationDept;
+  message: string;
   date: string;
+}
+
+function buildOrderNotifications(order: OrderRecord): NotificationItem[] {
+  const events: NotificationItem[] = [
+    { order, dept: "Tech", message: "Order submitted — awaiting Technical review", date: order.createdOn },
+  ];
+
+  if (order.technical.status === "confirmed") {
+    events.push({
+      order,
+      dept: "Finance",
+      message: "Technical approved — ready for Financial review",
+      date: order.technical.date as string,
+    });
+  } else if (order.technical.status === "rejected") {
+    events.push({ order, dept: "BD", message: "Technical rejected", date: order.technical.date as string });
+  }
+
+  if (order.financial.status === "confirmed") {
+    events.push({
+      order,
+      dept: "BD",
+      message: "Financial approved — order is now Active",
+      date: order.financial.date as string,
+    });
+  } else if (order.financial.status === "rejected") {
+    events.push({ order, dept: "BD", message: "Financial rejected", date: order.financial.date as string });
+  }
+
+  if (order.cancellationDetails) {
+    events.push({
+      order,
+      dept: "Tech",
+      message: "Closure initiated — awaiting Cancellation-Technical review",
+      date: order.cancellationDetails.effectFromDate,
+    });
+  }
+
+  if (order.cancellationTechnical.status === "confirmed") {
+    events.push({
+      order,
+      dept: "Finance",
+      message: "Cancellation-Technical approved — ready for Cancellation-Financial review",
+      date: order.cancellationTechnical.date as string,
+    });
+  } else if (order.cancellationTechnical.status === "rejected") {
+    events.push({
+      order,
+      dept: "BD",
+      message: "Cancellation-Technical rejected",
+      date: order.cancellationTechnical.date as string,
+    });
+  }
+
+  if (order.cancellationFinancial.status === "confirmed") {
+    events.push({
+      order,
+      dept: "BD",
+      message: "Cancellation-Financial approved — order is now Closed",
+      date: order.cancellationFinancial.date as string,
+    });
+  } else if (order.cancellationFinancial.status === "rejected") {
+    events.push({
+      order,
+      dept: "BD",
+      message: "Cancellation-Financial rejected",
+      date: order.cancellationFinancial.date as string,
+    });
+  }
+
+  return events;
 }
 
 // Tech/Fin are activation-side (reviewed from Manage Orders); TC/FC are
@@ -200,43 +271,76 @@ function AttentionTiles({
     setIndex((i) => (i + delta + items.length) % items.length);
   }
 
-  const item = items[index % items.length];
-
   return (
     <div
       onMouseEnter={() => (pausedRef.current = true)}
       onMouseLeave={() => (pausedRef.current = false)}
-      className="flex items-center gap-2"
+      className="flex h-full items-stretch gap-2"
     >
       <button
         type="button"
         onClick={() => step(-1)}
         aria-label="Previous"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:bg-slate-50"
+        className="flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:bg-slate-50"
       >
         <ChevronArrowIcon direction="left" />
       </button>
 
-      <button
-        type="button"
-        onClick={() =>
-          onNavigate("orders", item.order.lifecycleStatus === "cancellationInProgress" ? "amendCancel" : "approval")
-        }
-        className={`flex flex-1 flex-col gap-1.5 rounded-lg border border-slate-200 p-3 text-left shadow-sm transition-colors hover:border-indigo-300 ${
-          item.order.amended ? "bg-yellow-50" : "bg-white"
-        }`}
-      >
-        <span className="truncate text-sm font-medium text-slate-800">{item.order.orderNo}</span>
-        <span className="truncate text-xs text-slate-500">{item.order.client}</span>
-        <span className="text-xs text-slate-500">{item.reason}</span>
-        <span className="text-xs font-semibold text-rose-600">{item.age} days</span>
-      </button>
+      {/* A real strip of every tile, slid via transform — the step above
+          animates instead of the previous instant swap. Wrapping past the
+          ends slides across the whole strip rather than looping seamlessly,
+          which is an accepted tradeoff for keeping this simple. */}
+      <div className="relative flex-1 overflow-hidden">
+        <div
+          className="flex h-full transition-transform duration-500 ease-in-out"
+          style={{ transform: `translateX(-${index * 100}%)` }}
+        >
+          {items.map((item) => (
+            <div key={item.order.id} className="h-full w-full shrink-0">
+              <button
+                type="button"
+                onClick={() =>
+                  onNavigate(
+                    "orders",
+                    item.order.lifecycleStatus === "cancellationInProgress" ? "amendCancel" : "approval"
+                  )
+                }
+                className={`flex h-full w-full flex-col justify-between gap-2 rounded-lg border p-3 text-left shadow-sm transition-colors hover:border-indigo-300 ${
+                  item.order.amended ? "border-yellow-200 bg-yellow-50" : "border-rose-200 bg-rose-50/60"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="truncate text-sm font-semibold text-slate-800">{item.order.orderNo}</span>
+                  <span className="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
+                    {item.age}d
+                  </span>
+                </div>
+                <div className="space-y-1 text-xs text-slate-600">
+                  <p className="truncate">
+                    <span className="text-slate-400">Client:</span> {item.order.client}
+                  </p>
+                  <p className="truncate">
+                    <span className="text-slate-400">Product:</span> {item.order.product}
+                  </p>
+                  <p className="truncate">
+                    <span className="text-slate-400">Manager:</span> {item.order.clientManager}
+                  </p>
+                  <p className="truncate">
+                    <span className="text-slate-400">Amount:</span> {formatINR(item.order.amount)}
+                  </p>
+                </div>
+                <p className="truncate text-xs font-medium text-slate-600">{item.reason}</p>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <button
         type="button"
         onClick={() => step(1)}
         aria-label="Next"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:bg-slate-50"
+        className="flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-full border border-slate-300 text-slate-500 hover:bg-slate-50"
       >
         <ChevronArrowIcon direction="right" />
       </button>
@@ -260,25 +364,19 @@ function NotificationTile({
     <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
       {items.map((n, i) => (
         <button
-          key={`${n.order.id}-${n.key}-${i}`}
+          key={`${n.order.id}-${i}`}
           type="button"
-          onClick={() =>
-            onNavigate(
-              "orders",
-              n.key === "cancellationTechnical" || n.key === "cancellationFinancial" ? "amendCancel" : "approval"
-            )
-          }
-          className="flex items-start gap-2 py-2 text-left first:pt-0 hover:bg-slate-50"
+          onClick={() => onNavigate("orders", n.dept === "BD" ? "approval" : "amendCancel")}
+          className={`flex items-start gap-2 border-l-4 py-2 pl-2 text-left first:pt-0 hover:bg-slate-50 ${DEPT_STYLES[n.dept].border}`}
         >
-          <span
-            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.outcome === "confirmed" ? "bg-emerald-500" : "bg-rose-500"}`}
-          />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm text-slate-700">
-              <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {APPROVAL_STAGE_NAMES[n.key]}{" "}
-              {n.outcome === "confirmed" ? "approved" : "rejected"}
+              <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {n.message}
             </span>
-            <span className="text-xs text-slate-400">{daysBetween(n.date, today)}d ago</span>
+            <span className="flex items-center gap-1.5 text-xs text-slate-400">
+              {daysBetween(n.date, today)}d ago
+              <span className={`font-semibold ${DEPT_STYLES[n.dept].text}`}>({n.dept})</span>
+            </span>
           </span>
         </button>
       ))}
@@ -402,15 +500,8 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
   }, [orders]);
 
   const notificationItems = useMemo(() => {
-    const events: NotificationItem[] = orders.flatMap((o) =>
-      APPROVAL_STAGE_KEYS.filter((key) => o[key].status !== "pending" && o[key].date).map((key) => ({
-        order: o,
-        key,
-        outcome: o[key].status as "confirmed" | "rejected",
-        date: o[key].date as string,
-      }))
-    );
-    return events.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, 8);
+    const events = orders.flatMap(buildOrderNotifications);
+    return events.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, 15);
   }, [orders]);
 
   const managers = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
@@ -552,12 +643,14 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
           )}
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Needs Immediate Attention</h3>
+        <div className="flex flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 shrink-0 text-sm font-semibold text-slate-700">Needs Immediate Attention</h3>
           {attentionItems.length === 0 ? (
             <p className="py-16 text-center text-sm text-slate-400">All caught up — nothing needs attention.</p>
           ) : (
-            <AttentionTiles items={attentionItems} onNavigate={onNavigate} />
+            <div className="min-h-0 flex-1">
+              <AttentionTiles items={attentionItems} onNavigate={onNavigate} />
+            </div>
           )}
         </div>
       </div>
