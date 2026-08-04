@@ -25,14 +25,28 @@ export function ReadRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+export type OrderDetailSectionKey = "account" | "contact" | "order" | "payment" | "documents" | "closure";
+
 // Account/Contact/Order/Payment/Document sections, all non-editable — used
 // both by the Approval review page and the cancellation-confirmation page,
-// wherever the full order needs to be shown strictly for reference.
-export default function OrderDetailsReadOnly({ order }: { order: OrderRecord }) {
+// wherever the full order needs to be shown strictly for reference. An
+// optional `sections` allow-list renders just a subset (e.g. for the
+// universal order-preview modal's stepped layout) — omitted entirely
+// renders every section, the original behavior every existing caller relies
+// on.
+export default function OrderDetailsReadOnly({
+  order,
+  sections,
+}: {
+  order: OrderRecord;
+  sections?: OrderDetailSectionKey[];
+}) {
   const product = getProduct(order.product);
+  const show = (key: OrderDetailSectionKey) => !sections || sections.includes(key);
 
   return (
     <>
+      {show("account") && (
       <Section title="ACCOUNT DETAILS">
         <ReadRow label="Client Name" value={order.client} />
         <ReadRow label="Client Manager" value={order.clientManager} />
@@ -44,7 +58,9 @@ export default function OrderDetailsReadOnly({ order }: { order: OrderRecord }) 
         <ReadRow label="Delivery City" value={order.details.deliveryCity} />
         <ReadRow label="Customer GST No." value={order.details.gstNo || "NA"} />
       </Section>
+      )}
 
+      {show("contact") && (
       <Section title="CONTACT DETAILS">
         <div className="overflow-x-auto rounded-md border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -76,7 +92,9 @@ export default function OrderDetailsReadOnly({ order }: { order: OrderRecord }) 
           </table>
         </div>
       </Section>
+      )}
 
+      {show("order") && (
       <Section title="ORDER DETAILS">
         <ReadRow label="Product" value={order.product} />
         <ReadRow label="Date Of Sign" value={formatDDMMYYYY(order.dateOfSign)} />
@@ -95,7 +113,9 @@ export default function OrderDetailsReadOnly({ order }: { order: OrderRecord }) 
         <ReadRow label="Billing Cycle" value={order.billingCycle} />
         <ReadRow label="Agreement" value={order.details.agreement != null ? `${order.details.agreement} months` : ""} />
       </Section>
+      )}
 
+      {show("payment") && (
       <Section title="PAYMENT DETAILS">
         <ReadRow label="Advance (₹)" value={order.details.advance != null ? String(order.details.advance) : ""} />
         <ReadRow label="TDS (₹)" value={order.details.tds != null ? String(order.details.tds) : ""} />
@@ -105,7 +125,9 @@ export default function OrderDetailsReadOnly({ order }: { order: OrderRecord }) 
           value={order.details.creditPeriod != null ? `${order.details.creditPeriod} days` : ""}
         />
       </Section>
+      )}
 
+      {show("documents") && (
       <Section title="DOCUMENT DETAILS">
         {order.details.documents.length === 0 ? (
           <p className="text-sm text-slate-400">No documents attached.</p>
@@ -119,8 +141,9 @@ export default function OrderDetailsReadOnly({ order }: { order: OrderRecord }) 
           </ul>
         )}
       </Section>
+      )}
 
-      {order.cancellationDetails && (
+      {show("closure") && order.cancellationDetails && (
         <Section title="CLOSURE DETAILS">
           <ReadRow label="Effect From Date" value={formatDDMMYYYY(order.cancellationDetails.effectFromDate)} />
           <ReadRow

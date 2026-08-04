@@ -2,7 +2,7 @@ export type MainTabId = "dashboard" | "report" | "orders";
 
 export type ReportSubTabId = "approval" | "billing" | "managerReport";
 
-export type OrdersSubTabId = "amendCancel" | "approval";
+export type OrdersSubTabId = "amendCancel" | "approval" | "closeBilling";
 
 export type BillingCycle = "M" | "B" | "Q" | "H" | "Y" | "O";
 
@@ -97,6 +97,14 @@ export type OrderLifecycleStatus = "inactive" | "active" | "cancellationInProgre
 // isn't a stored status; it's a date-driven overlay on "active".
 export type OrderDisplayStage = "approvalPending" | "active" | "agreementOver" | "closurePending" | "closed";
 
+// Finance-owned billing-closure status — entirely separate from
+// lifecycleStatus/cancellation approvals. Driven by the Close Billing tab:
+// notOpened (activated, billing never started) -> open (billing running,
+// whether still active or awaiting cancellation-closure) -> closed (finance
+// has closed billing). Reopening a mistakenly-closed order only ever reverts
+// this back to "open" — it never touches lifecycleStatus.
+export type BillingStatus = "notOpened" | "open" | "closed";
+
 export interface OrderRecord {
   id: string;
   orderNo: string;
@@ -114,6 +122,7 @@ export interface OrderRecord {
   billingCycle: BillingCycle | "";
   amount: number;
   amended: boolean;
+  billingStatus: BillingStatus;
   // Set only on an amendment successor — the id of the order it was amended
   // from (the one immediately cancelled to make way for it). Used to look up
   // predecessor/successor pairs unambiguously, even across several

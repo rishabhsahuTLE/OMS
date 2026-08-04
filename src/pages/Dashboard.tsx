@@ -47,11 +47,17 @@ type TileKey = "all" | OrderDisplayStage;
 
 const STAGE_TILES: { key: TileKey; label: string; dest: OrdersSubTabId; accent: string }[] = [
   { key: "all", label: "All Orders", dest: "approval", accent: "text-slate-900" },
-  { key: "approvalPending", label: "Approval Pending", dest: "approval", accent: "text-amber-600" },
+  // Lands on Manage Orders' merged "Pending" tab, so the tile label matches
+  // what the user will actually see there.
+  { key: "approvalPending", label: "Pending", dest: "approval", accent: "text-amber-600" },
   { key: "active", label: "Active", dest: "approval", accent: "text-emerald-600" },
   { key: "agreementOver", label: "Agreement Over", dest: "approval", accent: "text-indigo-600" },
-  { key: "closurePending", label: "Closure Pending", dest: "amendCancel", accent: "text-rose-600" },
-  { key: "closed", label: "Closed", dest: "amendCancel", accent: "text-slate-500" },
+  // Lands on the Approvals tab, which keeps this as its own distinct
+  // "Cancellation Pending" tab.
+  { key: "closurePending", label: "Cancellation Pending", dest: "amendCancel", accent: "text-rose-600" },
+  // Manage Orders (not Approvals) is where Closed orders still live now that
+  // Approvals is pending-only.
+  { key: "closed", label: "Closed", dest: "approval", accent: "text-slate-500" },
 ];
 
 // Categorical slots 1/2 of the validated palette (blue/orange) — distinct

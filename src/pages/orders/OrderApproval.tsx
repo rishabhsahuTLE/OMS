@@ -4,6 +4,7 @@ import type { ApprovalState, CancellationDetails, Client, OrderDisplayStage, Ord
 import { PRODUCT_NAMES } from "../../products";
 import CreateOrderModal from "./CreateOrderModal";
 import CancellationConfirm from "./CancellationConfirm";
+import OrderPreviewModal from "../../components/OrderPreviewModal";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
 import PaginationFooter from "../../components/PaginationFooter";
@@ -29,6 +30,7 @@ interface OrderApprovalProps {
   // Create used to be its own tab — it now lives behind the "Create" button
   // here, rendered exactly as it was, just toggled locally instead of routed.
   clients: Client[];
+  onUpdateClient: (record: Client) => void;
   onCreateOrder: (record: OrderRecord) => void;
   createOrderPrefill: { clientId: string; product: string } | null;
   createOrderKey: number;
@@ -41,27 +43,47 @@ interface PendingAmendment {
   nextOrderNo: string;
 }
 
-type ViewTab = "all" | OrderDisplayStage;
+// "Pending" is a merged display label covering both approvalPending and
+// closurePending — the two underlying OrderDisplayStage values stay
+// distinct (see matchesTab below and utils.ts's getDisplayStage) since real
+// filtering/branching logic elsewhere still needs them; only the tab/badge
+// text merges here. The separate Approvals tab (OrderPage.tsx) keeps these
+// two split into their own named tabs, since it needs the distinction.
+type ViewTab = "all" | "pending" | "active" | "agreementOver" | "closed";
 
 const VIEW_TABS: { key: ViewTab; label: string }[] = [
   { key: "all", label: "All" },
-  { key: "approvalPending", label: "Approval Pending" },
+  { key: "pending", label: "Pending" },
   { key: "active", label: "Active" },
   { key: "agreementOver", label: "Agreement Over" },
-  { key: "closurePending", label: "Closure Pending" },
   { key: "closed", label: "Closed" },
 ];
 
+function matchesTab(order: OrderRecord, tab: ViewTab): boolean {
+  if (tab === "all") return true;
+  const stage = getDisplayStage(order);
+  if (tab === "pending") return stage === "approvalPending" || stage === "closurePending";
+  return stage === tab;
+}
+
+// Legacy deep-links (Dashboard tiles) pass ?stage=approvalPending or
+// ?stage=closurePending — both now land on the merged "pending" tab.
+function normalizeTab(raw: string | null): ViewTab {
+  if (raw === "approvalPending" || raw === "closurePending") return "pending";
+  if (raw === "active" || raw === "agreementOver" || raw === "closed") return raw;
+  return "all";
+}
+
 const STAGE_LABELS: Record<OrderDisplayStage, string> = {
-  approvalPending: "Approval Pending",
+  approvalPending: "Pending",
   active: "Active",
   agreementOver: "Agreement Over",
-  closurePending: "Closure Pending",
+  closurePending: "Pending",
   closed: "Closed",
 };
 
 const STAGE_BADGE_CLASS: Record<OrderDisplayStage, string> = {
-  approvalPending: "bg-slate-200 text-slate-700",
+  approvalPending: "bg-amber-100 text-amber-800",
   active: "bg-emerald-100 text-emerald-700",
   agreementOver: "bg-orange-100 text-orange-700",
   closurePending: "bg-amber-100 text-amber-800",
@@ -241,7 +263,7 @@ function nextStepInfo(order: OrderRecord, orders: OrderRecord[]): NextStepInfo {
 
   if (stage === "closurePending") {
     const next = getNextActionableStage(order);
-    return { message: next ? `Next step: awaiting ${next.label} approval.` : "Awaiting closure to complete." };
+    return { message: next ? `Next step: awaiting ${next.label} approval.` : "Awaiting cancellation to complete." };
   }
 
   return { message: "This order is Closed." };
@@ -267,6 +289,7 @@ export default function OrderApproval({
   orders,
   onUpdateOrder,
   clients,
+  onUpdateClient,
   onCreateOrder,
   createOrderPrefill,
   createOrderKey,
@@ -276,14 +299,15 @@ export default function OrderApproval({
   // instead of always defaulting to "all" — read once on mount, not kept in
   // sync afterward (this page owns its own filter state from here on).
   const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState<ViewTab>((searchParams.get("stage") as ViewTab) || "all");
+  const [tab, setTab] = useState<ViewTab>(() => normalizeTab(searchParams.get("stage")));
   const [creating, setCreating] = useState(false);
   const [openInfoOrderId, setOpenInfoOrderId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<OrderRecord | null>(null);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [pendingAmendment, setPendingAmendment] = useState<PendingAmendment | null>(null);
-  const [closeBatch, setCloseBatch] = useState<OrderRecord[] | null>(null);
+  const [cancelBatch, setCancelBatch] = useState<OrderRecord[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
 
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [sort, setSort] = useState<SortState<SortableKey>>({ key: null, direction: "asc" });
@@ -324,7 +348,7 @@ export default function OrderApproval({
     applied.dateRange.end !== null;
 
   const filtered = useMemo(() => {
-    let result = tab === "all" ? orders : orders.filter((o) => getDisplayStage(o) === tab);
+    let result = orders.filter((o) => matchesTab(o, tab));
 
     if (applied.client !== "all") result = result.filter((o) => o.client === applied.client);
     if (applied.product !== "all") result = result.filter((o) => o.product === applied.product);
@@ -529,6 +553,9 @@ export default function OrderApproval({
       financial: { status: "pending", date: null },
       cancellationTechnical: { status: "pending", date: null },
       cancellationFinancial: { status: "pending", date: null },
+      // Fresh successor, not yet activated — billing hasn't started
+      // regardless of what the predecessor's own billing status was.
+      billingStatus: "notOpened",
     });
     onUpdateOrder({ ...original, lifecycleStatus: "cancellationInProgress" });
     setPendingAmendment(null);
@@ -540,14 +567,20 @@ export default function OrderApproval({
     setPendingAmendment(null);
   }
 
-  function handleCloseConfirm(batch: OrderRecord[], details: CancellationDetails) {
+  function handleCancelConfirm(batch: OrderRecord[], details: CancellationDetails) {
     batch.forEach((o) => onUpdateOrder(initiateClosure(o, details)));
     setSelectedIds((prev) => {
       const next = new Set(prev);
       batch.forEach((o) => next.delete(o.id));
       return next;
     });
-    setCloseBatch(null);
+    setCancelBatch(null);
+  }
+
+  // Shared by the top batch-select "Cancel" button and each row's individual
+  // Cancel action — both just build a batch and open CancellationConfirm.
+  function openCancelBatch(batch: OrderRecord[]) {
+    if (batch.length > 0) setCancelBatch(batch);
   }
 
   // Same CreateOrderModal, same embedded rendering, same props it had as its
@@ -573,6 +606,7 @@ export default function OrderApproval({
           prefillProduct={createOrderPrefill?.product}
           onCreate={onCreateOrder}
           onUpdate={onUpdateOrder}
+          onUpdateClient={onUpdateClient}
           onClose={() => {}}
           onReset={onResetCreateOrder}
           onRequestAmend={handleRequestAmendFromDuplicate}
@@ -581,8 +615,15 @@ export default function OrderApproval({
     );
   }
 
-  if (closeBatch) {
-    return <CancellationConfirm orders={closeBatch} onBack={() => setCloseBatch(null)} onConfirm={handleCloseConfirm} />;
+  if (cancelBatch) {
+    return (
+      <CancellationConfirm
+        orders={cancelBatch}
+        allOrders={orders}
+        onBack={() => setCancelBatch(null)}
+        onConfirm={handleCancelConfirm}
+      />
+    );
   }
 
   return (
@@ -637,14 +678,11 @@ export default function OrderApproval({
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <button
             type="button"
-            onClick={() => {
-              const batch = orders.filter((o) => selectedIds.has(o.id) && canInitiateClose(o));
-              if (batch.length > 0) setCloseBatch(batch);
-            }}
+            onClick={() => openCancelBatch(orders.filter((o) => selectedIds.has(o.id) && canInitiateClose(o)))}
             disabled={selectedIds.size === 0}
             className="rounded-md border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Close
+            Cancel
           </button>
           <button
             type="button"
@@ -661,8 +699,8 @@ export default function OrderApproval({
         <span className="font-medium text-slate-600">Tech</span> — Technical Approval and{" "}
         <span className="font-medium text-slate-600">Fin</span> — Financial Approval decide activation;{" "}
         <span className="font-medium text-slate-600">TC</span>/<span className="font-medium text-slate-600">FC</span>{" "}
-        are their closure-stage counterparts. Statuses are shown here for reference only — approvals/rejections happen
-        on the Approvals tab, strictly in order (Tech before Fin, TC before FC).
+        are their cancellation-stage counterparts. Statuses are shown here for reference only — approvals/rejections
+        happen on the Approvals tab, strictly in order (Tech before Fin, TC before FC).
       </p>
 
       <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -721,7 +759,15 @@ export default function OrderApproval({
                       <span className="text-slate-300">—</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2 font-medium text-slate-800">{order.orderNo}</td>
+                  <td className="whitespace-nowrap px-4 py-2 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewOrderId(order.id)}
+                      className="text-indigo-700 hover:underline"
+                    >
+                      {order.orderNo}
+                    </button>
+                  </td>
                   <td className="max-w-[200px] truncate px-4 py-2 text-slate-700" title={order.client}>
                     {order.client}
                   </td>
@@ -776,16 +822,25 @@ export default function OrderApproval({
                       })()}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2">
-                    {canAmend ? (
-                      <button
-                        onClick={() => handleAmendClick(order)}
-                        className="rounded-md border border-indigo-300 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50"
-                      >
-                        Amend
-                      </button>
-                    ) : (
-                      <span className="text-xs text-slate-400">—</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {canAmend && (
+                        <button
+                          onClick={() => handleAmendClick(order)}
+                          className="rounded-md border border-indigo-300 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50"
+                        >
+                          Amend
+                        </button>
+                      )}
+                      {canClose && (
+                        <button
+                          onClick={() => openCancelBatch([order])}
+                          className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      {!canAmend && !canClose && <span className="text-xs text-slate-400">—</span>}
+                    </div>
                   </td>
                 </tr>
               );
@@ -818,6 +873,7 @@ export default function OrderApproval({
         editingOrder={editingOrder}
         onCreate={onCreateOrder}
         onUpdate={handleModalUpdate}
+        onUpdateClient={onUpdateClient}
         onRequestAmend={handleAmendClick}
       />
 
@@ -826,7 +882,7 @@ export default function OrderApproval({
         title="Confirm Amendment"
         message={
           pendingAmendment
-            ? `${pendingAmendment.nextOrderNo} will be created as Approval Pending, needing fresh Tech/Fin approval. ${pendingAmendment.original.orderNo} will immediately have closure initiated, needing TC/FC approval. Once all four are done, ${pendingAmendment.nextOrderNo} will become Active.`
+            ? `${pendingAmendment.nextOrderNo} will be created as Pending, needing fresh Tech/Fin approval. ${pendingAmendment.original.orderNo} will immediately have cancellation initiated, needing TC/FC approval. Once all four are done, ${pendingAmendment.nextOrderNo} will become Active.`
             : ""
         }
         confirmLabel="Confirm Amendment"
@@ -846,6 +902,12 @@ export default function OrderApproval({
       >
         {renderCategoryContent()}
       </FilterDrawer>
+
+      <OrderPreviewModal
+        order={previewOrderId ? orders.find((o) => o.id === previewOrderId) ?? null : null}
+        orders={orders}
+        onClose={() => setPreviewOrderId(null)}
+      />
     </div>
   );
 }

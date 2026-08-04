@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { ApprovalState, OrderDisplayStage, OrderRecord } from "../../types";
+import type { ApprovalState, OrderDisplayStage, OrderRecord, StageStatus } from "../../types";
 import type { DateRange } from "../../components/DateRangePicker";
 import OrderApprovalReview from "./OrderApprovalReview";
+import OrderPreviewModal from "../../components/OrderPreviewModal";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
 import PaginationFooter from "../../components/PaginationFooter";
 import SortArrow from "../../components/SortArrow";
@@ -10,29 +11,39 @@ import SearchableSelect from "../../components/SearchableSelect";
 import AmountRangeSlider from "../../components/AmountRangeSlider";
 import InlineDateRangeCalendar from "../../components/InlineDateRangeCalendar";
 import { PRODUCT_NAMES } from "../../products";
-import { getDisplayStage, toggleSortState, usePagination, type SortState } from "../../utils";
+import {
+  formatDDMMYYYY,
+  getDisplayStage,
+  getNextActionableStage,
+  toggleSortState,
+  usePagination,
+  type ActionableStage,
+  type ApprovalStageKey,
+  type SortState,
+} from "../../utils";
 
 interface OrderPageProps {
   orders: OrderRecord[];
   onUpdateOrder: (record: OrderRecord) => void;
 }
 
-type ViewTab = "all" | OrderDisplayStage;
+// Pending-only: this tab only ever shows orders still awaiting a Tech/Fin or
+// TC/FC decision — Active/Agreement Over/Closed orders have nothing to
+// approve and never appear here. "All" is a combined pending view, kept for
+// consistency with every other list page in this app.
+type ViewTab = "all" | "approvalPending" | "closurePending";
 
 const VIEW_TABS: { key: ViewTab; label: string }[] = [
   { key: "all", label: "All" },
   { key: "approvalPending", label: "Approval Pending" },
-  { key: "active", label: "Active" },
-  { key: "agreementOver", label: "Agreement Over" },
-  { key: "closurePending", label: "Closure Pending" },
-  { key: "closed", label: "Closed" },
+  { key: "closurePending", label: "Cancellation Pending" },
 ];
 
 const STAGE_LABELS: Record<OrderDisplayStage, string> = {
   approvalPending: "Approval Pending",
   active: "Active",
   agreementOver: "Agreement Over",
-  closurePending: "Closure Pending",
+  closurePending: "Cancellation Pending",
   closed: "Closed",
 };
 
@@ -56,7 +67,7 @@ const STAGE_RANK: Record<OrderDisplayStage, number> = {
 
 const AMOUNT_MAX_LAKH = 50;
 
-type SortableKey = "orderNo" | "client" | "product" | "clientManager" | "amount" | "status";
+type SortableKey = "orderNo" | "client" | "product" | "clientManager" | "amount" | "createdOn" | "status";
 
 function compareByKey(a: OrderRecord, b: OrderRecord, key: SortableKey): number {
   switch (key) {
@@ -70,6 +81,8 @@ function compareByKey(a: OrderRecord, b: OrderRecord, key: SortableKey): number 
       return a.clientManager.localeCompare(b.clientManager);
     case "amount":
       return a.amount - b.amount;
+    case "createdOn":
+      return a.createdOn.localeCompare(b.createdOn);
     case "status":
       return STAGE_RANK[getDisplayStage(a)] - STAGE_RANK[getDisplayStage(b)];
   }
@@ -155,28 +168,64 @@ function CrossIcon() {
   );
 }
 
-function EditIcon() {
+function EyeIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-      <path d="M13.586 3.586a2 2 0 112.828 2.828l-8.5 8.5a2 2 0 01-.878.507l-3 .857a.5.5 0 01-.618-.618l.857-3a2 2 0 01.507-.878l8.5-8.5z" />
+      <path d="M10 3.5c-4.4 0-7.9 2.9-9.4 6a1 1 0 000 .9C2.1 13.6 5.6 16.5 10 16.5s7.9-2.9 9.4-6a1 1 0 000-.9C17.9 6.4 14.4 3.5 10 3.5zm0 9.5a3 3 0 110-6 3 3 0 010 6z" />
     </svg>
   );
 }
 
-// Display-only — stage changes only happen through the Process Order form
-// on the review page, one at a time, in order.
-function StageBadge({ status }: { status: ApprovalState }) {
+function ClipboardCheckIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M7 2a1 1 0 00-1 1v1H5a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H8V3a1 1 0 00-1-1zM6 9.7l1.4-1.4L9 9.9l4-4L14.4 7.3 9 12.7 6 9.7z" />
+    </svg>
+  );
+}
+
+// Display-only unless highlighted — stage changes only happen through the
+// Process Order form on the review page, one at a time, in order. A
+// highlighted badge (the row's current actionable stage, untouched or
+// previously rejected) is clickable and jumps straight to that form.
+function StageBadge({
+  status,
+  highlighted,
+  onClick,
+}: {
+  status: ApprovalState;
+  highlighted?: boolean;
+  onClick?: () => void;
+}) {
   const cls =
     status === "confirmed"
       ? "bg-emerald-100 text-emerald-600"
       : status === "rejected"
       ? "bg-rose-100 text-rose-600"
       : "bg-slate-200 text-slate-500";
+  const icon = status === "confirmed" ? <CheckIcon /> : status === "rejected" ? <CrossIcon /> : "P";
+  const base = `mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${cls}`;
+
+  if (!highlighted) return <span className={base}>{icon}</span>;
+
   return (
-    <span className={`mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${cls}`}>
-      {status === "confirmed" ? <CheckIcon /> : status === "rejected" ? <CrossIcon /> : "P"}
-    </span>
+    <button
+      type="button"
+      onClick={onClick}
+      title="Needs your review — click to process"
+      className={`${base} ring-2 ring-offset-2 ring-amber-400 animate-pulse hover:ring-amber-500`}
+    >
+      {icon}
+    </button>
   );
+}
+
+// "Needs attention now" — the badge for whichever stage
+// getNextActionableStage() says is next: untouched-pending (never reviewed)
+// or previously rejected (needs re-review).
+function needsAttention(actionable: ActionableStage | null, key: ApprovalStageKey, stage: StageStatus): boolean {
+  if (actionable?.key !== key) return false;
+  return (stage.status === "pending" && stage.date === null) || stage.status === "rejected";
 }
 
 // Tech/Fin department tab — approve or reject whatever stage is next
@@ -188,8 +237,25 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
   // instead of always defaulting to "all" — read once on mount, not kept in
   // sync afterward (this page owns its own filter state from here on).
   const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState<ViewTab>((searchParams.get("stage") as ViewTab) || "all");
-  const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
+  const initialStage = searchParams.get("stage");
+  const [tab, setTab] = useState<ViewTab>(
+    initialStage === "approvalPending" || initialStage === "closurePending" ? initialStage : "all"
+  );
+  type ReviewMode = "view" | "process";
+  const [reviewTarget, setReviewTarget] = useState<{ id: string; mode: ReviewMode } | null>(null);
+  const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
+
+  // This tab only ever shows orders still awaiting a Tech/Fin or TC/FC
+  // decision — everything downstream (tabs, search, filters, sort) operates
+  // over this narrowed set, not the full order list.
+  const pendingOrders = useMemo(
+    () =>
+      orders.filter((o) => {
+        const stage = getDisplayStage(o);
+        return stage === "approvalPending" || stage === "closurePending";
+      }),
+    [orders]
+  );
 
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [sort, setSort] = useState<SortState<SortableKey>>({ key: null, direction: "asc" });
@@ -198,8 +264,11 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
   const [draft, setDraft] = useState<DrawerFilters>(defaultDrawerFilters);
   const [applied, setApplied] = useState<DrawerFilters>(defaultDrawerFilters);
 
-  const clientOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.client))).sort(), [orders]);
-  const managerOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
+  const clientOptions = useMemo(() => Array.from(new Set(pendingOrders.map((o) => o.client))).sort(), [pendingOrders]);
+  const managerOptions = useMemo(
+    () => Array.from(new Set(pendingOrders.map((o) => o.clientManager))).sort(),
+    [pendingOrders]
+  );
 
   function toggleSort(key: SortableKey) {
     setSort((prev) => toggleSortState(prev, key));
@@ -230,7 +299,7 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
     applied.dateRange.end !== null;
 
   const filtered = useMemo(() => {
-    let result = tab === "all" ? orders : orders.filter((o) => getDisplayStage(o) === tab);
+    let result = tab === "all" ? pendingOrders : pendingOrders.filter((o) => getDisplayStage(o) === tab);
 
     if (applied.client !== "all") result = result.filter((o) => o.client === applied.client);
     if (applied.product !== "all") result = result.filter((o) => o.product === applied.product);
@@ -269,7 +338,7 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
     }
 
     return result;
-  }, [orders, tab, applied, search, sort]);
+  }, [pendingOrders, tab, applied, search, sort]);
 
   function renderCategoryContent() {
     switch (activeCategory) {
@@ -348,10 +417,28 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
 
   const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(filtered);
 
-  const reviewOrder = reviewOrderId ? orders.find((o) => o.id === reviewOrderId) ?? null : null;
+  // Column visibility per tab: TC/FC are meaningless while still Approval
+  // Pending (cancellation hasn't started); Tech/Fin are already both
+  // confirmed by definition for anything Cancellation Pending, so showing
+  // them again there is just noise. "All" shows every column since rows are
+  // a mix of both kinds.
+  const showTechFin = tab !== "closurePending";
+  const showTcFc = tab !== "approvalPending";
+  const badgeColCount = (showTechFin ? 2 : 0) + (showTcFc ? 2 : 0);
+  const totalCols = 8 + badgeColCount; // Order#, Client, Product, Manager, Amount, OCD, Status, Action
 
-  if (reviewOrder) {
-    return <OrderApprovalReview order={reviewOrder} orders={orders} onBack={() => setReviewOrderId(null)} onUpdateOrder={onUpdateOrder} />;
+  const reviewOrder = reviewTarget ? orders.find((o) => o.id === reviewTarget.id) ?? null : null;
+
+  if (reviewOrder && reviewTarget) {
+    return (
+      <OrderApprovalReview
+        order={reviewOrder}
+        orders={orders}
+        mode={reviewTarget.mode}
+        onBack={() => setReviewTarget(null)}
+        onUpdateOrder={onUpdateOrder}
+      />
+    );
   }
 
   return (
@@ -408,8 +495,9 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
         <span className="font-medium text-slate-600">Tech</span> — Technical Approval and{" "}
         <span className="font-medium text-slate-600">Fin</span> — Financial Approval decide activation;{" "}
         <span className="font-medium text-slate-600">TC</span>/<span className="font-medium text-slate-600">FC</span>{" "}
-        are their closure-stage counterparts. Open a row's Review action to approve or reject; approvals happen
-        strictly in order (Tech before Fin, TC before FC).
+        are their cancellation-stage counterparts. <span className="font-medium text-slate-600">OCD</span> = Order
+        Creation Date. A pulsing circle marks the stage awaiting your decision — click it, or use the Approve/Reject
+        action, to process it; approvals happen strictly in order (Tech before Fin, TC before FC).
       </p>
 
       <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -422,18 +510,27 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
               <SortableTh label="Product" sortKey="product" sort={sort} onClick={toggleSort} />
               <SortableTh label="Client Manager" sortKey="clientManager" sort={sort} onClick={toggleSort} />
               <SortableTh label="Amount (₹)" sortKey="amount" sort={sort} onClick={toggleSort} align="right" />
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
-                Tech
-              </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
-                Fin
-              </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
-                TC
-              </th>
-              <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
-                FC
-              </th>
+              <SortableTh label="OCD" sortKey="createdOn" sort={sort} onClick={toggleSort} />
+              {showTechFin && (
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
+                  Tech
+                </th>
+              )}
+              {showTechFin && (
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
+                  Fin
+                </th>
+              )}
+              {showTcFc && (
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
+                  TC
+                </th>
+              )}
+              {showTcFc && (
+                <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-center font-semibold text-slate-600">
+                  FC
+                </th>
+              )}
               <SortableTh label="Status" sortKey="status" sort={sort} onClick={toggleSort} />
               <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                 Action
@@ -443,9 +540,19 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
           <tbody className="divide-y divide-slate-100">
             {pageRows.map((order) => {
               const stage = getDisplayStage(order);
+              const actionable = getNextActionableStage(order);
+              const openProcess = () => setReviewTarget({ id: order.id, mode: "process" });
               return (
                 <tr key={order.id} className={`transition-colors ${rowClass(order)}`}>
-                  <td className="whitespace-nowrap px-4 py-2 font-medium text-slate-800">{order.orderNo}</td>
+                  <td className="whitespace-nowrap px-4 py-2 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewOrderId(order.id)}
+                      className="text-indigo-700 hover:underline"
+                    >
+                      {order.orderNo}
+                    </button>
+                  </td>
                   <td className="max-w-[200px] truncate px-4 py-2 text-slate-700" title={order.client}>
                     {order.client}
                   </td>
@@ -454,39 +561,74 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
                   <td className="whitespace-nowrap px-4 py-2 text-right text-slate-700">
                     {order.amount.toLocaleString("en-IN")}
                   </td>
-                  <td className="px-4 py-2">
-                    <StageBadge status={order.technical.status} />
-                  </td>
-                  <td className="px-4 py-2">
-                    <StageBadge status={order.financial.status} />
-                  </td>
-                  <td className="px-4 py-2">
-                    <StageBadge status={order.cancellationTechnical.status} />
-                  </td>
-                  <td className="px-4 py-2">
-                    <StageBadge status={order.cancellationFinancial.status} />
-                  </td>
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-700">{formatDDMMYYYY(order.createdOn)}</td>
+                  {showTechFin && (
+                    <td className="px-4 py-2">
+                      <StageBadge
+                        status={order.technical.status}
+                        highlighted={needsAttention(actionable, "technical", order.technical)}
+                        onClick={openProcess}
+                      />
+                    </td>
+                  )}
+                  {showTechFin && (
+                    <td className="px-4 py-2">
+                      <StageBadge
+                        status={order.financial.status}
+                        highlighted={needsAttention(actionable, "financial", order.financial)}
+                        onClick={openProcess}
+                      />
+                    </td>
+                  )}
+                  {showTcFc && (
+                    <td className="px-4 py-2">
+                      <StageBadge
+                        status={order.cancellationTechnical.status}
+                        highlighted={needsAttention(actionable, "cancellationTechnical", order.cancellationTechnical)}
+                        onClick={openProcess}
+                      />
+                    </td>
+                  )}
+                  {showTcFc && (
+                    <td className="px-4 py-2">
+                      <StageBadge
+                        status={order.cancellationFinancial.status}
+                        highlighted={needsAttention(actionable, "cancellationFinancial", order.cancellationFinancial)}
+                        onClick={openProcess}
+                      />
+                    </td>
+                  )}
                   <td className="whitespace-nowrap px-4 py-2">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STAGE_BADGE_CLASS[stage]}`}>
                       {STAGE_LABELS[stage]}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-4 py-2">
-                    <button
-                      type="button"
-                      onClick={() => setReviewOrderId(order.id)}
-                      title="Review & process"
-                      className="text-indigo-600 hover:text-indigo-800"
-                    >
-                      <EditIcon />
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setReviewTarget({ id: order.id, mode: "view" })}
+                        title="View order"
+                        className="text-slate-500 hover:text-slate-700"
+                      >
+                        <EyeIcon />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openProcess}
+                        title="Approve / Reject"
+                        className="text-indigo-600 hover:text-indigo-800"
+                      >
+                        <ClipboardCheckIcon />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
             })}
             {pageRows.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={totalCols} className="px-4 py-8 text-center text-slate-400">
                   No orders match this view.
                 </td>
               </tr>
@@ -516,6 +658,12 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
       >
         {renderCategoryContent()}
       </FilterDrawer>
+
+      <OrderPreviewModal
+        order={previewOrderId ? orders.find((o) => o.id === previewOrderId) ?? null : null}
+        orders={orders}
+        onClose={() => setPreviewOrderId(null)}
+      />
     </div>
   );
 }

@@ -1,5 +1,13 @@
 import { useState } from "react";
-import type { BillingCycle, CancellationDetails, OrderDisplayStage, OrderRecord, OrderRecordDetails } from "./types";
+import type {
+  ApprovalState,
+  BillingCycle,
+  CancellationDetails,
+  OrderDisplayStage,
+  OrderRecord,
+  OrderRecordDetails,
+  StageStatus,
+} from "./types";
 import { BILLING_CYCLE_LABELS } from "./types";
 import { getProduct } from "./products";
 
@@ -187,6 +195,26 @@ export function diffOrderDetails(prev: OrderRecord, next: OrderRecord): DiffRow[
   }
 
   return rows;
+}
+
+// Tech/Fin/TC/FC as one Approval History list — used by both
+// OrderApprovalReview.tsx's own (private) copy and the universal
+// order-preview modal's Approval Status step; kept as a standalone export
+// here rather than importing from OrderApprovalReview.tsx to avoid coupling
+// the new preview modal to that page.
+export function approvalHistoryRows(order: OrderRecord): { label: string; stage: StageStatus }[] {
+  return [
+    { label: "Tech", stage: order.technical },
+    { label: "Fin", stage: order.financial },
+    { label: "TC", stage: order.cancellationTechnical },
+    { label: "FC", stage: order.cancellationFinancial },
+  ];
+}
+
+export function approvalHistoryStatusLabel(status: ApprovalState): string {
+  if (status === "confirmed") return "Accepted";
+  if (status === "rejected") return "Rejected";
+  return "Pending";
 }
 
 // After any T/F/TC/FC change, check whether the order should move to the

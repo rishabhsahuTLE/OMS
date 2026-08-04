@@ -15,6 +15,10 @@ import OrderDetailsReadOnly from "./OrderDetailsReadOnly";
 interface OrderApprovalReviewProps {
   order: OrderRecord;
   orders: OrderRecord[];
+  // "view" (from the Approvals tab's View action) suppresses the Process
+  // Order form entirely — read-only lookup only. Defaults to "process" so
+  // the existing approve/reject flow is unaffected.
+  mode?: "view" | "process";
   onBack: () => void;
   onUpdateOrder: (record: OrderRecord) => void;
 }
@@ -43,7 +47,13 @@ const STAGE_LABELS: Record<ApprovalStageKey, string> = {
   cancellationFinancial: "FC",
 };
 
-export default function OrderApprovalReview({ order, orders, onBack, onUpdateOrder }: OrderApprovalReviewProps) {
+export default function OrderApprovalReview({
+  order,
+  orders,
+  mode = "process",
+  onBack,
+  onUpdateOrder,
+}: OrderApprovalReviewProps) {
   const [status, setStatus] = useState("");
   const [agreementAmountInput, setAgreementAmountInput] = useState("");
   const [firstBillingMonth, setFirstBillingMonth] = useState(order.details.firstBillingMonth);
@@ -157,9 +167,13 @@ export default function OrderApprovalReview({ order, orders, onBack, onUpdateOrd
           <h3 className="text-sm font-semibold tracking-wide text-slate-700">PROCESS ORDER</h3>
         </div>
 
-        {order.lifecycleStatus === "active" ? (
+        {mode === "view" ? (
+          <p className="px-6 py-6 text-sm text-slate-400">
+            Read-only view. Use the Approve/Reject action from the list to record a decision on this order.
+          </p>
+        ) : order.lifecycleStatus === "active" ? (
           <p className="px-6 py-6 text-sm text-slate-500">
-            Tech and Fin are both cleared — this order is Active. Closure can only be initiated from the Manage
+            Tech and Fin are both cleared — this order is Active. Cancellation can only be initiated from the Manage
             Orders tab, by the order's client manager.
           </p>
         ) : !actionable ? (

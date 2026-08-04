@@ -8,6 +8,7 @@ import AmountRangeSlider from "../../components/AmountRangeSlider";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
 import PaginationFooter from "../../components/PaginationFooter";
 import SortArrow from "../../components/SortArrow";
+import OrderPreviewModal from "../../components/OrderPreviewModal";
 import {
   compareNullableDate,
   compareNullableNumber,
@@ -128,6 +129,7 @@ export default function Approval({ orders }: ApprovalProps) {
   const [activeCategory, setActiveCategory] = useState(FILTER_CATEGORIES[0].key);
   const [draft, setDraft] = useState<DrawerFilters>(defaultDrawerFilters);
   const [applied, setApplied] = useState<DrawerFilters>(defaultDrawerFilters);
+  const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
 
   const clearedOrders = useMemo(() => orders.filter(isFullyCleared), [orders]);
 
@@ -371,7 +373,15 @@ export default function Approval({ orders }: ApprovalProps) {
 
               return (
                 <tr key={order.id} className={`transition-colors ${rowHighlightClass(order)}`}>
-                  <td className="whitespace-nowrap px-4 py-2 font-medium text-slate-800">{order.orderNo}</td>
+                  <td className="whitespace-nowrap px-4 py-2 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewOrderId(order.id)}
+                      className="text-indigo-700 hover:underline"
+                    >
+                      {order.orderNo}
+                    </button>
+                  </td>
                   <td className="whitespace-nowrap px-4 py-2 text-slate-700">{order.client}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-slate-700">{order.clientManager}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-slate-700">{formatDisplay(order.dateOfSign)}</td>
@@ -434,6 +444,12 @@ export default function Approval({ orders }: ApprovalProps) {
       >
         {renderCategoryContent()}
       </FilterDrawer>
+
+      <OrderPreviewModal
+        order={previewOrderId ? orders.find((o) => o.id === previewOrderId) ?? null : null}
+        orders={orders}
+        onClose={() => setPreviewOrderId(null)}
+      />
     </div>
   );
 }

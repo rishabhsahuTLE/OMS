@@ -6,12 +6,11 @@ import Dashboard from "./pages/Dashboard";
 import Report from "./pages/Report";
 import OrderPage from "./pages/orders/OrderPage";
 import OrderApproval from "./pages/orders/OrderApproval";
+import CloseBilling from "./pages/orders/CloseBilling";
 import clientsData from "./data/clients.json";
 import { mockOrders } from "./data/mockOrders";
 import { promoteSuccessorOf } from "./utils";
 import type { Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "./types";
-
-const clients = clientsData as Client[];
 
 function buildPath(
   tab: MainTabId,
@@ -27,6 +26,9 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<OrderRecord[]>(mockOrders);
+  // Session-only, in-memory, same as `orders` — no persistence anywhere in
+  // this app, so a refresh resets both back to their seed data.
+  const [clients, setClients] = useState<Client[]>(clientsData as Client[]);
   const [createOrderPrefill, setCreateOrderPrefill] = useState<{ clientId: string; product: string } | null>(null);
   const [createOrderKey, setCreateOrderKey] = useState(0);
 
@@ -51,6 +53,10 @@ function App() {
 
   function handleCreateOrder(record: OrderRecord) {
     setOrders((prev) => [record, ...prev]);
+  }
+
+  function handleUpdateClient(record: Client) {
+    setClients((prev) => prev.map((c) => (c.id === record.id ? record : c)));
   }
 
   // Central order-update handler — whenever an update lands an order on
@@ -86,6 +92,7 @@ function App() {
                     orders={orders}
                     onUpdateOrder={handleUpdateOrder}
                     clients={clients}
+                    onUpdateClient={handleUpdateClient}
                     onCreateOrder={handleCreateOrder}
                     createOrderPrefill={createOrderPrefill}
                     createOrderKey={createOrderKey}
@@ -94,6 +101,7 @@ function App() {
                 }
               />
               <Route path="/orders/amendCancel" element={<OrderPage orders={orders} onUpdateOrder={handleUpdateOrder} />} />
+              <Route path="/orders/closeBilling" element={<CloseBilling orders={orders} onUpdateOrder={handleUpdateOrder} />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </main>

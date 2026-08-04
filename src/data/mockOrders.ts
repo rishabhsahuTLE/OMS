@@ -1,6 +1,14 @@
 import clientsData from "./clients.json";
 import { PRODUCTS } from "../products";
-import type { ApprovalState, BillingCycle, Client, OrderRecord, OrderLifecycleStatus, StageStatus } from "../types";
+import type {
+  ApprovalState,
+  BillingCycle,
+  BillingStatus,
+  Client,
+  OrderRecord,
+  OrderLifecycleStatus,
+  StageStatus,
+} from "../types";
 
 const clients = clientsData as Client[];
 
@@ -113,6 +121,10 @@ clients.forEach((client, cliIdx) => {
     // guaranteed to land on an actual fully-confirmed order regardless of how
     // technicalPattern/financialPattern happen to line up at any given index.
     let amended = false;
+    // Finance-owned billing status, seeded independently of the
+    // Tech/Fin/TC/FC approval chain so the new Close Billing tab's three
+    // categories (To Open / To Close / Closed) each have demo rows.
+    let billingStatus: BillingStatus = "notOpened";
     if (isFullyConfirmed) {
       const bucket = fullyConfirmedCount % 3;
       amended = fullyConfirmedCount % 5 === 2;
@@ -120,11 +132,20 @@ clients.forEach((client, cliIdx) => {
         lifecycleStatus = "cancelled";
         cancellationTechnical = withMeta({ status: "confirmed", date: makeDate(finOffset + 5) }, orderIndex);
         cancellationFinancial = withMeta({ status: "confirmed", date: makeDate(finOffset + 12) }, orderIndex + 1);
+        // Cancelled orders are mostly still awaiting billing closure (open),
+        // with a deterministic minority already closed by finance.
+        billingStatus = fullyConfirmedCount % 4 === 3 ? "closed" : "open";
       } else if (bucket === 1) {
         lifecycleStatus = "cancellationInProgress";
         cancellationTechnical = withMeta({ status: "confirmed", date: makeDate(finOffset + 5) }, orderIndex);
+        // Cancellation was only ever initiated on an order whose billing was
+        // already running.
+        billingStatus = "open";
       } else {
         lifecycleStatus = "active";
+        // Active orders are mostly billing-open, with a deterministic
+        // minority still awaiting finance's initial "Open Billing" action.
+        billingStatus = fullyConfirmedCount % 3 === 0 ? "notOpened" : "open";
       }
       fullyConfirmedCount++;
     }
@@ -146,6 +167,7 @@ clients.forEach((client, cliIdx) => {
       billingCycle,
       amount,
       amended,
+      billingStatus,
       details: {
         clientManager,
         billingAddress: client.billingAddress,

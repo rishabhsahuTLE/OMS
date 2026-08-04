@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Modal from "../../components/Modal";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import type { BillingCycle, Client, OrderRecord, OrderRecordDetails, Spoc } from "../../types";
+import { STATES, CITIES_BY_STATE } from "../../types";
 import { getProduct, PRODUCT_NAMES } from "../../products";
 import type { ProductFormValues } from "../../products";
 import { nextOrderNumber, todayISO } from "../../utils";
@@ -16,6 +17,10 @@ interface CreateOrderModalProps {
   prefillProduct?: string;
   onCreate: (record: OrderRecord) => void;
   onUpdate: (record: OrderRecord) => void;
+  // Session-only client-master update — fired when the user edits their
+  // billing/delivery/GST fields away from the client master on the Client
+  // Billing Details step and confirms via "Update & Next".
+  onUpdateClient: (record: Client) => void;
   // Renders the form directly on a page instead of inside a Modal overlay.
   // Embedded instances have no "close" to return to, so Cancel becomes
   // Reset — the parent bumps a `key` to remount and clear the form.
@@ -144,7 +149,7 @@ function CartIcon() {
 }
 
 const PAGES: { key: PageKey; label: string; icon: React.ReactNode }[] = [
-  { key: "client", label: "Client Details", icon: <BriefcaseIcon /> },
+  { key: "client", label: "Client Billing Details", icon: <BriefcaseIcon /> },
   { key: "contact", label: "Contact Details", icon: <PhoneIcon /> },
   { key: "order", label: "Order Details", icon: <ReceiptIcon /> },
   { key: "payment", label: "Payment Details", icon: <CardIcon /> },
@@ -239,23 +244,99 @@ const readonlyInputClass =
   "w-full rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600";
 const inputClass =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
+// Distinct from readonlyInputClass: readonlyInputClass means "never editable
+// on this form" (Client Name, Net Amount, ...); lockedInputClass means
+// "normally editable, but locked right now because you're amending an active
+// order" — the dashed border is the one visual cue that separates the two.
+const lockedInputClass =
+  "w-full rounded-md border border-dashed border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-500 cursor-not-allowed";
+const lockedFileLabelClass =
+  "flex items-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-400 cursor-not-allowed";
+
+function LockBadge() {
+  return (
+    <span className="text-slate-400" title="Locked during amendment — shown for reference only">
+      <LockIcon />
+    </span>
+  );
+}
+
+function StateSelect({
+  value,
+  onChange,
+  disabled,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  className: string;
+}) {
+  // Defensive: if a client's existing state value ever falls outside the
+  // known list, keep it selectable instead of silently blanking it.
+  const options = value && !(STATES as readonly string[]).includes(value) ? [value, ...STATES] : STATES;
+  return (
+    <select className={className} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      <option value="">--Select State--</option>
+      {options.map((s) => (
+        <option key={s} value={s}>
+          {s}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function CitySelect({
+  state,
+  value,
+  onChange,
+  disabled,
+  className,
+}: {
+  state: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  className: string;
+}) {
+  const cities = CITIES_BY_STATE[state] ?? [];
+  const options = value && !cities.includes(value) ? [value, ...cities] : cities;
+  return (
+    <select className={className} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      <option value="">--Select City--</option>
+      {options.map((c) => (
+        <option key={c} value={c}>
+          {c}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 function FieldRow({
   label,
   required,
+  locked,
   children,
   align = "center",
 }: {
   label: string;
   required?: boolean;
+  locked?: boolean;
   children: React.ReactNode;
   align?: "center" | "start";
 }) {
   return (
     <div className={`grid grid-cols-[200px_1fr] gap-x-4 ${align === "start" ? "items-start" : "items-center"}`}>
-      <label className={`text-right text-sm font-medium text-slate-700 ${align === "start" ? "pt-2" : ""}`}>
+      <label
+        className={`flex items-center justify-end gap-1 text-right text-sm font-medium text-slate-700 ${
+          align === "start" ? "pt-2" : ""
+        }`}
+      >
         {label}
         {required && <Required />}
+        {locked && <LockBadge />}
       </label>
       <div className="max-w-lg">{children}</div>
     </div>
@@ -267,17 +348,20 @@ function YesNoRow({
   value,
   onChange,
   disabled,
+  locked,
 }: {
   label: string;
   value: "Yes" | "No" | "";
   onChange: (v: "Yes" | "No") => void;
   disabled?: boolean;
+  locked?: boolean;
 }) {
   return (
     <div className="grid grid-cols-[280px_1fr] items-center gap-x-4">
-      <label className="text-right text-sm font-medium text-slate-700">
+      <label className="flex items-center justify-end gap-1 text-right text-sm font-medium text-slate-700">
         {label}
         <Required />
+        {locked && <LockBadge />}
       </label>
       <div className="flex gap-8">
         <label className="flex items-center gap-1.5 text-sm text-slate-600">
@@ -294,6 +378,14 @@ function YesNoRow({
 }
 
 interface FormState {
+  billingAddress: string;
+  billingState: string;
+  billingCity: string;
+  deliveryAddress: string;
+  deliveryState: string;
+  deliveryCity: string;
+  sameAsBilling: boolean;
+  gstNo: string;
   dateOfSign: string;
   plan: string;
   oneTime: string;
@@ -308,6 +400,14 @@ interface FormState {
 }
 
 const emptyForm: FormState = {
+  billingAddress: "",
+  billingState: "",
+  billingCity: "",
+  deliveryAddress: "",
+  deliveryState: "",
+  deliveryCity: "",
+  sameAsBilling: false,
+  gstNo: "",
   dateOfSign: "",
   plan: "",
   oneTime: "",
@@ -341,6 +441,7 @@ export default function CreateOrderModal({
   prefillProduct,
   onCreate,
   onUpdate,
+  onUpdateClient,
   embedded,
   onReset,
   onRequestAmend,
@@ -400,6 +501,17 @@ export default function CreateOrderModal({
       setSelectedClientId(editingOrder.clientId);
       setSelectedProduct(editingOrder.product);
       setForm({
+        billingAddress: editingOrder.details.billingAddress,
+        billingState: editingOrder.details.billingState,
+        billingCity: editingOrder.details.billingCity,
+        deliveryAddress: editingOrder.details.deliveryAddress,
+        deliveryState: editingOrder.details.deliveryState,
+        deliveryCity: editingOrder.details.deliveryCity,
+        sameAsBilling:
+          editingOrder.details.deliveryAddress === editingOrder.details.billingAddress &&
+          editingOrder.details.deliveryState === editingOrder.details.billingState &&
+          editingOrder.details.deliveryCity === editingOrder.details.billingCity,
+        gstNo: editingOrder.details.gstNo,
         dateOfSign: editingOrder.dateOfSign,
         plan: editingOrder.details.plan,
         oneTime: toFieldString(editingOrder.details.oneTime),
@@ -446,17 +558,56 @@ export default function CreateOrderModal({
     }
   }, [open, currentProduct, editingOrder]);
 
-  // Reset SPOCs when the client changes on a new (non-editing) order, so a
-  // previously-picked client's contacts don't linger after switching clients.
+  // Reset SPOCs and re-seed billing/delivery/GST fields from the client
+  // master whenever the client changes on a new (non-editing) order, so a
+  // previously-picked client's contacts/address don't linger after switching
+  // clients.
   useEffect(() => {
     if (!open || editingOrder) return;
     setSpocs([]);
-  }, [selectedClientId, open, editingOrder]);
+    const c = clients.find((cl) => cl.id === selectedClientId) ?? null;
+    setForm((prev) => ({
+      ...prev,
+      billingAddress: c?.billingAddress ?? "",
+      billingState: c?.billingState ?? "",
+      billingCity: c?.billingCity ?? "",
+      deliveryAddress: c?.deliveryAddress ?? "",
+      deliveryState: c?.deliveryState ?? "",
+      deliveryCity: c?.deliveryCity ?? "",
+      sameAsBilling: !!c && c.deliveryAddress === c.billingAddress && c.deliveryState === c.billingState && c.deliveryCity === c.billingCity,
+      gstNo: c?.gstNo ?? "",
+    }));
+  }, [selectedClientId, open, editingOrder, clients]);
 
   const effectiveSpocs = spocs.length > 0 ? spocs : client?.spocs.length ? [client.spocs[0]] : [{ ...emptySpoc }];
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  // Billing Address/State/City edits mirror into Delivery while "Same as
+  // Billing Address" is checked — unchecking it leaves the delivery fields
+  // at their last-mirrored values, independently editable from then on.
+  function updateBillingField(key: "billingAddress" | "billingState" | "billingCity", value: string) {
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      if (prev.sameAsBilling) {
+        if (key === "billingAddress") next.deliveryAddress = value;
+        if (key === "billingState") next.deliveryState = value;
+        if (key === "billingCity") next.deliveryCity = value;
+      }
+      return next;
+    });
+  }
+
+  function toggleSameAsBilling(checked: boolean) {
+    setForm((prev) => ({
+      ...prev,
+      sameAsBilling: checked,
+      ...(checked
+        ? { deliveryAddress: prev.billingAddress, deliveryState: prev.billingState, deliveryCity: prev.billingCity }
+        : {}),
+    }));
   }
 
   function updateProductValue(key: string, value: string) {
@@ -517,7 +668,13 @@ export default function CreateOrderModal({
   function isPageComplete(page: PageKey): boolean {
     switch (page) {
       case "client":
-        return ready;
+        return (
+          ready &&
+          !!form.billingAddress.trim() &&
+          !!form.billingState &&
+          !!form.deliveryAddress.trim() &&
+          !!form.deliveryState
+        );
       case "contact": {
         const first = effectiveSpocs[0];
         return !!first?.name.trim() && !!first?.mobile.trim();
@@ -556,6 +713,7 @@ export default function CreateOrderModal({
   }
 
   function pageForErrors(errs: Record<string, string>): PageKey {
+    if (errs.billingAddress || errs.billingState || errs.deliveryAddress || errs.deliveryState) return "client";
     if (errs.spocName || errs.spocMobile) return "contact";
     return "order";
   }
@@ -572,9 +730,46 @@ export default function CreateOrderModal({
     if (!isLastPage) setActivePage(PAGE_ORDER[pageIndex + 1]);
   }
 
+  // Whether the Client Billing Details fields have been edited away from the
+  // live client master. Suppressed while amending an active order — those
+  // fields are locked there (sourced from the order's own historical
+  // snapshot), so any mismatch against a since-edited client master isn't
+  // something this form can act on.
+  const clientBillingDirty =
+    !!client &&
+    !isAmendingActiveOrder &&
+    (form.billingAddress !== client.billingAddress ||
+      form.billingState !== client.billingState ||
+      form.billingCity !== client.billingCity ||
+      form.deliveryAddress !== client.deliveryAddress ||
+      form.deliveryState !== client.deliveryState ||
+      form.deliveryCity !== client.deliveryCity ||
+      form.gstNo !== client.gstNo);
+
+  const showClientUpdateAction = activePage === "client" && clientBillingDirty;
+
+  function handleUpdateClientAndNext() {
+    if (!client) return;
+    onUpdateClient({
+      ...client,
+      billingAddress: form.billingAddress,
+      billingState: form.billingState,
+      billingCity: form.billingCity,
+      deliveryAddress: form.deliveryAddress,
+      deliveryState: form.deliveryState,
+      deliveryCity: form.deliveryCity,
+      gstNo: form.gstNo,
+    });
+    goNext();
+  }
+
   function handleSave() {
     if (!client || !currentProduct) return;
     const nextErrors: Record<string, string> = {};
+    if (!form.billingAddress.trim()) nextErrors.billingAddress = "Billing address is required";
+    if (!form.billingState) nextErrors.billingState = "Billing state is required";
+    if (!form.deliveryAddress.trim()) nextErrors.deliveryAddress = "Delivery address is required";
+    if (!form.deliveryState) nextErrors.deliveryState = "Delivery state is required";
     if (!form.dateOfSign) nextErrors.dateOfSign = "Date of sign is required";
     if (!form.plan) nextErrors.plan = "Plan is required";
     Object.assign(nextErrors, currentProduct.validate(productValues));
@@ -596,13 +791,13 @@ export default function CreateOrderModal({
 
     const details: OrderRecordDetails = {
       clientManager: client.clientManager,
-      billingAddress: client.billingAddress,
-      billingState: client.billingState,
-      billingCity: client.billingCity,
-      deliveryAddress: client.deliveryAddress,
-      deliveryState: client.deliveryState,
-      deliveryCity: client.deliveryCity,
-      gstNo: client.gstNo,
+      billingAddress: form.billingAddress,
+      billingState: form.billingState,
+      billingCity: form.billingCity,
+      deliveryAddress: form.deliveryAddress,
+      deliveryState: form.deliveryState,
+      deliveryCity: form.deliveryCity,
+      gstNo: form.gstNo,
       spocs: effectiveSpocs,
       product: selectedProduct,
       dateOfSign: form.dateOfSign,
@@ -650,6 +845,7 @@ export default function CreateOrderModal({
         cancellationFinancial: { status: "pending", date: null },
         billingCycle: form.billingCycle,
         amended: false,
+        billingStatus: "notOpened",
         details,
       });
     }
@@ -660,12 +856,6 @@ export default function CreateOrderModal({
       onClose();
     }
   }
-
-  const sameAsBilling =
-    !!client &&
-    client.deliveryAddress === client.billingAddress &&
-    client.deliveryState === client.billingState &&
-    client.deliveryCity === client.billingCity;
 
   const content = (
     <>
@@ -710,7 +900,7 @@ export default function CreateOrderModal({
             <div className="space-y-4 border-t border-slate-200 px-6 py-6">
               <FieldRow label="Select Client" required>
                 <select
-                  className={inputClass}
+                  className={isEditing ? readonlyInputClass : inputClass}
                   value={selectedClientId}
                   disabled={isEditing}
                   onChange={(e) => setSelectedClientId(e.target.value)}
@@ -765,7 +955,7 @@ export default function CreateOrderModal({
                   <svg className="h-5 w-5 text-indigo-600" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10 2a3 3 0 00-3 3v2H6a2 2 0 00-2 2v7a2 2 0 002 2h8a2 2 0 002-2V9a2 2 0 00-2-2h-1V5a3 3 0 00-3-3zm-1 5V5a1 1 0 112 0v2H9z" />
                   </svg>
-                  <h2 className="text-sm font-semibold tracking-wide text-slate-700">CLIENT DETAILS</h2>
+                  <h2 className="text-sm font-semibold tracking-wide text-slate-700">CLIENT BILLING DETAILS</h2>
                 </div>
 
                 <div className="space-y-4 px-6 py-6">
@@ -777,45 +967,87 @@ export default function CreateOrderModal({
                     <input className={readonlyInputClass} value={client.clientManager} disabled />
                   </FieldRow>
 
-                  <FieldRow label="Billing Address" required align="start">
+                  <FieldRow label="Billing Address" required align="start" locked={isAmendingActiveOrder}>
                     <textarea
-                      className={`${readonlyInputClass} min-h-[70px] resize-y`}
-                      value={client.billingAddress}
-                      disabled
+                      className={`${isAmendingActiveOrder ? lockedInputClass : inputClass} min-h-[70px] resize-y`}
+                      value={form.billingAddress}
+                      disabled={isAmendingActiveOrder}
+                      onChange={(e) => updateBillingField("billingAddress", e.target.value)}
                     />
                   </FieldRow>
 
-                  <FieldRow label="Billing State" required>
-                    <input className={readonlyInputClass} value={client.billingState} disabled />
+                  <FieldRow label="Billing State" required locked={isAmendingActiveOrder}>
+                    <StateSelect
+                      value={form.billingState}
+                      disabled={isAmendingActiveOrder}
+                      className={isAmendingActiveOrder ? lockedInputClass : inputClass}
+                      onChange={(v) => updateBillingField("billingState", v)}
+                    />
                   </FieldRow>
 
-                  <FieldRow label="Billing City">
-                    <input className={readonlyInputClass} value={client.billingCity} disabled />
+                  <FieldRow label="Billing City" locked={isAmendingActiveOrder}>
+                    <CitySelect
+                      state={form.billingState}
+                      value={form.billingCity}
+                      disabled={isAmendingActiveOrder}
+                      className={isAmendingActiveOrder ? lockedInputClass : inputClass}
+                      onChange={(v) => updateBillingField("billingCity", v)}
+                    />
                   </FieldRow>
 
-                  <FieldRow label="Delivery Address" required align="start">
+                  <FieldRow label="Delivery Address" required align="start" locked={isAmendingActiveOrder}>
                     <label className="mb-1 flex items-center gap-1.5 text-xs text-slate-500">
-                      <input type="checkbox" checked={sameAsBilling} disabled />
+                      <input
+                        type="checkbox"
+                        checked={form.sameAsBilling}
+                        disabled={isAmendingActiveOrder}
+                        onChange={(e) => toggleSameAsBilling(e.target.checked)}
+                      />
                       Same as Billing Address
                     </label>
                     <textarea
-                      className={`${readonlyInputClass} min-h-[70px] resize-y`}
-                      value={client.deliveryAddress}
-                      disabled
+                      className={`${
+                        isAmendingActiveOrder ? lockedInputClass : form.sameAsBilling ? readonlyInputClass : inputClass
+                      } min-h-[70px] resize-y`}
+                      value={form.deliveryAddress}
+                      disabled={isAmendingActiveOrder || form.sameAsBilling}
+                      onChange={(e) => update("deliveryAddress", e.target.value)}
                     />
                   </FieldRow>
 
-                  <FieldRow label="Delivery State" required>
-                    <input className={readonlyInputClass} value={client.deliveryState} disabled />
+                  <FieldRow label="Delivery State" required locked={isAmendingActiveOrder}>
+                    <StateSelect
+                      value={form.deliveryState}
+                      disabled={isAmendingActiveOrder || form.sameAsBilling}
+                      className={
+                        isAmendingActiveOrder ? lockedInputClass : form.sameAsBilling ? readonlyInputClass : inputClass
+                      }
+                      onChange={(v) => update("deliveryState", v)}
+                    />
                   </FieldRow>
 
-                  <FieldRow label="Delivery City">
-                    <input className={readonlyInputClass} value={client.deliveryCity} disabled />
+                  <FieldRow label="Delivery City" locked={isAmendingActiveOrder}>
+                    <CitySelect
+                      state={form.deliveryState}
+                      value={form.deliveryCity}
+                      disabled={isAmendingActiveOrder || form.sameAsBilling}
+                      className={
+                        isAmendingActiveOrder ? lockedInputClass : form.sameAsBilling ? readonlyInputClass : inputClass
+                      }
+                      onChange={(v) => update("deliveryCity", v)}
+                    />
                   </FieldRow>
 
-                  <FieldRow label="Customer GST No.">
-                    <input className={readonlyInputClass} value={client.gstNo || "NA"} disabled />
+                  <FieldRow label="Customer GST No." locked={isAmendingActiveOrder}>
+                    <input
+                      className={isAmendingActiveOrder ? lockedInputClass : inputClass}
+                      value={form.gstNo}
+                      disabled={isAmendingActiveOrder}
+                      onChange={(e) => update("gstNo", e.target.value)}
+                    />
                   </FieldRow>
+                  {errors.billingAddress && <p className="text-xs text-rose-500">{errors.billingAddress}</p>}
+                  {errors.deliveryAddress && <p className="text-xs text-rose-500">{errors.deliveryAddress}</p>}
                 </div>
               </>
             )}
@@ -863,7 +1095,9 @@ export default function CreateOrderModal({
                         <td className="px-3 py-2">
                           <input
                             list="spoc-suggestions"
-                            className="w-full border-none p-0 text-sm focus:outline-none focus:ring-0"
+                            className={`w-full border-none p-0 text-sm focus:outline-none focus:ring-0 ${
+                              isAmendingActiveOrder ? "cursor-not-allowed bg-slate-100 text-slate-400" : ""
+                            }`}
                             value={s.name}
                             disabled={isAmendingActiveOrder}
                             onChange={(e) => updateSpoc(i, "name", e.target.value)}
@@ -871,7 +1105,9 @@ export default function CreateOrderModal({
                         </td>
                         <td className="px-3 py-2">
                           <input
-                            className="w-full border-none p-0 text-sm focus:outline-none focus:ring-0"
+                            className={`w-full border-none p-0 text-sm focus:outline-none focus:ring-0 ${
+                              isAmendingActiveOrder ? "cursor-not-allowed bg-slate-100 text-slate-400" : ""
+                            }`}
                             value={s.email}
                             disabled={isAmendingActiveOrder}
                             onChange={(e) => updateSpoc(i, "email", e.target.value)}
@@ -879,7 +1115,9 @@ export default function CreateOrderModal({
                         </td>
                         <td className="px-3 py-2">
                           <input
-                            className="w-full border-none p-0 text-sm focus:outline-none focus:ring-0"
+                            className={`w-full border-none p-0 text-sm focus:outline-none focus:ring-0 ${
+                              isAmendingActiveOrder ? "cursor-not-allowed bg-slate-100 text-slate-400" : ""
+                            }`}
                             value={s.mobile}
                             disabled={isAmendingActiveOrder}
                             onChange={(e) => updateSpoc(i, "mobile", e.target.value)}
@@ -887,17 +1125,23 @@ export default function CreateOrderModal({
                         </td>
                         <td className="px-3 py-2">
                           <input
-                            className="w-full border-none p-0 text-sm focus:outline-none focus:ring-0"
+                            className={`w-full border-none p-0 text-sm focus:outline-none focus:ring-0 ${
+                              isAmendingActiveOrder ? "cursor-not-allowed bg-slate-100 text-slate-400" : ""
+                            }`}
                             value={s.remarks}
                             disabled={isAmendingActiveOrder}
                             onChange={(e) => updateSpoc(i, "remarks", e.target.value)}
                           />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          {!isAmendingActiveOrder && effectiveSpocs.length > 1 && (
-                            <button onClick={() => removeSpoc(i)} className="text-slate-400 hover:text-rose-500">
-                              ✕
-                            </button>
+                          {isAmendingActiveOrder ? (
+                            <LockBadge />
+                          ) : (
+                            effectiveSpocs.length > 1 && (
+                              <button onClick={() => removeSpoc(i)} className="text-slate-400 hover:text-rose-500">
+                                ✕
+                              </button>
+                            )
                           )}
                         </td>
                       </tr>
@@ -929,10 +1173,10 @@ export default function CreateOrderModal({
                 <input className={readonlyInputClass} value={selectedProduct} disabled />
               </FieldRow>
 
-              <FieldRow label="Date Of Sign" required>
+              <FieldRow label="Date Of Sign" required locked={isAmendingActiveOrder}>
                 <input
                   type="date"
-                  className={inputClass}
+                  className={isAmendingActiveOrder ? lockedInputClass : inputClass}
                   value={form.dateOfSign}
                   disabled={isAmendingActiveOrder}
                   onChange={(e) => update("dateOfSign", e.target.value)}
@@ -952,19 +1196,19 @@ export default function CreateOrderModal({
                 {errors.plan && <p className="mt-1 text-xs text-rose-500">{errors.plan}</p>}
               </FieldRow>
 
-              <FieldRow label="One Time (₹)">
+              <FieldRow label="One Time (₹)" locked={isAmendingActiveOrder}>
                 <input
                   type="number"
-                  className={inputClass}
+                  className={isAmendingActiveOrder ? lockedInputClass : inputClass}
                   value={form.oneTime}
                   disabled={isAmendingActiveOrder}
                   onChange={(e) => update("oneTime", e.target.value)}
                 />
               </FieldRow>
 
-              <FieldRow label="GST Process">
+              <FieldRow label="GST Process" locked={isAmendingActiveOrder}>
                 <select
-                  className={inputClass}
+                  className={isAmendingActiveOrder ? lockedInputClass : inputClass}
                   value={form.gstProcess}
                   disabled={isAmendingActiveOrder}
                   onChange={(e) => update("gstProcess", e.target.value)}
@@ -995,15 +1239,16 @@ export default function CreateOrderModal({
                       value={value as "Yes" | "No" | ""}
                       onChange={(v) => updateProductValue(field.key, v)}
                       disabled={fieldDisabled}
+                      locked={fieldDisabled}
                     />
                   );
                 }
 
                 return (
-                  <FieldRow key={field.key} label={field.label} required={field.required}>
+                  <FieldRow key={field.key} label={field.label} required={field.required} locked={fieldDisabled}>
                     {field.type === "select" ? (
                       <select
-                        className={inputClass}
+                        className={fieldDisabled ? lockedInputClass : inputClass}
                         value={value}
                         disabled={fieldDisabled}
                         onChange={(e) => updateProductValue(field.key, e.target.value)}
@@ -1018,7 +1263,7 @@ export default function CreateOrderModal({
                     ) : (
                       <input
                         type={field.type === "number" ? "number" : field.type === "month" ? "month" : "text"}
-                        className={inputClass}
+                        className={fieldDisabled ? lockedInputClass : inputClass}
                         value={value}
                         disabled={fieldDisabled}
                         onChange={(e) => updateProductValue(field.key, e.target.value)}
@@ -1039,9 +1284,9 @@ export default function CreateOrderModal({
                 />
               </FieldRow>
 
-              <FieldRow label="Billing Cycle" required>
+              <FieldRow label="Billing Cycle" required locked={isAmendingActiveOrder}>
                 <select
-                  className={inputClass}
+                  className={isAmendingActiveOrder ? lockedInputClass : inputClass}
                   value={form.billingCycle}
                   disabled={isAmendingActiveOrder}
                   onChange={(e) => update("billingCycle", e.target.value as BillingCycle)}
@@ -1084,10 +1329,10 @@ export default function CreateOrderModal({
                   onChange={(e) => update("advance", e.target.value)}
                 />
               </FieldRow>
-              <FieldRow label="TDS (₹)">
+              <FieldRow label="TDS (₹)" locked={isAmendingActiveOrder}>
                 <input
                   type="number"
-                  className={inputClass}
+                  className={isAmendingActiveOrder ? lockedInputClass : inputClass}
                   value={form.tds}
                   disabled={isAmendingActiveOrder}
                   onChange={(e) => update("tds", e.target.value)}
@@ -1096,10 +1341,10 @@ export default function CreateOrderModal({
               <FieldRow label="Net Amt.(₹)">
                 <input className={readonlyInputClass} value={netAmount.toLocaleString("en-IN")} disabled />
               </FieldRow>
-              <FieldRow label="Credit Period">
+              <FieldRow label="Credit Period" locked={isAmendingActiveOrder}>
                 <input
                   type="number"
-                  className={inputClass}
+                  className={isAmendingActiveOrder ? lockedInputClass : inputClass}
                   value={form.creditPeriod}
                   disabled={isAmendingActiveOrder}
                   onChange={(e) => update("creditPeriod", e.target.value)}
@@ -1151,7 +1396,7 @@ export default function CreateOrderModal({
                         <tr key={i}>
                           <td className="px-3 py-2">
                             <input
-                              className={inputClass}
+                              className={isAmendingActiveOrder ? lockedInputClass : inputClass}
                               placeholder="e.g. Signed Agreement"
                               value={d.name}
                               disabled={isAmendingActiveOrder}
@@ -1160,11 +1405,11 @@ export default function CreateOrderModal({
                           </td>
                           <td className="px-3 py-2">
                             <label
-                              className={`flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs font-medium transition-colors ${
+                              className={
                                 isAmendingActiveOrder
-                                  ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
-                                  : "cursor-pointer border-slate-300 bg-slate-50 text-slate-600 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700"
-                              }`}
+                                  ? lockedFileLabelClass
+                                  : "flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs font-medium transition-colors cursor-pointer border-slate-300 bg-slate-50 text-slate-600 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700"
+                              }
                             >
                               <UploadIcon />
                               <span className="truncate">{d.fileName || "Choose File"}</span>
@@ -1177,7 +1422,9 @@ export default function CreateOrderModal({
                             </label>
                           </td>
                           <td className="px-2 py-2 text-center">
-                            {!isAmendingActiveOrder && (
+                            {isAmendingActiveOrder ? (
+                              <LockBadge />
+                            ) : (
                               <button onClick={() => removeDocument(i)} className="text-slate-400 hover:text-rose-500">
                                 ✕
                               </button>
@@ -1201,9 +1448,12 @@ export default function CreateOrderModal({
             </div>
 
             <div className="px-6 py-4">
-              <label className="mb-1 block text-sm text-slate-600">Remarks</label>
+              <label className="mb-1 flex items-center gap-1.5 text-sm text-slate-600">
+                Remarks
+                {isAmendingActiveOrder && <LockBadge />}
+              </label>
               <textarea
-                className={`${inputClass} min-h-[80px] resize-y`}
+                className={`${isAmendingActiveOrder ? lockedInputClass : inputClass} min-h-[80px] resize-y`}
                 placeholder="Enter remark.."
                 value={form.remarks}
                 disabled={isAmendingActiveOrder}
@@ -1236,6 +1486,15 @@ export default function CreateOrderModal({
                   className="rounded-md bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                 >
                   {editingOrder ? "Update" : "Save"}
+                </button>
+              ) : showClientUpdateAction ? (
+                <button
+                  type="button"
+                  onClick={handleUpdateClientAndNext}
+                  title="Saves these billing/delivery/GST changes to the client master (this session only), then continues"
+                  className="rounded-md bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                  Update &amp; Next
                 </button>
               ) : (
                 <button

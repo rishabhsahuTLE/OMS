@@ -9,6 +9,7 @@ import SearchableSelect from "../../components/SearchableSelect";
 import AmountRangeSlider from "../../components/AmountRangeSlider";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
 import SortArrow from "../../components/SortArrow";
+import OrderPreviewModal from "../../components/OrderPreviewModal";
 import { buildFiscalYearColumns, billsInColumn, toggleSortState, type SortState } from "../../utils";
 
 interface BillingProps {
@@ -231,6 +232,7 @@ export default function Billing({ orders }: BillingProps) {
   const [sort, setSort] = useState<SortState<SortableKey>>({ key: null, direction: "asc" });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(FILTER_CATEGORIES[0].key);
+  const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
 
   const [draft, setDraft] = useState<DrawerFilters>(initialFilters);
   const [applied, setApplied] = useState<DrawerFilters>(initialFilters);
@@ -546,8 +548,14 @@ export default function Billing({ orders }: BillingProps) {
                 >
                   {order.client}
                 </td>
-                <td className={`sticky z-10 whitespace-nowrap px-4 py-2 font-medium text-slate-800 ${highlight.frozen} ${ORDERNO_COL}`}>
-                  {order.orderNo}
+                <td className={`sticky z-10 whitespace-nowrap px-4 py-2 font-medium ${highlight.frozen} ${ORDERNO_COL}`}>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewOrderId(order.id)}
+                    className="text-indigo-700 hover:underline"
+                  >
+                    {order.orderNo}
+                  </button>
                 </td>
                 <td className={`sticky z-10 whitespace-nowrap px-4 py-2 text-slate-700 ${highlight.frozen} ${PRODUCT_COL}`}>
                   {order.product}
@@ -620,6 +628,12 @@ export default function Billing({ orders }: BillingProps) {
       >
         {renderCategoryContent()}
       </FilterDrawer>
+
+      <OrderPreviewModal
+        order={previewOrderId ? orders.find((o) => o.id === previewOrderId) ?? null : null}
+        orders={orders}
+        onClose={() => setPreviewOrderId(null)}
+      />
     </div>
   );
 }

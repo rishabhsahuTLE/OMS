@@ -10,6 +10,7 @@ import AmountRangeSlider from "../components/AmountRangeSlider";
 import FilterDrawer, { type FilterDrawerCategory } from "../components/FilterDrawer";
 import PaginationFooter from "../components/PaginationFooter";
 import SortArrow from "../components/SortArrow";
+import OrderPreviewModal from "../components/OrderPreviewModal";
 
 interface ManagerReportProps {
   orders: OrderRecord[];
@@ -216,8 +217,9 @@ function InnerSortableTh({
   );
 }
 
-function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
+function ManagerOrdersTable({ orders, allOrders }: { orders: OrderRecord[]; allOrders: OrderRecord[] }) {
   const [sort, setSort] = useState<SortState<InnerSortableKey>>({ key: null, direction: "asc" });
+  const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
 
   function toggleSort(key: InnerSortableKey) {
     setSort((prev) => toggleSortState(prev, key));
@@ -251,7 +253,15 @@ function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
           <tbody className="divide-y divide-slate-100">
             {sortedOrders.map((o) => (
               <tr key={o.id} className={`transition-colors ${rowHighlightClass(o)}`}>
-                <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-800">#{o.orderNo}</td>
+                <td className="whitespace-nowrap px-3 py-2 font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewOrderId(o.id)}
+                    className="text-indigo-700 hover:underline"
+                  >
+                    #{o.orderNo}
+                  </button>
+                </td>
                 <td className="whitespace-nowrap px-3 py-2 text-slate-700">{o.product}</td>
                 <td className="max-w-[200px] truncate px-3 py-2 text-slate-700" title={o.client}>
                   {o.client}
@@ -283,6 +293,11 @@ function ManagerOrdersTable({ orders }: { orders: OrderRecord[] }) {
           </tbody>
         </table>
       </div>
+      <OrderPreviewModal
+        order={previewOrderId ? allOrders.find((o) => o.id === previewOrderId) ?? null : null}
+        orders={allOrders}
+        onClose={() => setPreviewOrderId(null)}
+      />
     </div>
   );
 }
@@ -557,7 +572,7 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
                   {open && (
                     <tr>
                       <td colSpan={7} className="bg-slate-50 px-4 py-4">
-                        <ManagerOrdersTable orders={stat.orders} />
+                        <ManagerOrdersTable orders={stat.orders} allOrders={orders} />
                       </td>
                     </tr>
                   )}

@@ -1,8 +1,13 @@
 import { useState } from "react";
 import type { CancellationDetails, OrderRecord } from "../../types";
+import OrderPreviewModal from "../../components/OrderPreviewModal";
 
 interface CancellationConfirmProps {
   orders: OrderRecord[];
+  // Full order list (not just this batch) — needed for the order-preview
+  // modal's predecessor/successor lookups when an order in the batch is an
+  // amendment successor.
+  allOrders: OrderRecord[];
   onBack: () => void;
   onConfirm: (orders: OrderRecord[], details: CancellationDetails) => void;
 }
@@ -19,12 +24,13 @@ function Required() {
 // mandatory closure-request details collected here — applied identically to
 // every order in the selection. The only place closure is ever initiated
 // from, by the order's client manager (Manage Orders tab).
-export default function CancellationConfirm({ orders, onBack, onConfirm }: CancellationConfirmProps) {
+export default function CancellationConfirm({ orders, allOrders, onBack, onConfirm }: CancellationConfirmProps) {
   const [effectFromDate, setEffectFromDate] = useState("");
   const [outstandingBalance, setOutstandingBalance] = useState("");
   const [reason, setReason] = useState("");
   const [comments, setComments] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
 
   const hasInactive = orders.some((o) => o.lifecycleStatus === "inactive");
   const hasActive = orders.some((o) => o.lifecycleStatus !== "inactive");
@@ -58,7 +64,7 @@ export default function CancellationConfirm({ orders, onBack, onConfirm }: Cance
           Back
         </button>
         <h2 className="text-sm font-semibold tracking-wide text-slate-700">
-          Close {orders.length} Order{orders.length > 1 ? "s" : ""}
+          Cancel {orders.length} Order{orders.length > 1 ? "s" : ""}
         </h2>
       </div>
 
@@ -79,7 +85,15 @@ export default function CancellationConfirm({ orders, onBack, onConfirm }: Cance
             <tbody className="divide-y divide-slate-100">
               {orders.map((o) => (
                 <tr key={o.id}>
-                  <td className="px-4 py-2 font-medium text-slate-800">{o.orderNo}</td>
+                  <td className="px-4 py-2 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewOrderId(o.id)}
+                      className="text-indigo-700 hover:underline"
+                    >
+                      {o.orderNo}
+                    </button>
+                  </td>
                   <td className="max-w-[220px] truncate px-4 py-2 text-slate-700" title={o.client}>
                     {o.client}
                   </td>
@@ -95,7 +109,7 @@ export default function CancellationConfirm({ orders, onBack, onConfirm }: Cance
       <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-3">
           <h3 className="text-sm font-semibold tracking-wide text-slate-700">
-            CLOSURE REQUEST <span className="ml-1 text-xs font-normal text-slate-400">(applied to every order above)</span>
+            CANCELLATION REQUEST <span className="ml-1 text-xs font-normal text-slate-400">(applied to every order above)</span>
           </h3>
         </div>
 
@@ -159,23 +173,29 @@ export default function CancellationConfirm({ orders, onBack, onConfirm }: Cance
       <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-6 py-4 shadow-sm">
         <p className="text-sm text-slate-500">
           {hasInactive && hasActive
-            ? "Approval Pending orders in this selection close straight to Closed; Active/Agreement Over ones move to Closure Pending, awaiting TC/FC approval."
+            ? "Orders here that haven't been activated yet will move straight to Cancelled; Active/Agreement Over ones will move into a cancellation-pending status, awaiting TC/FC approval."
             : hasInactive
-            ? "These orders haven't been activated yet, so closing them goes straight to Closed — no Tech/Fin closure approval needed."
-            : "Closing these orders moves them into Closure Pending, where they await TC/FC approval."}
+            ? "These orders haven't been activated yet, so cancelling them moves them straight to Cancelled — no Tech/Fin cancellation approval needed."
+            : "Cancelling these orders moves them into a cancellation-pending status, awaiting TC/FC approval."}
         </p>
         <div className="flex shrink-0 gap-3">
           <button onClick={onBack} className="rounded-md bg-slate-200 px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300">
-            Cancel
+            Back
           </button>
           <button
             onClick={handleConfirm}
             className="rounded-md border border-rose-300 px-5 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50"
           >
-            Confirm Closure
+            Confirm Cancellation
           </button>
         </div>
       </div>
+
+      <OrderPreviewModal
+        order={previewOrderId ? allOrders.find((o) => o.id === previewOrderId) ?? null : null}
+        orders={allOrders}
+        onClose={() => setPreviewOrderId(null)}
+      />
     </div>
   );
 }
