@@ -14,8 +14,10 @@ import {
   YAxis,
   type PieSectorDataItem,
 } from "recharts";
-import type { MainTabId, OrderDisplayStage, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../types";
+import type { Client, MainTabId, OrderDisplayStage, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../types";
+import { CLIENT_TYPES } from "../types";
 import { PRODUCT_NAMES } from "../products";
+import DateRangePicker, { type DateRange } from "../components/DateRangePicker";
 import {
   billsInColumn,
   buildFiscalYearColumns,
@@ -36,6 +38,7 @@ type NavigateFn = (
 
 interface DashboardProps {
   orders: OrderRecord[];
+  clients: Client[];
   onNavigate: NavigateFn;
 }
 
@@ -434,30 +437,65 @@ function buildManagerRows(
   });
 }
 
-export default function Dashboard({ orders, onNavigate }: DashboardProps) {
+function parseISO(d: string) {
+  const [y, m, day] = d.split("-").map(Number);
+  return new Date(y, m - 1, day);
+}
+
+export default function Dashboard({ orders, clients, onNavigate }: DashboardProps) {
   const [selectedProduct, setSelectedProduct] = useState(PRODUCT_NAMES[0]);
   const [selectedProjectionProduct, setSelectedProjectionProduct] = useState(PRODUCT_NAMES[0]);
 
+  // Compact top filter bar — Date (by Order Creation Date, same convention
+  // as every other list page's "Created On" filter), BU (Client Type —
+  // there's no separate Business Unit concept in this app, so it's reused
+  // as-is), and Product. All three narrow `filteredOrders` below, which
+  // every chart/tile on this page is derived from.
+  const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
+  const [buFilter, setBuFilter] = useState<string>("all");
+  const [productFilter, setProductFilter] = useState<string>("all");
+
+  const clientTypeById = useMemo(() => new Map(clients.map((c) => [c.id, c.type])), [clients]);
+
+  const filteredOrders = useMemo(() => {
+    let result = orders;
+    if (dateRange.start && dateRange.end) {
+      const startTime = dateRange.start.getTime();
+      const endTime = dateRange.end.getTime();
+      result = result.filter((o) => {
+        const t = parseISO(o.createdOn).getTime();
+        return t >= startTime && t <= endTime;
+      });
+    }
+    if (buFilter !== "all") {
+      result = result.filter((o) => clientTypeById.get(o.clientId) === buFilter);
+    }
+    if (productFilter !== "all") {
+      result = result.filter((o) => o.product === productFilter);
+    }
+    return result;
+  }, [orders, dateRange, buFilter, productFilter, clientTypeById]);
+
   const stageCounts = useMemo(() => {
     const counts: Record<TileKey, number> = {
-      all: orders.length,
+      all: filteredOrders.length,
       approvalPending: 0,
       active: 0,
       agreementOver: 0,
       closurePending: 0,
       closed: 0,
     };
-    orders.forEach((o) => {
+    filteredOrders.forEach((o) => {
       counts[getDisplayStage(o)]++;
     });
     return counts;
-  }, [orders]);
+  }, [filteredOrders]);
 
   const fyColumns = useMemo(() => buildFiscalYearColumns(new Date()), []);
   const currentColIdx = fyColumns.findIndex((c) => c.isCurrent);
 
   const revenueByProduct = useMemo(() => {
-    const live = orders.filter((o) => o.lifecycleStatus !== "cancelled");
+    const live = filteredOrders.filter((o) => o.lifecycleStatus !== "cancelled");
     return PRODUCT_NAMES.map((product) => {
       const productOrders = live.filter((o) => o.product === product);
       const monthly = fyColumns.map((col) => ({
@@ -467,7 +505,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
       }));
       return { product, monthly };
     });
-  }, [orders, fyColumns]);
+  }, [filteredOrders, fyColumns]);
 
   const selectedProductMonthly = useMemo(
     () => revenueByProduct.find((r) => r.product === selectedProduct)?.monthly ?? [],
@@ -481,14 +519,14 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
       cancellationTechnical: 0,
       cancellationFinancial: 0,
     };
-    orders.forEach((o) => {
+    filteredOrders.forEach((o) => {
       const next = getNextActionableStage(o);
       if (next) counts[next.key]++;
     });
     return (Object.keys(counts) as ApprovalStageKey[])
       .map((key) => ({ key, label: STAGE_PIE_LABELS[key], value: counts[key] }))
       .filter((s) => s.value > 0);
-  }, [orders]);
+  }, [filteredOrders]);
 
   // Priority 1: closure-pending orders (amended predecessors first, oldest
   // first) — these are the "amended/old orders that haven't been closed."
@@ -496,7 +534,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
   // haven't had closure initiated yet — these "need closing" proactively.
   const attentionItems = useMemo(() => {
     const today = todayISO();
-    const closurePending = orders
+    const closurePending = filteredOrders
       .filter((o) => getDisplayStage(o) === "closurePending")
       .map((o) => ({
         order: o,
@@ -507,7 +545,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
 
     if (closurePending.length > 0) return closurePending.slice(0, 10);
 
-    return orders
+    return filteredOrders
       .filter((o) => getDisplayStage(o) === "agreementOver")
       .map((o) => ({
         order: o,
@@ -516,26 +554,29 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
       }))
       .sort((a, b) => b.age - a.age)
       .slice(0, 10);
-  }, [orders]);
+  }, [filteredOrders]);
 
   const notificationItems = useMemo(() => {
-    const events = orders.flatMap(buildOrderNotifications);
+    const events = filteredOrders.flatMap(buildOrderNotifications);
     return events.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, 15);
-  }, [orders]);
+  }, [filteredOrders]);
 
-  const managers = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
+  const managers = useMemo(
+    () => Array.from(new Set(filteredOrders.map((o) => o.clientManager))).sort(),
+    [filteredOrders]
+  );
 
   const revenueSummaryRows = useMemo(
-    () => buildManagerRows(managers, orders, fyColumns, currentColIdx, (o) => totalBilledToDate(o, new Date())),
-    [managers, orders, fyColumns, currentColIdx]
+    () => buildManagerRows(managers, filteredOrders, fyColumns, currentColIdx, (o) => totalBilledToDate(o, new Date())),
+    [managers, filteredOrders, fyColumns, currentColIdx]
   );
 
   const revenueProjectionRows = useMemo(
     () =>
-      buildManagerRows(managers, orders, fyColumns, currentColIdx, (o) =>
+      buildManagerRows(managers, filteredOrders, fyColumns, currentColIdx, (o) =>
         fyColumns.reduce((s, col) => s + (billsInColumn(o, col) ? o.amount : 0), 0)
       ),
-    [managers, orders, fyColumns, currentColIdx]
+    [managers, filteredOrders, fyColumns, currentColIdx]
   );
 
   const managerChartData = useMemo(
@@ -562,6 +603,34 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center gap-2">
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <select
+          value={buFilter}
+          onChange={(e) => setBuFilter(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+        >
+          <option value="all">All BU</option>
+          {CLIENT_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <select
+          value={productFilter}
+          onChange={(e) => setProductFilter(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+        >
+          <option value="all">All Products</option>
+          {PRODUCT_NAMES.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {STAGE_TILES.map((t) => (
           <button

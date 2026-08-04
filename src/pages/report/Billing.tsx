@@ -331,7 +331,13 @@ export default function Billing({ orders }: BillingProps) {
       sortedOrders.map((o) => {
         const monthly = fyColumns.map((col) => (billsInColumn(o, col) ? o.amount : 0));
         const yearlyTotal = monthly.reduce((a, b) => a + b, 0);
-        return { order: o, monthly, yearlyTotal };
+        // Billing has actually been opened (by finance, in Order Management >
+        // Close Billing) and not yet closed — as opposed to merely projected.
+        // There's no per-month open/close date, so every billed month for
+        // this order counts while its billingStatus reads "open".
+        const isOpen = o.billingStatus === "open";
+        const openedRevenue = isOpen ? yearlyTotal : 0;
+        return { order: o, monthly, yearlyTotal, isOpen, openedRevenue };
       }),
     [sortedOrders, fyColumns]
   );
@@ -341,9 +347,10 @@ export default function Billing({ orders }: BillingProps) {
     [rows, fyColumns]
   );
   const grandYearlyTotal = monthTotals.reduce((a, b) => a + b, 0);
+  const grandOpenedRevenue = rows.reduce((sum, r) => sum + r.openedRevenue, 0);
 
   const restIdentityColSpan = 8; // Client Manager, T, F, OCD, OSD, FBD, BC, Amount
-  const totalColumns = 3 + restIdentityColSpan + fyColumns.length + 1;
+  const totalColumns = 3 + restIdentityColSpan + fyColumns.length + 2; // + Yearly Total + Opened Revenue
 
   function renderCategoryContent() {
     switch (activeCategory) {
@@ -464,7 +471,10 @@ export default function Billing({ orders }: BillingProps) {
         <span className="font-medium text-slate-600">FBD:</span> First Billing Date &nbsp;·&nbsp;
         <span className="font-medium text-slate-600">BC:</span> Billing Cycle &nbsp;·&nbsp;
         <span className="font-medium text-slate-600">T:</span> Technically Cleared &nbsp;·&nbsp;
-        <span className="font-medium text-slate-600">F:</span> Financially Cleared
+        <span className="font-medium text-slate-600">F:</span> Financially Cleared &nbsp;·&nbsp;
+        <span className="rounded bg-emerald-100 px-1 font-medium text-emerald-800">Green</span> cells are months
+        where this order's billing has actually been opened (Order Management &gt; Close Billing) and not yet
+        closed — not just projected.
       </p>
 
       <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -515,6 +525,12 @@ export default function Billing({ orders }: BillingProps) {
               <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-2 text-right font-semibold text-slate-600">
                 Yearly Total (₹)
               </th>
+              <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-emerald-50 px-4 py-2 text-right font-semibold text-emerald-800">
+                <span className="inline-flex items-center justify-end gap-1">
+                  Opened Revenue (₹)
+                  <InfoTooltip text="Sum of the green (billing-opened) months for this order" />
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -536,9 +552,12 @@ export default function Billing({ orders }: BillingProps) {
               <td className="sticky top-9 z-10 whitespace-nowrap bg-indigo-50 px-4 py-2 text-right">
                 {grandYearlyTotal.toLocaleString("en-IN")}
               </td>
+              <td className="sticky top-9 z-10 whitespace-nowrap bg-emerald-50 px-4 py-2 text-right text-emerald-900">
+                {grandOpenedRevenue.toLocaleString("en-IN")}
+              </td>
             </tr>
 
-            {rows.map(({ order, monthly, yearlyTotal }) => {
+            {rows.map(({ order, monthly, yearlyTotal, isOpen, openedRevenue }) => {
               const highlight = rowHighlight(order);
               return (
               <tr key={order.id} className={`transition-colors ${highlight.row}`}>
@@ -587,18 +606,28 @@ export default function Billing({ orders }: BillingProps) {
                 <td className="whitespace-nowrap px-4 py-2 text-right text-slate-700">
                   {order.amount.toLocaleString("en-IN")}
                 </td>
-                {monthly.map((amt, idx) => (
-                  <td
-                    key={idx}
-                    className={`whitespace-nowrap px-4 py-2 text-right text-slate-700 ${
-                      fyColumns[idx].isCurrent ? "bg-amber-50" : ""
-                    }`}
-                  >
-                    {amt > 0 ? amt.toLocaleString("en-IN") : "—"}
-                  </td>
-                ))}
+                {monthly.map((amt, idx) => {
+                  const green = amt > 0 && isOpen;
+                  return (
+                    <td
+                      key={idx}
+                      className={`whitespace-nowrap px-4 py-2 text-right ${
+                        green
+                          ? "bg-emerald-100 text-emerald-900"
+                          : fyColumns[idx].isCurrent
+                          ? "bg-amber-50 text-slate-700"
+                          : "text-slate-700"
+                      }`}
+                    >
+                      {amt > 0 ? amt.toLocaleString("en-IN") : "—"}
+                    </td>
+                  );
+                })}
                 <td className="whitespace-nowrap px-4 py-2 text-right font-medium text-slate-800">
                   {yearlyTotal.toLocaleString("en-IN")}
+                </td>
+                <td className="whitespace-nowrap px-4 py-2 text-right font-medium text-emerald-800">
+                  {openedRevenue > 0 ? openedRevenue.toLocaleString("en-IN") : "—"}
                 </td>
               </tr>
               );
