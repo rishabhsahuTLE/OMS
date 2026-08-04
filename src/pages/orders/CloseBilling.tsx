@@ -4,6 +4,7 @@ import { usePagination } from "../../utils";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import PaginationFooter from "../../components/PaginationFooter";
 import OrderPreviewModal from "../../components/OrderPreviewModal";
+import BillingActionConfirm from "./BillingActionConfirm";
 
 interface CloseBillingProps {
   orders: OrderRecord[];
@@ -82,11 +83,19 @@ const ACTION_NEXT_STATUS: Record<PendingAction["kind"], BillingStatus> = {
   reopen: "open",
 };
 
+const ACTION_DESCRIPTION: Record<PendingAction["kind"], string> = {
+  open: "These orders will be marked as billing Open.",
+  close: "These orders will be marked as billing Closed.",
+  reopen: 'These orders will be reopened and moved back to "To Close" — their cancellation status is not affected.',
+};
+
 export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProps) {
   const [tab, setTab] = useState<BillingViewTab>("toOpen");
   const [search, setSearch] = useState("");
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batch, setBatch] = useState<OrderRecord[] | null>(null);
 
   const filtered = useMemo(() => {
     const byTab = orders.filter(TAB_FILTERS[tab]);
@@ -103,6 +112,36 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
     return tab === "toOpen" ? "open" : tab === "toClose" ? "close" : "reopen";
   }
 
+  // Switching tabs changes which orders are even eligible for the current
+  // selection's action, so the checklist starts fresh on every tab switch —
+  // same reasoning as why the selection is scoped to one action at a time.
+  function selectTab(next: BillingViewTab) {
+    setTab(next);
+    setSelectedIds(new Set());
+  }
+
+  const allSelected = pageRows.length > 0 && pageRows.every((o) => selectedIds.has(o.id));
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      if (allSelected) {
+        const next = new Set(prev);
+        pageRows.forEach((o) => next.delete(o.id));
+        return next;
+      }
+      return new Set([...prev, ...pageRows.map((o) => o.id)]);
+    });
+  }
+
   function confirmMessage(action: PendingAction): string {
     if (action.kind === "open") return `Open billing for ${action.order.orderNo}? Its billing status will move to Open.`;
     if (action.kind === "close")
@@ -116,6 +155,27 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
     setPending(null);
   }
 
+  function handleBatchConfirm(selected: OrderRecord[]) {
+    const kind = actionFor();
+    selected.forEach((o) => onUpdateOrder({ ...o, billingStatus: ACTION_NEXT_STATUS[kind] }));
+    setSelectedIds(new Set());
+    setBatch(null);
+  }
+
+  if (batch) {
+    const kind = actionFor();
+    return (
+      <BillingActionConfirm
+        orders={batch}
+        allOrders={orders}
+        actionLabel={ACTION_LABEL[kind]}
+        description={ACTION_DESCRIPTION[kind]}
+        onBack={() => setBatch(null)}
+        onConfirm={handleBatchConfirm}
+      />
+    );
+  }
+
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -124,7 +184,7 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
             <button
               key={t.key}
               type="button"
-              onClick={() => setTab(t.key)}
+              onClick={() => selectTab(t.key)}
               className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                 tab === t.key
                   ? "border border-indigo-200 bg-indigo-50 text-indigo-700"
@@ -155,6 +215,20 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
             className="w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
           />
         </div>
+
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const selected = orders.filter((o) => selectedIds.has(o.id));
+              if (selected.length > 0) setBatch(selected);
+            }}
+            disabled={selectedIds.size === 0}
+            className="rounded-md border border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {ACTION_LABEL[actionFor()]}
+          </button>
+        </div>
       </div>
 
       <p className="text-xs text-slate-500">
@@ -169,6 +243,15 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead>
               <tr>
+                <th className="sticky top-0 z-20 w-10 bg-slate-50 px-4 py-2 text-left">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    disabled={pageRows.length === 0}
+                    className="h-4 w-4"
+                  />
+                </th>
                 <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                   Order #
                 </th>
@@ -197,6 +280,14 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
                 const kind = actionFor();
                 return (
                   <tr key={order.id} className={`transition-colors ${rowClass(order)}`}>
+                    <td className="px-4 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(order.id)}
+                        onChange={() => toggleRow(order.id)}
+                        className="h-4 w-4"
+                      />
+                    </td>
                     <td className="whitespace-nowrap px-4 py-2 font-medium">
                       <button
                         type="button"
@@ -231,7 +322,7 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
               })}
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
                     No orders in this view.
                   </td>
                 </tr>
