@@ -9,7 +9,7 @@ import OrderApproval from "./pages/orders/OrderApproval";
 import CloseBilling from "./pages/orders/CloseBilling";
 import clientsData from "./data/clients.json";
 import { mockOrders } from "./data/mockOrders";
-import { promoteSuccessorOf } from "./utils";
+import { resolveAmendmentOf } from "./utils";
 import type { Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "./types";
 
 function buildPath(
@@ -60,15 +60,15 @@ function App() {
   }
 
   // Central order-update handler — whenever an update lands an order on
-  // "cancelled" (Closed), also check whether some other order is an
-  // amendment successor waiting on this one and promote it to Active in the
-  // same pass (see promoteSuccessorOf in utils.ts).
+  // "active", also check whether it's an amendment successor and cancel the
+  // predecessor it superseded in the same pass (see resolveAmendmentOf in
+  // utils.ts) — the one-process amendment model's sole promotion trigger.
   function handleUpdateOrder(record: OrderRecord) {
     setOrders((prev) => {
       const next = prev.map((o) => (o.id === record.id ? record : o));
-      if (record.lifecycleStatus !== "cancelled") return next;
-      const promoted = promoteSuccessorOf(record, next);
-      return promoted ? next.map((o) => (o.id === promoted.id ? promoted : o)) : next;
+      if (record.lifecycleStatus !== "active") return next;
+      const resolved = resolveAmendmentOf(record, next);
+      return resolved ? next.map((o) => (o.id === resolved.id ? resolved : o)) : next;
     });
   }
 

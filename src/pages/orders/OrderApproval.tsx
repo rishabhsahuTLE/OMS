@@ -18,6 +18,7 @@ import {
   canInitiateClose,
   getDisplayStage,
   getNextActionableStage,
+  hasPendingAmendment,
   initiateClosure,
   toggleSortState,
   usePagination,
@@ -235,18 +236,10 @@ interface NextStepInfo {
 
 // What the Status info popover tells the user for a given order — the next
 // concrete thing that has to happen before it moves further.
-function nextStepInfo(order: OrderRecord, orders: OrderRecord[]): NextStepInfo {
+function nextStepInfo(order: OrderRecord): NextStepInfo {
   const stage = getDisplayStage(order);
 
   if (stage === "approvalPending") {
-    if (order.supersedes && order.technical.status === "confirmed" && order.financial.status === "confirmed") {
-      const predecessor = orders.find((o) => o.id === order.supersedes) ?? null;
-      if (predecessor && predecessor.lifecycleStatus !== "cancelled") {
-        return {
-          message: `Tech and Fin are cleared — waiting on ${predecessor.orderNo} to close before this order can go Active.`,
-        };
-      }
-    }
     const next = getNextActionableStage(order);
     return { message: next ? `Next step: awaiting ${next.label} approval.` : "Awaiting activation." };
   }
@@ -533,12 +526,13 @@ export default function OrderApproval({
     }
   }
 
-  // Confirmed: spawn the successor at "inactive" (Approval Pending, its own
-  // fresh Tech/Fin approval) linked back via `supersedes`, and immediately
-  // move the predecessor into "cancellationInProgress" (Closure Pending) —
-  // its TC/FC approval and the successor's Tech/Fin now run independently
-  // and in parallel. Only once both finish does the successor actually go
-  // Active (see promoteSuccessorOf in utils.ts, wired through App.tsx).
+  // Confirmed: spawn the successor at "inactive" (Amendment Pending, on the
+  // Approvals tab) linked back via `supersedes` — this is the *only* review
+  // the whole amendment gets, one unified Tech/Fin approval. The predecessor
+  // is left fully untouched (still "active", still usable) until that
+  // approval clears; it's never independently sent through its own TC/FC —
+  // see resolveAmendmentOf in utils.ts, wired through App.tsx, which
+  // cancels it in the same pass once the successor goes Active.
   function confirmAmendment() {
     if (!pendingAmendment) return;
     const { original, updated, nextOrderNo } = pendingAmendment;
@@ -557,7 +551,6 @@ export default function OrderApproval({
       // regardless of what the predecessor's own billing status was.
       billingStatus: "notOpened",
     });
-    onUpdateOrder({ ...original, lifecycleStatus: "cancellationInProgress" });
     setPendingAmendment(null);
     setEditingOrder(null);
     setOrderModalOpen(false);
@@ -743,8 +736,14 @@ export default function OrderApproval({
           <tbody className="divide-y divide-slate-100">
             {pageRows.map((order) => {
               const stage = getDisplayStage(order);
-              const canAmend = order.lifecycleStatus === "active";
-              const canClose = canInitiateClose(order);
+              // Suppressed while an amendment against this order is already
+              // pending — its predecessor stays "active" the whole time
+              // (see confirmAmendment/resolveAmendmentOf), so without this
+              // guard a second amendment or a manual cancel could race with
+              // the pending one.
+              const pendingAmendmentAgainstThis = hasPendingAmendment(order, orders);
+              const canAmend = order.lifecycleStatus === "active" && !pendingAmendmentAgainstThis;
+              const canClose = canInitiateClose(order) && !pendingAmendmentAgainstThis;
               return (
                 <tr key={order.id} className={`transition-colors ${rowClass(order)}`}>
                   <td className="px-4 py-2">
@@ -804,7 +803,7 @@ export default function OrderApproval({
                     </div>
                     {openInfoOrderId === order.id &&
                       (() => {
-                        const info = nextStepInfo(order, orders);
+                        const info = nextStepInfo(order);
                         return (
                           <div className="absolute left-4 top-full z-30 mt-1 w-72 rounded-md border border-slate-200 bg-white p-3 text-left text-xs font-normal normal-case text-slate-600 shadow-lg">
                             <p>{info.message}</p>
@@ -882,7 +881,7 @@ export default function OrderApproval({
         title="Confirm Amendment"
         message={
           pendingAmendment
-            ? `${pendingAmendment.nextOrderNo} will be created as Pending, needing fresh Tech/Fin approval. ${pendingAmendment.original.orderNo} will immediately have cancellation initiated, needing TC/FC approval. Once all four are done, ${pendingAmendment.nextOrderNo} will become Active.`
+            ? `${pendingAmendment.nextOrderNo} will be created as an Amendment Pending item on the Approvals tab, needing a single Tech/Fin approval. ${pendingAmendment.original.orderNo} stays fully Active and usable until then — no separate approval needed on it. Once Tech and Fin are both confirmed, ${pendingAmendment.nextOrderNo} becomes Active (sent to Close Billing's To Open) and ${pendingAmendment.original.orderNo} is Cancelled (sent to Close Billing's To Close).`
             : ""
         }
         confirmLabel="Confirm Amendment"

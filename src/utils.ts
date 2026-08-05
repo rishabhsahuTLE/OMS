@@ -221,14 +221,15 @@ export function approvalHistoryStatusLabel(status: ApprovalState): string {
 // next lifecycle stage — inactive -> active once both activation stages are
 // confirmed, cancellationInProgress -> cancelled once both cancellation
 // stages are confirmed. Any other lifecycle stage is left untouched. An
-// amendment successor (has `supersedes` set) stays "inactive" even once its
-// own Tech+Fin clear — it only actually activates once the predecessor it
-// supersedes reaches "cancelled" (see promoteSuccessorOf(), called
-// separately from App.tsx wherever an order update lands on "cancelled").
+// amendment successor (has `supersedes` set) is treated the same as any
+// other inactive order here — its own Tech+Fin approval is the entire
+// review for the amendment (see resolveAmendmentOf(), which reacts to this
+// function landing a successor on "active" by cancelling its predecessor in
+// the same pass — called from App.tsx wherever an order update lands on
+// "active").
 export function withRecomputedLifecycle(order: OrderRecord): OrderRecord {
   if (
     order.lifecycleStatus === "inactive" &&
-    !order.supersedes &&
     order.technical.status === "confirmed" &&
     order.financial.status === "confirmed"
   ) {
@@ -244,20 +245,46 @@ export function withRecomputedLifecycle(order: OrderRecord): OrderRecord {
   return order;
 }
 
-// Runs whenever an update makes `closedOrder.lifecycleStatus` become
-// "cancelled" — finds the successor (if any) waiting on it, i.e. the order
-// whose `supersedes` points here and whose own Tech+Fin are already
-// confirmed, and promotes just that one to "active". Returns null if no
-// successor is waiting yet (e.g. its own Tech+Fin haven't cleared).
-export function promoteSuccessorOf(closedOrder: OrderRecord, allOrders: OrderRecord[]): OrderRecord | null {
-  const successor = allOrders.find(
-    (o) =>
-      o.supersedes === closedOrder.id &&
-      o.lifecycleStatus === "inactive" &&
-      o.technical.status === "confirmed" &&
-      o.financial.status === "confirmed"
-  );
-  return successor ? { ...successor, lifecycleStatus: "active" } : null;
+// Runs whenever an update makes `activatedOrder.lifecycleStatus` become
+// "active" — if it's an amendment successor (has `supersedes` set), the
+// predecessor it superseded is cancelled in the same pass. There's no
+// separate TC/FC review for the predecessor under this one-process
+// amendment model, so its cancellation stages are synthesized as confirmed
+// (rather than left permanently "pending") to keep its Approval History
+// truthful, and its billing status is forced open so it lands in Close
+// Billing's "To Close" regardless of what it was before.
+export function resolveAmendmentOf(activatedOrder: OrderRecord, allOrders: OrderRecord[]): OrderRecord | null {
+  if (!activatedOrder.supersedes) return null;
+  const predecessor = allOrders.find((o) => o.id === activatedOrder.supersedes);
+  if (!predecessor || predecessor.lifecycleStatus === "cancelled") return null;
+  const today = todayISO();
+  const synthesizedStage: StageStatus = {
+    status: "confirmed",
+    date: today,
+    processedBy: "System",
+    remark: "Cancelled via approved amendment",
+  };
+  return {
+    ...predecessor,
+    lifecycleStatus: "cancelled",
+    billingStatus: "open",
+    cancellationTechnical: synthesizedStage,
+    cancellationFinancial: synthesizedStage,
+  };
+}
+
+// True for an amendment successor still awaiting its unified Tech+Fin
+// approval — the Approvals tab's dedicated "Amendment Pending" bucket.
+export function isAmendmentPending(order: OrderRecord): boolean {
+  return !!order.supersedes && order.lifecycleStatus === "inactive";
+}
+
+// True if some other order is a pending amendment against this one — used
+// to suppress Manage Orders' Amend/Cancel actions on a predecessor while its
+// amendment is still awaiting approval, so a second amendment or a manual
+// cancel-initiation can't race with it.
+export function hasPendingAmendment(order: OrderRecord, allOrders: OrderRecord[]): boolean {
+  return allOrders.some((o) => o.supersedes === order.id && o.lifecycleStatus === "inactive");
 }
 
 // Whether closure can be initiated on this order right now — any stage

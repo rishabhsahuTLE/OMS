@@ -15,6 +15,7 @@ import {
   formatDDMMYYYY,
   getDisplayStage,
   getNextActionableStage,
+  isAmendmentPending,
   toggleSortState,
   usePagination,
   type ActionableStage,
@@ -27,15 +28,19 @@ interface OrderPageProps {
   onUpdateOrder: (record: OrderRecord) => void;
 }
 
-// Pending-only: this tab only ever shows orders still awaiting a Tech/Fin or
-// TC/FC decision — Active/Agreement Over/Closed orders have nothing to
-// approve and never appear here. "All" is a combined pending view, kept for
-// consistency with every other list page in this app.
-type ViewTab = "all" | "approvalPending" | "closurePending";
+// Pending-only: this tab only ever shows orders still awaiting a decision —
+// Active/Agreement Over/Closed orders have nothing to approve and never
+// appear here. "All" is a combined pending view, kept for consistency with
+// every other list page in this app. "amendmentPending" is a carve-out of
+// "approvalPending" for amendment successors (see isAmendmentPending in
+// utils.ts) — they get their own unified Tech/Fin review here instead of
+// mixing into the plain Approval Pending queue.
+type ViewTab = "all" | "approvalPending" | "amendmentPending" | "closurePending";
 
 const VIEW_TABS: { key: ViewTab; label: string }[] = [
   { key: "all", label: "All" },
   { key: "approvalPending", label: "Approval Pending" },
+  { key: "amendmentPending", label: "Amendment Pending" },
   { key: "closurePending", label: "Cancellation Pending" },
 ];
 
@@ -299,7 +304,10 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
     applied.dateRange.end !== null;
 
   const filtered = useMemo(() => {
-    let result = tab === "all" ? pendingOrders : pendingOrders.filter((o) => getDisplayStage(o) === tab);
+    let result = pendingOrders;
+    if (tab === "amendmentPending") result = result.filter((o) => isAmendmentPending(o));
+    else if (tab === "approvalPending") result = result.filter((o) => getDisplayStage(o) === "approvalPending" && !isAmendmentPending(o));
+    else if (tab === "closurePending") result = result.filter((o) => getDisplayStage(o) === "closurePending");
 
     if (applied.client !== "all") result = result.filter((o) => o.client === applied.client);
     if (applied.product !== "all") result = result.filter((o) => o.product === applied.product);
@@ -418,12 +426,12 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
   const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(filtered);
 
   // Column visibility per tab: TC/FC are meaningless while still Approval
-  // Pending (cancellation hasn't started); Tech/Fin are already both
-  // confirmed by definition for anything Cancellation Pending, so showing
-  // them again there is just noise. "All" shows every column since rows are
-  // a mix of both kinds.
+  // Pending or Amendment Pending (cancellation hasn't started, and
+  // amendments never use TC/FC at all); Tech/Fin are already both confirmed
+  // by definition for anything Cancellation Pending, so showing them again
+  // there is just noise. "All" shows every column since rows are a mix.
   const showTechFin = tab !== "closurePending";
-  const showTcFc = tab !== "approvalPending";
+  const showTcFc = tab === "all" || tab === "closurePending";
   const badgeColCount = (showTechFin ? 2 : 0) + (showTcFc ? 2 : 0);
   const totalCols = 8 + badgeColCount; // Order#, Client, Product, Manager, Amount, OCD, Status, Action
 
@@ -599,8 +607,12 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
                     </td>
                   )}
                   <td className="whitespace-nowrap px-4 py-2">
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STAGE_BADGE_CLASS[stage]}`}>
-                      {STAGE_LABELS[stage]}
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        isAmendmentPending(order) ? "bg-violet-100 text-violet-800" : STAGE_BADGE_CLASS[stage]
+                      }`}
+                    >
+                      {isAmendmentPending(order) ? "Amendment Pending" : STAGE_LABELS[stage]}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-4 py-2">
