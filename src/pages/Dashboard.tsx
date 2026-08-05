@@ -71,34 +71,6 @@ const PRODUCT_COLORS: Record<string, string> = {
   Quirio: "#eb6834",
 };
 
-// A macOS-style sliding switch (Wi-Fi/Bluetooth toggle look) rather than two
-// independently-colored buttons — one pill glides between the two slots on
-// click, with the labels layered on top so it still reads as text, not a
-// bare on/off. Assumes exactly two options (true for PRODUCT_NAMES today).
-function ProductToggle({ value, onChange }: { value: string; onChange: (product: string) => void }) {
-  const activeIndex = PRODUCT_NAMES.indexOf(value);
-  return (
-    <div className="relative flex w-40 shrink-0 rounded-full border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium">
-      <div
-        className="absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-indigo-600 shadow-sm transition-transform duration-200 ease-out"
-        style={{ transform: `translateX(${activeIndex * 100}%)` }}
-      />
-      {PRODUCT_NAMES.map((product) => (
-        <button
-          key={product}
-          type="button"
-          onClick={() => onChange(product)}
-          className={`relative z-10 flex-1 rounded-full px-3 py-1.5 text-center transition-colors duration-200 ${
-            value === product ? "text-white" : "text-slate-600 hover:text-slate-800"
-          }`}
-        >
-          {product}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 const STAGE_PIE_COLORS: Record<ApprovalStageKey, string> = {
   technical: "#e87ba4",
   financial: "#008300",
@@ -442,18 +414,46 @@ function parseISO(d: string) {
   return new Date(y, m - 1, day);
 }
 
-export default function Dashboard({ orders, clients, onNavigate }: DashboardProps) {
-  const [selectedProduct, setSelectedProduct] = useState(PRODUCT_NAMES[0]);
-  const [selectedProjectionProduct, setSelectedProjectionProduct] = useState(PRODUCT_NAMES[0]);
+// Date filter is preset-driven (past 1/3/6 months, last year) rather than a
+// bare calendar — "custom" is the one case that falls back to the calendar
+// popover for a manual range.
+type DatePreset = "all" | "1m" | "3m" | "6m" | "1y" | "custom";
 
+const DATE_PRESET_OPTIONS: { key: DatePreset; label: string }[] = [
+  { key: "all", label: "All Time" },
+  { key: "1m", label: "Past 1 Month" },
+  { key: "3m", label: "Past 3 Months" },
+  { key: "6m", label: "Past 6 Months" },
+  { key: "1y", label: "Last Year" },
+  { key: "custom", label: "Custom Range" },
+];
+
+function computePresetRange(preset: DatePreset): DateRange {
+  if (preset === "all" || preset === "custom") return { start: null, end: null };
+  const end = new Date();
+  const start = new Date(end);
+  if (preset === "1m") start.setMonth(start.getMonth() - 1);
+  else if (preset === "3m") start.setMonth(start.getMonth() - 3);
+  else if (preset === "6m") start.setMonth(start.getMonth() - 6);
+  else if (preset === "1y") start.setFullYear(start.getFullYear() - 1);
+  return { start, end };
+}
+
+export default function Dashboard({ orders, clients, onNavigate }: DashboardProps) {
   // Compact top filter bar — Date (by Order Creation Date, same convention
   // as every other list page's "Created On" filter), BU (Client Type —
   // there's no separate Business Unit concept in this app, so it's reused
   // as-is), and Product. All three narrow `filteredOrders` below, which
   // every chart/tile on this page is derived from.
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
   const [buFilter, setBuFilter] = useState<string>("all");
   const [productFilter, setProductFilter] = useState<string>("all");
+
+  function handleDatePresetChange(preset: DatePreset) {
+    setDatePreset(preset);
+    setDateRange(computePresetRange(preset));
+  }
 
   const clientTypeById = useMemo(() => new Map(clients.map((c) => [c.id, c.type])), [clients]);
 
@@ -494,23 +494,25 @@ export default function Dashboard({ orders, clients, onNavigate }: DashboardProp
   const fyColumns = useMemo(() => buildFiscalYearColumns(new Date()), []);
   const currentColIdx = fyColumns.findIndex((c) => c.isCurrent);
 
-  const revenueByProduct = useMemo(() => {
+  // Stacked by product (LMS + Quirio) per month — replaces the old
+  // single-product toggle now that the universal Product filter up top
+  // already covers narrowing to one product; this shows both at once
+  // instead of needing a per-chart selector.
+  const monthlyRevenueChartData = useMemo(() => {
     const live = filteredOrders.filter((o) => o.lifecycleStatus !== "cancelled");
-    return PRODUCT_NAMES.map((product) => {
-      const productOrders = live.filter((o) => o.product === product);
-      const monthly = fyColumns.map((col) => ({
+    return fyColumns.map((col) => {
+      const row: { month: string; isCurrent: boolean; [product: string]: string | number | boolean } = {
         month: col.label,
-        amount: productOrders.reduce((sum, o) => sum + (billsInColumn(o, col) ? o.amount : 0), 0),
         isCurrent: col.isCurrent,
-      }));
-      return { product, monthly };
+      };
+      PRODUCT_NAMES.forEach((product) => {
+        row[product] = live
+          .filter((o) => o.product === product)
+          .reduce((sum, o) => sum + (billsInColumn(o, col) ? o.amount : 0), 0);
+      });
+      return row;
     });
   }, [filteredOrders, fyColumns]);
-
-  const selectedProductMonthly = useMemo(
-    () => revenueByProduct.find((r) => r.product === selectedProduct)?.monthly ?? [],
-    [revenueByProduct, selectedProduct]
-  );
 
   const stageStuck = useMemo(() => {
     const counts: Record<ApprovalStageKey, number> = {
@@ -590,21 +592,35 @@ export default function Dashboard({ orders, clients, onNavigate }: DashboardProp
     [revenueSummaryRows]
   );
 
+  // Same stacked-by-product shape as managerChartData above, for the same
+  // reason — no per-chart product toggle now that the universal filter
+  // covers it.
   const managerProjectionChartData = useMemo(
     () =>
-      revenueProjectionRows
+      [...revenueProjectionRows]
+        .sort((a, b) => b.grandTotal - a.grandTotal)
         .map((r) => ({
           manager: r.manager,
-          value: r.perProduct.find((p) => p.product === selectedProjectionProduct)?.total ?? 0,
-        }))
-        .sort((a, b) => b.value - a.value),
-    [revenueProjectionRows, selectedProjectionProduct]
+          ...Object.fromEntries(r.perProduct.map((p) => [p.product, p.total])),
+        })),
+    [revenueProjectionRows]
   );
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
+      <div className="sticky top-0 z-30 flex flex-wrap items-center justify-end gap-2 bg-slate-100 py-2">
+        <select
+          value={datePreset}
+          onChange={(e) => handleDatePresetChange(e.target.value as DatePreset)}
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+        >
+          {DATE_PRESET_OPTIONS.map((o) => (
+            <option key={o.key} value={o.key}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {datePreset === "custom" && <DateRangePicker value={dateRange} onChange={setDateRange} />}
         <select
           value={buFilter}
           onChange={(e) => setBuFilter(e.target.value)}
@@ -646,14 +662,11 @@ export default function Dashboard({ orders, clients, onNavigate }: DashboardProp
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-slate-700">
-            {selectedProduct} Revenue — FY {fyColumns[0].year}–{fyColumns[11].year}
-          </h3>
-          <ProductToggle value={selectedProduct} onChange={setSelectedProduct} />
-        </div>
+        <h3 className="mb-3 text-sm font-semibold text-slate-700">
+          Revenue — FY {fyColumns[0].year}–{fyColumns[11].year}
+        </h3>
         <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={selectedProductMonthly} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <BarChart data={monthlyRevenueChartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid vertical={false} stroke="#e1e0d9" />
             <XAxis
               dataKey="month"
@@ -669,14 +682,27 @@ export default function Dashboard({ orders, clients, onNavigate }: DashboardProp
               tickFormatter={(v: number) => `₹${(v / 100000).toFixed(0)}L`}
             />
             <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar
-              dataKey="amount"
-              radius={[4, 4, 0, 0]}
-              fill={PRODUCT_COLORS[selectedProduct]}
+              dataKey="LMS"
+              stackId="revenue"
+              fill={PRODUCT_COLORS.LMS}
               className="cursor-pointer"
-              onClick={() => onNavigate("report", "billing", { product: selectedProduct })}
+              onClick={() => onNavigate("report", "billing", { product: "LMS" })}
             >
-              {selectedProductMonthly.map((m, i) => (
+              {monthlyRevenueChartData.map((m, i) => (
+                <Cell key={i} fillOpacity={m.isCurrent ? 1 : 0.7} />
+              ))}
+            </Bar>
+            <Bar
+              dataKey="Quirio"
+              stackId="revenue"
+              fill={PRODUCT_COLORS.Quirio}
+              radius={[4, 4, 0, 0]}
+              className="cursor-pointer"
+              onClick={() => onNavigate("report", "billing", { product: "Quirio" })}
+            >
+              {monthlyRevenueChartData.map((m, i) => (
                 <Cell key={i} fillOpacity={m.isCurrent ? 1 : 0.7} />
               ))}
             </Bar>
@@ -789,12 +815,9 @@ export default function Dashboard({ orders, clients, onNavigate }: DashboardProp
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-slate-700">
-            Revenue Projection by Account Manager — FY {fyColumns[0].year}–{fyColumns[11].year}
-          </h3>
-          <ProductToggle value={selectedProjectionProduct} onChange={setSelectedProjectionProduct} />
-        </div>
+        <h3 className="mb-3 text-sm font-semibold text-slate-700">
+          Revenue Projection by Account Manager — FY {fyColumns[0].year}–{fyColumns[11].year}
+        </h3>
         <ResponsiveContainer width="100%" height={Math.max(220, managerProjectionChartData.length * 32)}>
           <BarChart
             data={managerProjectionChartData}
@@ -818,10 +841,21 @@ export default function Dashboard({ orders, clients, onNavigate }: DashboardProp
               tickLine={false}
             />
             <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar
-              dataKey="value"
+              dataKey="LMS"
+              stackId="revenue"
+              fill={PRODUCT_COLORS.LMS}
+              className="cursor-pointer"
+              onClick={(data) =>
+                onNavigate("report", "managerReport", { manager: (data.payload as { manager: string }).manager })
+              }
+            />
+            <Bar
+              dataKey="Quirio"
+              stackId="revenue"
+              fill={PRODUCT_COLORS.Quirio}
               radius={[0, 4, 4, 0]}
-              fill={PRODUCT_COLORS[selectedProjectionProduct]}
               className="cursor-pointer"
               onClick={(data) =>
                 onNavigate("report", "managerReport", { manager: (data.payload as { manager: string }).manager })
