@@ -123,6 +123,14 @@ export interface OrderRecord {
   amount: number;
   amended: boolean;
   billingStatus: BillingStatus;
+  // The actual window billing ran in — set by Close Billing's Open/Close/
+  // Reopen actions. Distinct from lifecycleStatus/billingStatus: this is
+  // what the Billing report's green highlighting is keyed off, since
+  // billingStatus alone carries no dates. Reopening clears billingClosedOn
+  // and keeps the original billingOpenedOn (undoing the mistaken close
+  // rather than starting a new window).
+  billingOpenedOn: string | null;
+  billingClosedOn: string | null;
   // Set only on an amendment successor — the id of the order it was amended
   // from (the one immediately cancelled to make way for it). Used to look up
   // predecessor/successor pairs unambiguously, even across several

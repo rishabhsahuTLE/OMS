@@ -88,6 +88,25 @@ export function billsInColumn(order: OrderRecord, col: FyColumn): boolean {
   return diff % step === 0;
 }
 
+// Was this order's billing actually open (opened, not yet closed) during the
+// given fiscal-year column's month? Independent of billsInColumn — this is
+// the real opened-to-closed window (billingOpenedOn/billingClosedOn), not
+// the projected occurrence schedule, so it can be true even for a month with
+// no billing occurrence in between.
+export function isBillingOpenInColumn(order: OrderRecord, col: FyColumn): boolean {
+  if (!order.billingOpenedOn) return false;
+  const [oy, om] = order.billingOpenedOn.split("-").map(Number);
+  const openedIdx = oy * 12 + (om - 1);
+  const colIdx = col.year * 12 + col.month0;
+  if (colIdx < openedIdx) return false;
+  if (order.billingClosedOn) {
+    const [cy, cm] = order.billingClosedOn.split("-").map(Number);
+    const closedIdx = cy * 12 + (cm - 1);
+    if (colIdx > closedIdx) return false;
+  }
+  return true;
+}
+
 // Every billing occurrence of `order` from its first billing month up to (and
 // including) `reference`'s month, bounded by agreement length if set — used
 // for "revenue collected to date" rather than a single fiscal-year window.

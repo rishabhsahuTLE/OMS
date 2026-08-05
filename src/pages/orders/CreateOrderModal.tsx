@@ -748,6 +748,29 @@ export default function CreateOrderModal({
 
   const showClientUpdateAction = activePage === "client" && clientBillingDirty;
 
+  // Nothing about this amendment has actually changed yet — compares every
+  // field an amendment is allowed to touch (Product, its rate/users field,
+  // Plan, First Billing Month, Agreement, Advance) against the order being
+  // amended. Blocks Update rather than silently re-saving an identical
+  // order, per the same "don't let a no-op amendment through" requirement
+  // as the client-billing-details dirty check above.
+  const amendmentUnchanged = useMemo(() => {
+    if (!isAmendingActiveOrder || !editingOrder) return false;
+    if (selectedProduct !== editingOrder.product) return false;
+    if (form.plan !== editingOrder.details.plan) return false;
+    if (form.firstBillingMonth !== editingOrder.details.firstBillingMonth) return false;
+    if (toNumber(form.agreement) !== editingOrder.details.agreement) return false;
+    if (toNumber(form.advance) !== editingOrder.details.advance) return false;
+    for (const key of AMENDMENT_EDITABLE_PRODUCT_FIELDS) {
+      const newVal = productValues[key] ?? "";
+      const oldVal = toFieldString(
+        editingOrder.details[key as keyof OrderRecordDetails] as string | number | null | undefined
+      );
+      if (newVal !== oldVal) return false;
+    }
+    return true;
+  }, [isAmendingActiveOrder, editingOrder, selectedProduct, form.plan, form.firstBillingMonth, form.agreement, form.advance, productValues]);
+
   function handleUpdateClientAndNext() {
     if (!client) return;
     onUpdateClient({
@@ -765,6 +788,7 @@ export default function CreateOrderModal({
 
   function handleSave() {
     if (!client || !currentProduct) return;
+    if (amendmentUnchanged) return;
     const nextErrors: Record<string, string> = {};
     if (!form.billingAddress.trim()) nextErrors.billingAddress = "Billing address is required";
     if (!form.billingState) nextErrors.billingState = "Billing state is required";
@@ -846,6 +870,8 @@ export default function CreateOrderModal({
         billingCycle: form.billingCycle,
         amended: false,
         billingStatus: "notOpened",
+        billingOpenedOn: null,
+        billingClosedOn: null,
         details,
       });
     }
@@ -1463,6 +1489,13 @@ export default function CreateOrderModal({
           </>
         )}
 
+        {ready && client && currentProduct && isLastPage && amendmentUnchanged && (
+          <p className="border-t border-slate-200 bg-amber-50 px-6 py-2 text-xs text-amber-700">
+            No changes made — change at least one editable field (Product, No. of Users/Rate, Payment Terms, First
+            Billing Month, Agreement, or Advance) to amend this order.
+          </p>
+        )}
+
         {ready && client && currentProduct && (
           <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-6 py-4">
             <button
@@ -1483,7 +1516,9 @@ export default function CreateOrderModal({
               {isLastPage ? (
                 <button
                   onClick={handleSave}
-                  className="rounded-md bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                  disabled={amendmentUnchanged}
+                  title={amendmentUnchanged ? "No changes made yet" : undefined}
+                  className="rounded-md bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {editingOrder ? "Update" : "Save"}
                 </button>

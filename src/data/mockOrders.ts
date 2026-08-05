@@ -124,7 +124,13 @@ clients.forEach((client, cliIdx) => {
     // Finance-owned billing status, seeded independently of the
     // Tech/Fin/TC/FC approval chain so the new Close Billing tab's three
     // categories (To Open / To Close / Closed) each have demo rows.
+    // billingOpenedOn/billingClosedOn mark the actual window billing ran in
+    // (as opposed to the projection Billing.tsx computes from
+    // firstBillingMonth/billingCycle/agreement) — the Billing report's green
+    // highlighting is keyed off this window, not off billingStatus alone.
     let billingStatus: BillingStatus = "notOpened";
+    let billingOpenedOn: string | null = null;
+    let billingClosedOn: string | null = null;
     if (isFullyConfirmed) {
       const bucket = fullyConfirmedCount % 3;
       amended = fullyConfirmedCount % 5 === 2;
@@ -135,17 +141,21 @@ clients.forEach((client, cliIdx) => {
         // Cancelled orders are mostly still awaiting billing closure (open),
         // with a deterministic minority already closed by finance.
         billingStatus = fullyConfirmedCount % 4 === 3 ? "closed" : "open";
+        billingOpenedOn = makeDate(finOffset + 3);
+        if (billingStatus === "closed") billingClosedOn = makeDate(finOffset + 12 + 10);
       } else if (bucket === 1) {
         lifecycleStatus = "cancellationInProgress";
         cancellationTechnical = withMeta({ status: "confirmed", date: makeDate(finOffset + 5) }, orderIndex);
         // Cancellation was only ever initiated on an order whose billing was
         // already running.
         billingStatus = "open";
+        billingOpenedOn = makeDate(finOffset + 3);
       } else {
         lifecycleStatus = "active";
         // Active orders are mostly billing-open, with a deterministic
         // minority still awaiting finance's initial "Open Billing" action.
         billingStatus = fullyConfirmedCount % 3 === 0 ? "notOpened" : "open";
+        if (billingStatus === "open") billingOpenedOn = makeDate(finOffset + 3);
       }
       fullyConfirmedCount++;
     }
@@ -168,6 +178,8 @@ clients.forEach((client, cliIdx) => {
       amount,
       amended,
       billingStatus,
+      billingOpenedOn,
+      billingClosedOn,
       details: {
         clientManager,
         billingAddress: client.billingAddress,

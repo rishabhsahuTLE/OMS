@@ -10,7 +10,7 @@ import AmountRangeSlider from "../../components/AmountRangeSlider";
 import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
 import SortArrow from "../../components/SortArrow";
 import OrderPreviewModal from "../../components/OrderPreviewModal";
-import { buildFiscalYearColumns, billsInColumn, toggleSortState, type SortState } from "../../utils";
+import { buildFiscalYearColumns, billsInColumn, isBillingOpenInColumn, toggleSortState, type SortState } from "../../utils";
 
 interface BillingProps {
   orders: OrderRecord[];
@@ -331,13 +331,15 @@ export default function Billing({ orders }: BillingProps) {
       sortedOrders.map((o) => {
         const monthly = fyColumns.map((col) => (billsInColumn(o, col) ? o.amount : 0));
         const yearlyTotal = monthly.reduce((a, b) => a + b, 0);
-        // Billing has actually been opened (by finance, in Order Management >
-        // Close Billing) and not yet closed — as opposed to merely projected.
-        // There's no per-month open/close date, so every billed month for
-        // this order counts while its billingStatus reads "open".
-        const isOpen = o.billingStatus === "open";
-        const openedRevenue = isOpen ? yearlyTotal : 0;
-        return { order: o, monthly, yearlyTotal, isOpen, openedRevenue };
+        // Billing was actually open (opened, not yet closed, by finance in
+        // Order Management > Close Billing) during that specific month — as
+        // opposed to merely projected. This is keyed off the real
+        // billingOpenedOn/billingClosedOn window, so a month inside that
+        // window still counts even if it has no billing occurrence of its
+        // own (billsInColumn false, monthly[idx] === 0).
+        const openFlags = fyColumns.map((col) => isBillingOpenInColumn(o, col));
+        const openedRevenue = monthly.reduce((sum, amt, idx) => sum + (openFlags[idx] ? amt : 0), 0);
+        return { order: o, monthly, yearlyTotal, openFlags, openedRevenue };
       }),
     [sortedOrders, fyColumns]
   );
@@ -472,9 +474,9 @@ export default function Billing({ orders }: BillingProps) {
         <span className="font-medium text-slate-600">BC:</span> Billing Cycle &nbsp;·&nbsp;
         <span className="font-medium text-slate-600">T:</span> Technically Cleared &nbsp;·&nbsp;
         <span className="font-medium text-slate-600">F:</span> Financially Cleared &nbsp;·&nbsp;
-        <span className="rounded bg-emerald-100 px-1 font-medium text-emerald-800">Green</span> cells are months
-        where this order's billing has actually been opened (Order Management &gt; Close Billing) and not yet
-        closed — not just projected.
+        <span className="rounded bg-emerald-100 px-1 font-medium text-emerald-800">Green</span> spans every month
+        from when this order's billing was actually opened through when it was closed (Order Management &gt; Close
+        Billing) — including months with no billing occurrence in between — not just the projected/billed months.
       </p>
 
       <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -557,7 +559,7 @@ export default function Billing({ orders }: BillingProps) {
               </td>
             </tr>
 
-            {rows.map(({ order, monthly, yearlyTotal, isOpen, openedRevenue }) => {
+            {rows.map(({ order, monthly, yearlyTotal, openFlags, openedRevenue }) => {
               const highlight = rowHighlight(order);
               return (
               <tr key={order.id} className={`transition-colors ${highlight.row}`}>
@@ -607,7 +609,7 @@ export default function Billing({ orders }: BillingProps) {
                   {order.amount.toLocaleString("en-IN")}
                 </td>
                 {monthly.map((amt, idx) => {
-                  const green = amt > 0 && isOpen;
+                  const green = openFlags[idx];
                   return (
                     <td
                       key={idx}

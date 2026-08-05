@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { BillingStatus, OrderRecord } from "../../types";
-import { usePagination } from "../../utils";
+import { formatDDMMYYYY, todayISO, usePagination } from "../../utils";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import PaginationFooter from "../../components/PaginationFooter";
 import OrderPreviewModal from "../../components/OrderPreviewModal";
@@ -77,11 +77,21 @@ const ACTION_LABEL: Record<PendingAction["kind"], string> = {
   reopen: "Reopen",
 };
 
-const ACTION_NEXT_STATUS: Record<PendingAction["kind"], BillingStatus> = {
-  open: "open",
-  close: "closed",
-  reopen: "open",
-};
+// Open starts a fresh window (today -> ongoing). Close ends the current
+// window today, leaving its start date untouched. Reopen undoes a mistaken
+// close — it clears the end date but keeps the original start date, rather
+// than starting a new window, since the closure being reversed was itself
+// the mistake.
+function applyBillingAction(order: OrderRecord, kind: PendingAction["kind"]): OrderRecord {
+  const today = todayISO();
+  if (kind === "open") {
+    return { ...order, billingStatus: "open", billingOpenedOn: today, billingClosedOn: null };
+  }
+  if (kind === "close") {
+    return { ...order, billingStatus: "closed", billingClosedOn: today };
+  }
+  return { ...order, billingStatus: "open", billingClosedOn: null };
+}
 
 const ACTION_DESCRIPTION: Record<PendingAction["kind"], string> = {
   open: "These orders will be marked as billing Open.",
@@ -107,6 +117,10 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
   }, [orders, tab, search]);
 
   const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(filtered);
+
+  const showApprovedOn = tab === "toOpen";
+  const showCancelledOn = tab === "toClose";
+  const totalCols = 8 + (showApprovedOn ? 1 : 0) + (showCancelledOn ? 1 : 0);
 
   function actionFor(): PendingAction["kind"] {
     return tab === "toOpen" ? "open" : tab === "toClose" ? "close" : "reopen";
@@ -151,13 +165,13 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
 
   function handleConfirm() {
     if (!pending) return;
-    onUpdateOrder({ ...pending.order, billingStatus: ACTION_NEXT_STATUS[pending.kind] });
+    onUpdateOrder(applyBillingAction(pending.order, pending.kind));
     setPending(null);
   }
 
   function handleBatchConfirm(selected: OrderRecord[]) {
     const kind = actionFor();
-    selected.forEach((o) => onUpdateOrder({ ...o, billingStatus: ACTION_NEXT_STATUS[kind] }));
+    selected.forEach((o) => onUpdateOrder(applyBillingAction(o, kind)));
     setSelectedIds(new Set());
     setBatch(null);
   }
@@ -270,6 +284,16 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
                 <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                   Billing Status
                 </th>
+                {showApprovedOn && (
+                  <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
+                    Approved On
+                  </th>
+                )}
+                {showCancelledOn && (
+                  <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
+                    Cancelled On
+                  </th>
+                )}
                 <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                   Action
                 </th>
@@ -308,6 +332,16 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
                     <td className="whitespace-nowrap px-4 py-2">
                       <BillingStatusBadge status={order.billingStatus} />
                     </td>
+                    {showApprovedOn && (
+                      <td className="whitespace-nowrap px-4 py-2 text-slate-700">
+                        {order.financial.date ? formatDDMMYYYY(order.financial.date) : "—"}
+                      </td>
+                    )}
+                    {showCancelledOn && (
+                      <td className="whitespace-nowrap px-4 py-2 text-slate-700">
+                        {order.cancellationFinancial.date ? formatDDMMYYYY(order.cancellationFinancial.date) : "—"}
+                      </td>
+                    )}
                     <td className="whitespace-nowrap px-4 py-2">
                       <button
                         type="button"
@@ -322,7 +356,7 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
               })}
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={totalCols} className="px-4 py-8 text-center text-slate-400">
                     No orders in this view.
                   </td>
                 </tr>

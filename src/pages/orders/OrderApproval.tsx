@@ -550,6 +550,8 @@ export default function OrderApproval({
       // Fresh successor, not yet activated — billing hasn't started
       // regardless of what the predecessor's own billing status was.
       billingStatus: "notOpened",
+      billingOpenedOn: null,
+      billingClosedOn: null,
     });
     setPendingAmendment(null);
     setEditingOrder(null);
