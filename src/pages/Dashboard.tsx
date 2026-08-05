@@ -14,8 +14,7 @@ import {
   YAxis,
   type PieSectorDataItem,
 } from "recharts";
-import type { Client, MainTabId, OrderDisplayStage, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../types";
-import { CLIENT_TYPES } from "../types";
+import type { MainTabId, OrderDisplayStage, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../types";
 import { PRODUCT_NAMES } from "../products";
 import DateRangePicker, { type DateRange } from "../components/DateRangePicker";
 import {
@@ -38,9 +37,12 @@ type NavigateFn = (
 
 interface DashboardProps {
   orders: OrderRecord[];
-  clients: Client[];
   onNavigate: NavigateFn;
 }
+
+// Placeholder options only — there's no real Business Unit field on any
+// order/client in this app yet, so this select doesn't filter anything.
+const BU_OPTIONS = ["Univ-Ops", "Premiere Institutes", "Univ BD", "IMPACT", "Enterprise", "Enterprise CEP"];
 
 function formatINR(n: number) {
   return `₹${n.toLocaleString("en-IN")}`;
@@ -439,12 +441,13 @@ function computePresetRange(preset: DatePreset): DateRange {
   return { start, end };
 }
 
-export default function Dashboard({ orders, clients, onNavigate }: DashboardProps) {
+export default function Dashboard({ orders, onNavigate }: DashboardProps) {
   // Compact top filter bar — Date (by Order Creation Date, same convention
   // as every other list page's "Created On" filter), BU (Client Type —
-  // there's no separate Business Unit concept in this app, so it's reused
-  // as-is), and Product. All three narrow `filteredOrders` below, which
-  // every chart/tile on this page is derived from.
+  // there's no real Business Unit data in this app — the BU select is
+  // presentational only (placeholder options, not wired to any filter);
+  // Date and Product still narrow `filteredOrders` below, which every
+  // chart/tile on this page is derived from.
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
   const [buFilter, setBuFilter] = useState<string>("all");
@@ -454,8 +457,6 @@ export default function Dashboard({ orders, clients, onNavigate }: DashboardProp
     setDatePreset(preset);
     setDateRange(computePresetRange(preset));
   }
-
-  const clientTypeById = useMemo(() => new Map(clients.map((c) => [c.id, c.type])), [clients]);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -467,14 +468,11 @@ export default function Dashboard({ orders, clients, onNavigate }: DashboardProp
         return t >= startTime && t <= endTime;
       });
     }
-    if (buFilter !== "all") {
-      result = result.filter((o) => clientTypeById.get(o.clientId) === buFilter);
-    }
     if (productFilter !== "all") {
       result = result.filter((o) => o.product === productFilter);
     }
     return result;
-  }, [orders, dateRange, buFilter, productFilter, clientTypeById]);
+  }, [orders, dateRange, productFilter]);
 
   const stageCounts = useMemo(() => {
     const counts: Record<TileKey, number> = {
@@ -632,10 +630,10 @@ export default function Dashboard({ orders, clients, onNavigate }: DashboardProp
           onChange={(e) => setBuFilter(e.target.value)}
           className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
         >
-          <option value="all">All BU</option>
-          {CLIENT_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
+          <option value="all">All Business Units</option>
+          {BU_OPTIONS.map((bu) => (
+            <option key={bu} value={bu}>
+              {bu}
             </option>
           ))}
         </select>

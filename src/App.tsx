@@ -81,7 +81,7 @@ function App() {
           <main className="flex-1 overflow-auto p-6">
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard orders={orders} clients={clients} onNavigate={handleSelect} />} />
+              <Route path="/dashboard" element={<Dashboard orders={orders} onNavigate={handleSelect} />} />
               <Route path="/report" element={<Navigate to="/report/approval" replace />} />
               <Route path="/report/:subTab" element={<Report orders={orders} />} />
               <Route path="/orders" element={<Navigate to="/orders/approval" replace />} />
