@@ -608,7 +608,13 @@ export default function Dashboard({ orders, clients, onNavigate }: DashboardProp
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="sticky top-0 z-30 flex flex-wrap items-center justify-end gap-2 bg-slate-100 py-2">
+      {/* -mt-6/-top-6 cancel out <main>'s own p-6 top padding (App.tsx) — that
+          padding doesn't scroll away, so without this the bar would always
+          sit stuck 24px below the real top of the viewport, with a
+          permanent gap of page background showing above it. pt-6 puts that
+          same 24px back as this element's own padding instead, so the
+          visual spacing looks identical but now scrolls/sticks correctly. */}
+      <div className="sticky -top-6 -mt-6 z-30 flex flex-wrap items-center justify-end gap-2 bg-slate-100 pt-6 pb-2">
         <select
           value={datePreset}
           onChange={(e) => handleDatePresetChange(e.target.value as DatePreset)}
