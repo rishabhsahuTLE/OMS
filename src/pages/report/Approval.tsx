@@ -52,11 +52,13 @@ const AMOUNT_MAX_LAKH = 50;
 const selectClass =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
 
+// Merged into two sections (rather than one category per field) so
+// applying several filters doesn't mean re-clicking the left rail for each
+// one — General groups the identity selects, Amount & Date groups the two
+// range-style filters.
 const FILTER_CATEGORIES: FilterDrawerCategory[] = [
-  { key: "product", label: "Product" },
-  { key: "manager", label: "Manager" },
-  { key: "amount", label: "Amount" },
-  { key: "date", label: "Creation Date" },
+  { key: "general", label: "General" },
+  { key: "range", label: "Amount & Date" },
 ];
 
 interface DrawerFilters {
@@ -215,63 +217,64 @@ export default function Approval({ orders }: ApprovalProps) {
 
   function renderCategoryContent() {
     switch (activeCategory) {
-      case "product":
+      case "general":
         return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Product</label>
-            <select
-              value={draft.product}
-              onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
-              className={selectClass}
-            >
-              <option value="all">All products</option>
-              {PRODUCT_NAMES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-        );
-      case "manager":
-        return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Manager</label>
-            <select
-              value={draft.manager}
-              onChange={(e) => setDraft((prev) => ({ ...prev, manager: e.target.value }))}
-              className={selectClass}
-            >
-              <option value="all">All managers</option>
-              {managerOptions.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
-        );
-      case "amount":
-        return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Amount</label>
-            <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
-              <AmountRangeSlider
-                min={0}
-                max={AMOUNT_MAX_LAKH}
-                minValue={draft.minLakh}
-                maxValue={draft.maxLakh}
-                onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
-              />
+          <div className="flex flex-col gap-6">
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Product</label>
+              <select
+                value={draft.product}
+                onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
+                className={selectClass}
+              >
+                <option value="all">All products</option>
+                {PRODUCT_NAMES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Manager</label>
+              <select
+                value={draft.manager}
+                onChange={(e) => setDraft((prev) => ({ ...prev, manager: e.target.value }))}
+                className={selectClass}
+              >
+                <option value="all">All managers</option>
+                {managerOptions.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         );
-      case "date":
+      case "range":
         return (
-          <InlineDateRangeCalendar
-            value={draft.dateRange}
-            onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
-          />
+          <div className="flex flex-col gap-6">
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Amount</label>
+              <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
+                <AmountRangeSlider
+                  min={0}
+                  max={AMOUNT_MAX_LAKH}
+                  minValue={draft.minLakh}
+                  maxValue={draft.maxLakh}
+                  onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Creation Date</label>
+              <InlineDateRangeCalendar
+                value={draft.dateRange}
+                onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
+              />
+            </div>
+          </div>
         );
       default:
         return null;

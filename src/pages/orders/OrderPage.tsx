@@ -123,12 +123,13 @@ function SortableTh({
   );
 }
 
+// Merged into two sections (rather than one category per field) so
+// applying several filters doesn't mean re-clicking the left rail for each
+// one — General groups the identity selects, Amount & Date groups the two
+// range-style filters.
 const FILTER_CATEGORIES: FilterDrawerCategory[] = [
-  { key: "client", label: "Client" },
-  { key: "product", label: "Product" },
-  { key: "manager", label: "Client Manager" },
-  { key: "amount", label: "Amount" },
-  { key: "date", label: "Created On" },
+  { key: "general", label: "General" },
+  { key: "range", label: "Amount & Date" },
 ];
 
 interface DrawerFilters {
@@ -350,67 +351,65 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
 
   function renderCategoryContent() {
     switch (activeCategory) {
-      case "client":
+      case "general":
         return (
-          <SearchableSelect
-            label="Client"
-            allLabel="All Clients"
-            options={clientOptions}
-            value={draft.client}
-            onChange={(v) => setDraft((prev) => ({ ...prev, client: v }))}
-            searchPlaceholder="Search clients…"
-          />
-        );
-      case "product":
-        return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Product</label>
-            <select
-              value={draft.product}
-              onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            >
-              <option value="all">All Products</option>
-              {PRODUCT_NAMES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-col gap-6">
+            <SearchableSelect
+              label="Client"
+              allLabel="All Clients"
+              options={clientOptions}
+              value={draft.client}
+              onChange={(v) => setDraft((prev) => ({ ...prev, client: v }))}
+              searchPlaceholder="Search clients…"
+            />
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Product</label>
+              <select
+                value={draft.product}
+                onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              >
+                <option value="all">All Products</option>
+                {PRODUCT_NAMES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <SearchableSelect
+              label="Client Manager"
+              allLabel="All Managers"
+              options={managerOptions}
+              value={draft.manager}
+              onChange={(v) => setDraft((prev) => ({ ...prev, manager: v }))}
+              searchPlaceholder="Search managers…"
+            />
           </div>
         );
-      case "manager":
+      case "range":
         return (
-          <SearchableSelect
-            label="Client Manager"
-            allLabel="All Managers"
-            options={managerOptions}
-            value={draft.manager}
-            onChange={(v) => setDraft((prev) => ({ ...prev, manager: v }))}
-            searchPlaceholder="Search managers…"
-          />
-        );
-      case "amount":
-        return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Amount</label>
-            <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
-              <AmountRangeSlider
-                min={0}
-                max={AMOUNT_MAX_LAKH}
-                minValue={draft.minLakh}
-                maxValue={draft.maxLakh}
-                onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
+          <div className="flex flex-col gap-6">
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Amount</label>
+              <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
+                <AmountRangeSlider
+                  min={0}
+                  max={AMOUNT_MAX_LAKH}
+                  minValue={draft.minLakh}
+                  maxValue={draft.maxLakh}
+                  onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Created On</label>
+              <InlineDateRangeCalendar
+                value={draft.dateRange}
+                onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
               />
             </div>
           </div>
-        );
-      case "date":
-        return (
-          <InlineDateRangeCalendar
-            value={draft.dateRange}
-            onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
-          />
         );
       default:
         return null;

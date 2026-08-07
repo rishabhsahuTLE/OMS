@@ -37,11 +37,13 @@ const defaultFilters: Filters = {
   dateRange: { start: null, end: null },
 };
 
+// Merged into two sections (rather than one category per field) so
+// applying several filters doesn't mean re-clicking the left rail for each
+// one — General groups the identity selects, Amount & Date groups the two
+// range-style filters.
 const OUTER_FILTER_CATEGORIES: FilterDrawerCategory[] = [
-  { key: "manager", label: "Account Manager" },
-  { key: "product", label: "Product" },
-  { key: "amount", label: "Amount" },
-  { key: "date", label: "Date" },
+  { key: "general", label: "General" },
+  { key: "range", label: "Amount & Date" },
 ];
 
 type OuterSortableKey = "manager" | "total" | "technical" | "financial" | "confirmed" | "rejected" | "amount";
@@ -398,56 +400,57 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
 
   function renderCategoryContent() {
     switch (activeCategory) {
-      case "manager":
+      case "general":
         return (
-          <SearchableSelect
-            label="Account Manager"
-            allLabel="--Select Account Manager--"
-            options={managerOptions}
-            value={draft.manager}
-            onChange={(v) => setDraft((prev) => ({ ...prev, manager: v }))}
-            searchPlaceholder="Search managers…"
-          />
-        );
-      case "product":
-        return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Service</label>
-            <select
-              value={draft.product}
-              onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
-              className={selectClass}
-            >
-              <option value="all">All</option>
-              {PRODUCT_NAMES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-        );
-      case "amount":
-        return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Order Amount (₹)</label>
-            <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
-              <AmountRangeSlider
-                min={0}
-                max={AMOUNT_MAX_LAKH}
-                minValue={draft.minLakh}
-                maxValue={draft.maxLakh}
-                onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
-              />
+          <div className="flex flex-col gap-6">
+            <SearchableSelect
+              label="Account Manager"
+              allLabel="--Select Account Manager--"
+              options={managerOptions}
+              value={draft.manager}
+              onChange={(v) => setDraft((prev) => ({ ...prev, manager: v }))}
+              searchPlaceholder="Search managers…"
+            />
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Service</label>
+              <select
+                value={draft.product}
+                onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
+                className={selectClass}
+              >
+                <option value="all">All</option>
+                {PRODUCT_NAMES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         );
-      case "date":
+      case "range":
         return (
-          <InlineDateRangeCalendar
-            value={draft.dateRange}
-            onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
-          />
+          <div className="flex flex-col gap-6">
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Order Amount (₹)</label>
+              <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
+                <AmountRangeSlider
+                  min={0}
+                  max={AMOUNT_MAX_LAKH}
+                  minValue={draft.minLakh}
+                  maxValue={draft.maxLakh}
+                  onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Date</label>
+              <InlineDateRangeCalendar
+                value={draft.dateRange}
+                onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
+              />
+            </div>
+          </div>
         );
       default:
         return null;

@@ -144,13 +144,13 @@ function InfoTooltip({ text }: { text: string }) {
   );
 }
 
+// Merged into two sections (rather than one category per field) so
+// applying several filters doesn't mean re-clicking the left rail for each
+// one — General groups the identity selects, Amount/Status/Date groups the
+// remaining range- and set-style filters.
 const FILTER_CATEGORIES: FilterDrawerCategory[] = [
-  { key: "client", label: "Client" },
-  { key: "product", label: "Product" },
-  { key: "manager", label: "Client Manager" },
-  { key: "amount", label: "Amount" },
-  { key: "status", label: "Order Status" },
-  { key: "date", label: "Created On" },
+  { key: "general", label: "General" },
+  { key: "range", label: "Amount, Status & Date" },
 ];
 
 interface DrawerFilters {
@@ -356,86 +356,81 @@ export default function Billing({ orders }: BillingProps) {
 
   function renderCategoryContent() {
     switch (activeCategory) {
-      case "client":
+      case "general":
         return (
-          <SearchableSelect
-            label="Client"
-            allLabel="All Clients"
-            options={clientOptions}
-            value={draft.client}
-            onChange={(v) => setDraft((prev) => ({ ...prev, client: v }))}
-            searchPlaceholder="Search clients…"
-          />
-        );
-      case "product":
-        return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Product</label>
-            <select
-              value={draft.product}
-              onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
-              className={selectClass}
-            >
-              <option value="all">All Products</option>
-              {PRODUCT_NAMES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-col gap-6">
+            <SearchableSelect
+              label="Client"
+              allLabel="All Clients"
+              options={clientOptions}
+              value={draft.client}
+              onChange={(v) => setDraft((prev) => ({ ...prev, client: v }))}
+              searchPlaceholder="Search clients…"
+            />
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Product</label>
+              <select
+                value={draft.product}
+                onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
+                className={selectClass}
+              >
+                <option value="all">All Products</option>
+                {PRODUCT_NAMES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <SearchableSelect
+              label="Client Manager"
+              allLabel="All Managers"
+              options={managerOptions}
+              value={draft.manager}
+              onChange={(v) => setDraft((prev) => ({ ...prev, manager: v }))}
+              searchPlaceholder="Search managers…"
+            />
           </div>
         );
-      case "manager":
+      case "range":
         return (
-          <SearchableSelect
-            label="Client Manager"
-            allLabel="All Managers"
-            options={managerOptions}
-            value={draft.manager}
-            onChange={(v) => setDraft((prev) => ({ ...prev, manager: v }))}
-            searchPlaceholder="Search managers…"
-          />
-        );
-      case "amount":
-        return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Amount</label>
-            <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
-              <AmountRangeSlider
-                min={0}
-                max={AMOUNT_MAX_LAKH}
-                minValue={draft.minLakh}
-                maxValue={draft.maxLakh}
-                onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
+          <div className="flex flex-col gap-6">
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Amount</label>
+              <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
+                <AmountRangeSlider
+                  min={0}
+                  max={AMOUNT_MAX_LAKH}
+                  minValue={draft.minLakh}
+                  maxValue={draft.maxLakh}
+                  onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Order Status</label>
+              <div className="flex flex-col gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2.5 shadow-sm">
+                {STATUS_BUCKETS.map((b) => (
+                  <label key={b.key} className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={draft.statusBuckets.has(b.key)}
+                      onChange={() => toggleDraftBucket(b.key)}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-1 focus:ring-indigo-400"
+                    />
+                    {b.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">Created On</label>
+              <InlineDateRangeCalendar
+                value={draft.dateRange}
+                onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
               />
             </div>
           </div>
-        );
-      case "status":
-        return (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">Order Status</label>
-            <div className="flex flex-col gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2.5 shadow-sm">
-              {STATUS_BUCKETS.map((b) => (
-                <label key={b.key} className="flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={draft.statusBuckets.has(b.key)}
-                    onChange={() => toggleDraftBucket(b.key)}
-                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-1 focus:ring-indigo-400"
-                  />
-                  {b.label}
-                </label>
-              ))}
-            </div>
-          </div>
-        );
-      case "date":
-        return (
-          <InlineDateRangeCalendar
-            value={draft.dateRange}
-            onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
-          />
         );
       default:
         return null;
