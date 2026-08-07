@@ -1,10 +1,16 @@
 import { useMemo, useState } from "react";
 import type { BillingStatus, OrderRecord } from "../../types";
 import { formatDDMMYYYY, todayISO, usePagination } from "../../utils";
+import { PRODUCT_NAMES } from "../../products";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import PaginationFooter from "../../components/PaginationFooter";
 import OrderPreviewModal from "../../components/OrderPreviewModal";
 import BillingActionConfirm from "./BillingActionConfirm";
+import FilterDrawer, { type FilterDrawerCategory } from "../../components/FilterDrawer";
+import SearchableSelect from "../../components/SearchableSelect";
+import AmountRangeSlider from "../../components/AmountRangeSlider";
+import InlineDateRangeCalendar from "../../components/InlineDateRangeCalendar";
+import type { DateRange } from "../../components/DateRangePicker";
 
 interface CloseBillingProps {
   orders: OrderRecord[];
@@ -99,6 +105,42 @@ const ACTION_DESCRIPTION: Record<PendingAction["kind"], string> = {
   reopen: 'These orders will be reopened and moved back to "To Close" — their cancellation status is not affected.',
 };
 
+const AMOUNT_MAX_LAKH = 50;
+
+const FILTER_CATEGORIES: FilterDrawerCategory[] = [
+  { key: "client", label: "Client" },
+  { key: "product", label: "Product" },
+  { key: "manager", label: "Client Manager" },
+  { key: "amount", label: "Amount" },
+  { key: "date", label: "Created On" },
+];
+
+interface DrawerFilters {
+  client: string;
+  product: string;
+  manager: string;
+  minLakh: number;
+  maxLakh: number;
+  dateRange: DateRange;
+}
+
+const defaultDrawerFilters: DrawerFilters = {
+  client: "all",
+  product: "all",
+  manager: "all",
+  minLakh: 0,
+  maxLakh: AMOUNT_MAX_LAKH,
+  dateRange: { start: null, end: null },
+};
+
+function FunnelIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M3 4a1 1 0 011-1h12a1 1 0 01.8 1.6L12 12v4a1 1 0 01-.45.83l-2 1.34A1 1 0 018 17.3V12L3.2 4.6A1 1 0 013 4z" />
+    </svg>
+  );
+}
+
 export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProps) {
   const [tab, setTab] = useState<BillingViewTab>("toOpen");
   const [search, setSearch] = useState("");
@@ -107,14 +149,137 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batch, setBatch] = useState<OrderRecord[] | null>(null);
 
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState(FILTER_CATEGORIES[0].key);
+  const [draft, setDraft] = useState<DrawerFilters>(defaultDrawerFilters);
+  const [applied, setApplied] = useState<DrawerFilters>(defaultDrawerFilters);
+
+  const clientOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.client))).sort(), [orders]);
+  const managerOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
+
+  function openDrawer() {
+    setDraft(applied);
+    setDrawerOpen(true);
+  }
+
+  function handleApply() {
+    setApplied(draft);
+    setDrawerOpen(false);
+  }
+
+  function handleClear() {
+    setDraft(defaultDrawerFilters);
+    setApplied(defaultDrawerFilters);
+  }
+
+  const hasActiveFilters =
+    applied.client !== "all" ||
+    applied.product !== "all" ||
+    applied.manager !== "all" ||
+    applied.minLakh !== 0 ||
+    applied.maxLakh !== AMOUNT_MAX_LAKH ||
+    applied.dateRange.start !== null ||
+    applied.dateRange.end !== null;
+
   const filtered = useMemo(() => {
-    const byTab = orders.filter(TAB_FILTERS[tab]);
+    let result = orders.filter(TAB_FILTERS[tab]);
+
+    if (applied.client !== "all") result = result.filter((o) => o.client === applied.client);
+    if (applied.product !== "all") result = result.filter((o) => o.product === applied.product);
+    if (applied.manager !== "all") result = result.filter((o) => o.clientManager === applied.manager);
+
+    const minRupees = applied.minLakh * 100_000;
+    const maxRupees = applied.maxLakh >= AMOUNT_MAX_LAKH ? Infinity : applied.maxLakh * 100_000;
+    result = result.filter((o) => o.amount >= minRupees && o.amount <= maxRupees);
+
+    if (applied.dateRange.start && applied.dateRange.end) {
+      const startTime = applied.dateRange.start.getTime();
+      const endTime = applied.dateRange.end.getTime();
+      result = result.filter((o) => {
+        const [y, m, d] = o.createdOn.split("-").map(Number);
+        const t = new Date(y, m - 1, d).getTime();
+        return t >= startTime && t <= endTime;
+      });
+    }
+
     const q = search.trim().toLowerCase();
-    if (!q) return byTab;
-    return byTab.filter(
-      (o) => o.client.toLowerCase().includes(q) || o.orderNo.toLowerCase().includes(q) || o.clientManager.toLowerCase().includes(q)
-    );
-  }, [orders, tab, search]);
+    if (q) {
+      result = result.filter(
+        (o) => o.client.toLowerCase().includes(q) || o.orderNo.toLowerCase().includes(q) || o.clientManager.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [orders, tab, applied, search]);
+
+  function renderCategoryContent() {
+    switch (activeCategory) {
+      case "client":
+        return (
+          <SearchableSelect
+            label="Client"
+            allLabel="All Clients"
+            options={clientOptions}
+            value={draft.client}
+            onChange={(v) => setDraft((prev) => ({ ...prev, client: v }))}
+            searchPlaceholder="Search clients…"
+          />
+        );
+      case "product":
+        return (
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">Product</label>
+            <select
+              value={draft.product}
+              onChange={(e) => setDraft((prev) => ({ ...prev, product: e.target.value }))}
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            >
+              <option value="all">All Products</option>
+              {PRODUCT_NAMES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      case "manager":
+        return (
+          <SearchableSelect
+            label="Client Manager"
+            allLabel="All Managers"
+            options={managerOptions}
+            value={draft.manager}
+            onChange={(v) => setDraft((prev) => ({ ...prev, manager: v }))}
+            searchPlaceholder="Search managers…"
+          />
+        );
+      case "amount":
+        return (
+          <div>
+            <label className="mb-1 block text-sm text-slate-600">Amount</label>
+            <div className="rounded-md border border-slate-300 bg-white px-3 py-3 shadow-sm">
+              <AmountRangeSlider
+                min={0}
+                max={AMOUNT_MAX_LAKH}
+                minValue={draft.minLakh}
+                maxValue={draft.maxLakh}
+                onChange={(mn, mx) => setDraft((prev) => ({ ...prev, minLakh: mn, maxLakh: mx }))}
+              />
+            </div>
+          </div>
+        );
+      case "date":
+        return (
+          <InlineDateRangeCalendar
+            value={draft.dateRange}
+            onChange={(range) => setDraft((prev) => ({ ...prev, dateRange: range }))}
+          />
+        );
+      default:
+        return null;
+    }
+  }
 
   const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(filtered);
 
@@ -229,6 +394,15 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
             className="w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
           />
         </div>
+        <button
+          type="button"
+          onClick={openDrawer}
+          className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+          aria-label="Open filters"
+        >
+          <FunnelIcon />
+          {hasActiveFilters && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500" />}
+        </button>
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <button
@@ -388,6 +562,19 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
         orders={orders}
         onClose={() => setPreviewOrderId(null)}
       />
+
+      <FilterDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="Close Billing Filters"
+        categories={FILTER_CATEGORIES}
+        activeCategory={activeCategory}
+        onSelectCategory={setActiveCategory}
+        onClear={handleClear}
+        onApply={handleApply}
+      >
+        {renderCategoryContent()}
+      </FilterDrawer>
     </div>
   );
 }

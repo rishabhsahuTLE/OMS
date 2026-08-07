@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { ApprovalState, CancellationDetails, Client, OrderDisplayStage, OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
@@ -218,6 +218,14 @@ function BackIcon() {
   );
 }
 
+function ChevronDownIcon() {
+  return (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="M5 7l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function InfoIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
@@ -301,6 +309,22 @@ export default function OrderApproval({
   const [cancelBatch, setCancelBatch] = useState<OrderRecord[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
+  const [actionMenuOrderId, setActionMenuOrderId] = useState<string | null>(null);
+  const actionMenuRef = useRef<HTMLDivElement>(null);
+
+  // A single row-action dropdown (Amend/Cancel) is open at a time — close it
+  // on any click outside its own trigger+menu wrapper, same pattern as
+  // SearchableSelect's outside-click handling.
+  useEffect(() => {
+    if (!actionMenuOrderId) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setActionMenuOrderId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [actionMenuOrderId]);
 
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [sort, setSort] = useState<SortState<SortableKey>>({ key: null, direction: "asc" });
@@ -823,25 +847,51 @@ export default function OrderApproval({
                       })()}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2">
-                    <div className="flex items-center gap-2">
-                      {canAmend && (
+                    {canAmend || canClose ? (
+                      <div
+                        ref={actionMenuOrderId === order.id ? actionMenuRef : undefined}
+                        className="relative inline-block text-left"
+                      >
                         <button
-                          onClick={() => handleAmendClick(order)}
-                          className="rounded-md border border-indigo-300 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50"
+                          type="button"
+                          onClick={() => setActionMenuOrderId((id) => (id === order.id ? null : order.id))}
+                          className="flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                         >
-                          Amend
+                          Actions
+                          <ChevronDownIcon />
                         </button>
-                      )}
-                      {canClose && (
-                        <button
-                          onClick={() => openCancelBatch([order])}
-                          className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                      {!canAmend && !canClose && <span className="text-xs text-slate-400">—</span>}
-                    </div>
+                        {actionMenuOrderId === order.id && (
+                          <div className="absolute left-0 top-full z-30 mt-1 w-36 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                            {canAmend && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActionMenuOrderId(null);
+                                  handleAmendClick(order);
+                                }}
+                                className="block w-full px-3 py-2 text-left text-xs font-medium text-indigo-600 hover:bg-indigo-50"
+                              >
+                                Amend
+                              </button>
+                            )}
+                            {canClose && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActionMenuOrderId(null);
+                                  openCancelBatch([order]);
+                                }}
+                                className="block w-full px-3 py-2 text-left text-xs font-medium text-rose-600 hover:bg-rose-50"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
                   </td>
                 </tr>
               );
