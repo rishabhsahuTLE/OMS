@@ -82,7 +82,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard orders={orders} onNavigate={handleSelect} />} />
-              <Route path="/report" element={<Navigate to="/report/approval" replace />} />
+              <Route path="/report" element={<Navigate to="/report/billing" replace />} />
               <Route path="/report/:subTab" element={<Report orders={orders} />} />
               <Route path="/orders" element={<Navigate to="/orders/approval" replace />} />
               <Route

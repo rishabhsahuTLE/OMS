@@ -435,3 +435,15 @@ export function getNextActionableStage(order: OrderRecord): ActionableStage | nu
   }
   return null;
 }
+
+// True once an order's single actionable stage (per getNextActionableStage —
+// Tech/Fin normally, TC/FC once a cancellation is in progress) has been
+// rejected. A rejected stage never advances the lifecycle
+// (withRecomputedLifecycle only reacts to "confirmed") and
+// getNextActionableStage keeps re-offering the same stage indefinitely, so
+// this is durable "stuck" state, not a transient one.
+export function isStuckInRejectedApproval(order: OrderRecord): boolean {
+  const actionable = getNextActionableStage(order);
+  if (!actionable) return false;
+  return order[actionable.key].status === "rejected";
+}

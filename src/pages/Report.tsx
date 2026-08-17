@@ -9,15 +9,15 @@ interface ReportProps {
 }
 
 const REPORT_TABS: { key: ReportSubTabId; label: string }[] = [
-  { key: "approval", label: "Approval" },
   { key: "billing", label: "Billing" },
+  { key: "approval", label: "Approval" },
   { key: "managerReport", label: "Manager Report" },
 ];
 
 export default function Report({ orders }: ReportProps) {
   const { subTab } = useParams<{ subTab: string }>();
   const navigate = useNavigate();
-  const activeTab = (subTab as ReportSubTabId) || "approval";
+  const activeTab = (subTab as ReportSubTabId) || "billing";
 
   return (
     <div className="flex h-full flex-col gap-4">

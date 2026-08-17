@@ -108,7 +108,7 @@ export default function Sidebar({
         </button>
 
         <button
-          onClick={() => onSelect("report", "approval")}
+          onClick={() => onSelect("report", "billing")}
           className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
             !expanded ? "justify-center" : ""
           } ${

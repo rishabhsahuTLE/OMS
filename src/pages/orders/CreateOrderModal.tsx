@@ -5,7 +5,7 @@ import type { BillingCycle, Client, OrderRecord, OrderRecordDetails, Spoc } from
 import { STATES, CITIES_BY_STATE } from "../../types";
 import { getProduct, PRODUCT_NAMES } from "../../products";
 import type { ProductFormValues } from "../../products";
-import { nextOrderNumber, todayISO } from "../../utils";
+import { CURRENT_USER_EMAIL, deriveCreatedByName, nextOrderNumber, todayISO } from "../../utils";
 
 interface CreateOrderModalProps {
   open: boolean;
@@ -245,7 +245,7 @@ const readonlyInputClass =
 const inputClass =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
 // Distinct from readonlyInputClass: readonlyInputClass means "never editable
-// on this form" (Client Name, Net Amount, ...); lockedInputClass means
+// on this form" (Client Manager, Net Amount, ...); lockedInputClass means
 // "normally editable, but locked right now because you're amending an active
 // order" — the dashed border is the one visual cue that separates the two.
 const lockedInputClass =
@@ -378,6 +378,7 @@ function YesNoRow({
 }
 
 interface FormState {
+  name: string;
   billingAddress: string;
   billingState: string;
   billingCity: string;
@@ -400,6 +401,7 @@ interface FormState {
 }
 
 const emptyForm: FormState = {
+  name: "",
   billingAddress: "",
   billingState: "",
   billingCity: "",
@@ -501,6 +503,11 @@ export default function CreateOrderModal({
       setSelectedClientId(editingOrder.clientId);
       setSelectedProduct(editingOrder.product);
       setForm({
+        // No per-order name snapshot exists (unlike billingAddress, which
+        // reads from the order's own details) — read the live client master
+        // instead, falling back to the order's own client string if that
+        // client record is somehow gone.
+        name: clients.find((c) => c.id === editingOrder.clientId)?.name ?? editingOrder.client,
         billingAddress: editingOrder.details.billingAddress,
         billingState: editingOrder.details.billingState,
         billingCity: editingOrder.details.billingCity,
@@ -535,6 +542,12 @@ export default function CreateOrderModal({
     }
     setErrors({});
     setActivePage("client");
+    // Deliberately excludes `clients`: this effect re-syncs the whole form
+    // when the modal opens or the editing target changes, not whenever the
+    // client master mutates — including `clients` here would wipe the
+    // in-progress selection every time "Update & Next" edits the client
+    // master (which updates this same `clients` array).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editingOrder, prefillClientId, prefillProduct]);
 
   // Whenever the chosen product changes, reset its product-specific fields —
@@ -558,16 +571,32 @@ export default function CreateOrderModal({
     }
   }, [open, currentProduct, editingOrder]);
 
-  // Reset SPOCs and re-seed billing/delivery/GST fields from the client
+  // Reset SPOCs and re-seed name/billing/delivery/GST fields from the client
   // master whenever the client changes on a new (non-editing) order, so a
   // previously-picked client's contacts/address don't linger after switching
-  // clients.
+  // clients. SPOCs seed to the client's own default contact (or a blank
+  // required row) plus the order creator as an extra, editable/removable
+  // row — satisfies "add the creator as one of the SPOCs" without displacing
+  // the required, business-contact row at index 0.
   useEffect(() => {
     if (!open || editingOrder) return;
-    setSpocs([]);
     const c = clients.find((cl) => cl.id === selectedClientId) ?? null;
+    setSpocs(
+      c
+        ? [
+            ...(c.spocs.length ? [c.spocs[0]] : [{ ...emptySpoc }]),
+            {
+              name: deriveCreatedByName(CURRENT_USER_EMAIL),
+              email: CURRENT_USER_EMAIL,
+              mobile: "",
+              remarks: "Order Creator",
+            },
+          ]
+        : []
+    );
     setForm((prev) => ({
       ...prev,
+      name: c?.name ?? "",
       billingAddress: c?.billingAddress ?? "",
       billingState: c?.billingState ?? "",
       billingCity: c?.billingCity ?? "",
@@ -670,6 +699,7 @@ export default function CreateOrderModal({
       case "client":
         return (
           ready &&
+          !!form.name.trim() &&
           !!form.billingAddress.trim() &&
           !!form.billingState &&
           !!form.deliveryAddress.trim() &&
@@ -713,7 +743,7 @@ export default function CreateOrderModal({
   }
 
   function pageForErrors(errs: Record<string, string>): PageKey {
-    if (errs.billingAddress || errs.billingState || errs.deliveryAddress || errs.deliveryState) return "client";
+    if (errs.name || errs.billingAddress || errs.billingState || errs.deliveryAddress || errs.deliveryState) return "client";
     if (errs.spocName || errs.spocMobile) return "contact";
     return "order";
   }
@@ -738,7 +768,8 @@ export default function CreateOrderModal({
   const clientBillingDirty =
     !!client &&
     !isAmendingActiveOrder &&
-    (form.billingAddress !== client.billingAddress ||
+    (form.name !== client.name ||
+      form.billingAddress !== client.billingAddress ||
       form.billingState !== client.billingState ||
       form.billingCity !== client.billingCity ||
       form.deliveryAddress !== client.deliveryAddress ||
@@ -775,6 +806,7 @@ export default function CreateOrderModal({
     if (!client) return;
     onUpdateClient({
       ...client,
+      name: form.name,
       billingAddress: form.billingAddress,
       billingState: form.billingState,
       billingCity: form.billingCity,
@@ -790,6 +822,7 @@ export default function CreateOrderModal({
     if (!client || !currentProduct) return;
     if (amendmentUnchanged) return;
     const nextErrors: Record<string, string> = {};
+    if (!form.name.trim()) nextErrors.name = "Client name is required";
     if (!form.billingAddress.trim()) nextErrors.billingAddress = "Billing address is required";
     if (!form.billingState) nextErrors.billingState = "Billing state is required";
     if (!form.deliveryAddress.trim()) nextErrors.deliveryAddress = "Delivery address is required";
@@ -985,8 +1018,13 @@ export default function CreateOrderModal({
                 </div>
 
                 <div className="space-y-4 px-6 py-6">
-                  <FieldRow label="Client Name" required>
-                    <input className={readonlyInputClass} value={client.name} disabled />
+                  <FieldRow label="Client Name" required locked={isAmendingActiveOrder}>
+                    <input
+                      className={isAmendingActiveOrder ? lockedInputClass : inputClass}
+                      value={form.name}
+                      disabled={isAmendingActiveOrder}
+                      onChange={(e) => update("name", e.target.value)}
+                    />
                   </FieldRow>
 
                   <FieldRow label="Client Manager" required>

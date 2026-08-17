@@ -16,6 +16,7 @@ import {
   getDisplayStage,
   getNextActionableStage,
   isAmendmentPending,
+  isStuckInRejectedApproval,
   toggleSortState,
   usePagination,
   type ActionableStage,
@@ -35,13 +36,14 @@ interface OrderPageProps {
 // "approvalPending" for amendment successors (see isAmendmentPending in
 // utils.ts) — they get their own unified Tech/Fin review here instead of
 // mixing into the plain Approval Pending queue.
-type ViewTab = "all" | "approvalPending" | "amendmentPending" | "closurePending";
+type ViewTab = "all" | "approvalPending" | "amendmentPending" | "closurePending" | "rejected";
 
 const VIEW_TABS: { key: ViewTab; label: string }[] = [
   { key: "all", label: "All" },
   { key: "approvalPending", label: "Approval Pending" },
   { key: "amendmentPending", label: "Amendment Pending" },
   { key: "closurePending", label: "Cancellation Pending" },
+  { key: "rejected", label: "Rejected" },
 ];
 
 const STAGE_LABELS: Record<OrderDisplayStage, string> = {
@@ -309,6 +311,7 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
     if (tab === "amendmentPending") result = result.filter((o) => isAmendmentPending(o));
     else if (tab === "approvalPending") result = result.filter((o) => getDisplayStage(o) === "approvalPending" && !isAmendmentPending(o));
     else if (tab === "closurePending") result = result.filter((o) => getDisplayStage(o) === "closurePending");
+    else if (tab === "rejected") result = result.filter((o) => isStuckInRejectedApproval(o));
 
     if (applied.client !== "all") result = result.filter((o) => o.client === applied.client);
     if (applied.product !== "all") result = result.filter((o) => o.product === applied.product);
@@ -430,7 +433,7 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
   // by definition for anything Cancellation Pending, so showing them again
   // there is just noise. "All" shows every column since rows are a mix.
   const showTechFin = tab !== "closurePending";
-  const showTcFc = tab === "all" || tab === "closurePending";
+  const showTcFc = tab === "all" || tab === "closurePending" || tab === "rejected";
   const badgeColCount = (showTechFin ? 2 : 0) + (showTcFc ? 2 : 0);
   const totalCols = 8 + badgeColCount; // Order#, Client, Product, Manager, Amount, OCD, Status, Action
 

@@ -20,6 +20,7 @@ import {
   getNextActionableStage,
   hasPendingAmendment,
   initiateClosure,
+  isStuckInRejectedApproval,
   toggleSortState,
   usePagination,
   type SortState,
@@ -50,7 +51,7 @@ interface PendingAmendment {
 // filtering/branching logic elsewhere still needs them; only the tab/badge
 // text merges here. The separate Approvals tab (OrderPage.tsx) keeps these
 // two split into their own named tabs, since it needs the distinction.
-type ViewTab = "all" | "pending" | "active" | "agreementOver" | "closed";
+type ViewTab = "all" | "pending" | "active" | "agreementOver" | "closed" | "rejected";
 
 const VIEW_TABS: { key: ViewTab; label: string }[] = [
   { key: "all", label: "All" },
@@ -58,10 +59,15 @@ const VIEW_TABS: { key: ViewTab; label: string }[] = [
   { key: "active", label: "Active" },
   { key: "agreementOver", label: "Agreement Over" },
   { key: "closed", label: "Closed" },
+  { key: "rejected", label: "Rejected" },
 ];
 
 function matchesTab(order: OrderRecord, tab: ViewTab): boolean {
   if (tab === "all") return true;
+  // Checked before getDisplayStage: a rejected stage still displays as plain
+  // "Pending" (see isStuckInRejectedApproval/getDisplayStage), so it would
+  // never match via the stage-based branches below.
+  if (tab === "rejected") return isStuckInRejectedApproval(order);
   const stage = getDisplayStage(order);
   if (tab === "pending") return stage === "approvalPending" || stage === "closurePending";
   return stage === tab;
@@ -71,7 +77,7 @@ function matchesTab(order: OrderRecord, tab: ViewTab): boolean {
 // ?stage=closurePending — both now land on the merged "pending" tab.
 function normalizeTab(raw: string | null): ViewTab {
   if (raw === "approvalPending" || raw === "closurePending") return "pending";
-  if (raw === "active" || raw === "agreementOver" || raw === "closed") return raw;
+  if (raw === "active" || raw === "agreementOver" || raw === "closed" || raw === "rejected") return raw;
   return "all";
 }
 
