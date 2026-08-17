@@ -20,6 +20,7 @@ import {
   getNextActionableStage,
   hasPendingAmendment,
   initiateClosure,
+  isAmendmentPending,
   isStuckInRejectedApproval,
   toggleSortState,
   usePagination,
@@ -49,13 +50,18 @@ interface PendingAmendment {
 // closurePending — the two underlying OrderDisplayStage values stay
 // distinct (see matchesTab below and utils.ts's getDisplayStage) since real
 // filtering/branching logic elsewhere still needs them; only the tab/badge
-// text merges here. The separate Approvals tab (OrderPage.tsx) keeps these
-// two split into their own named tabs, since it needs the distinction.
-type ViewTab = "all" | "pending" | "active" | "agreementOver" | "closed" | "rejected";
+// text merges here. "amendmentPending" is its own tab — a carve-out of
+// approvalPending for amendment successors (see isAmendmentPending in
+// utils.ts), same distinction the Approvals tab (OrderPage.tsx) already
+// makes — placed right after "pending" since both sit at the same point in
+// the lifecycle (awaiting Tech/Fin), just with amendment successors broken
+// out into their own bucket.
+type ViewTab = "all" | "pending" | "amendmentPending" | "active" | "agreementOver" | "closed" | "rejected";
 
 const VIEW_TABS: { key: ViewTab; label: string }[] = [
   { key: "all", label: "All" },
   { key: "pending", label: "Pending" },
+  { key: "amendmentPending", label: "Amendment Pending" },
   { key: "active", label: "Active" },
   { key: "agreementOver", label: "Agreement Over" },
   { key: "closed", label: "Closed" },
@@ -68,8 +74,9 @@ function matchesTab(order: OrderRecord, tab: ViewTab): boolean {
   // "Pending" (see isStuckInRejectedApproval/getDisplayStage), so it would
   // never match via the stage-based branches below.
   if (tab === "rejected") return isStuckInRejectedApproval(order);
+  if (tab === "amendmentPending") return isAmendmentPending(order);
   const stage = getDisplayStage(order);
-  if (tab === "pending") return stage === "approvalPending" || stage === "closurePending";
+  if (tab === "pending") return stage === "approvalPending" ? !isAmendmentPending(order) : stage === "closurePending";
   return stage === tab;
 }
 
@@ -314,7 +321,6 @@ export default function OrderApproval({
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [pendingAmendment, setPendingAmendment] = useState<PendingAmendment | null>(null);
   const [cancelBatch, setCancelBatch] = useState<OrderRecord[] | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
   const [actionMenuOrderId, setActionMenuOrderId] = useState<string | null>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);
@@ -500,31 +506,6 @@ export default function OrderApproval({
 
   const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(filtered);
 
-  // Only closeable orders on the current page are selectable — Select All
-  // only ever touches the checkboxes actually visible on this page.
-  const closeableFiltered = useMemo(() => pageRows.filter((o) => canInitiateClose(o)), [pageRows]);
-  const allCloseableSelected = closeableFiltered.length > 0 && closeableFiltered.every((o) => selectedIds.has(o.id));
-
-  function toggleRow(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function toggleSelectAll() {
-    setSelectedIds((prev) => {
-      if (allCloseableSelected) {
-        const next = new Set(prev);
-        closeableFiltered.forEach((o) => next.delete(o.id));
-        return next;
-      }
-      return new Set([...prev, ...closeableFiltered.map((o) => o.id)]);
-    });
-  }
-
   function rowClass(order: OrderRecord) {
     if (order.lifecycleStatus === "cancelled") return "bg-rose-100 hover:bg-rose-200";
     if (order.amended) return "bg-yellow-100 hover:bg-yellow-200";
@@ -611,16 +592,12 @@ export default function OrderApproval({
 
   function handleCancelConfirm(batch: OrderRecord[], details: CancellationDetails) {
     batch.forEach((o) => onUpdateOrder(initiateClosure(o, details)));
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      batch.forEach((o) => next.delete(o.id));
-      return next;
-    });
     setCancelBatch(null);
   }
 
-  // Shared by the top batch-select "Cancel" button and each row's individual
-  // Cancel action — both just build a batch and open CancellationConfirm.
+  // Builds a single-order batch and opens CancellationConfirm — kept as a
+  // batch-shaped helper since CancellationConfirm/handleCancelConfirm are
+  // shared with other batch-cancel flows elsewhere in the app.
   function openCancelBatch(batch: OrderRecord[]) {
     if (batch.length > 0) setCancelBatch(batch);
   }
@@ -727,14 +704,6 @@ export default function OrderApproval({
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <button
             type="button"
-            onClick={() => openCancelBatch(orders.filter((o) => selectedIds.has(o.id) && canInitiateClose(o)))}
-            disabled={selectedIds.size === 0}
-            className="rounded-md border border-rose-300 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
             onClick={() => setCreating(true)}
             className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >
@@ -757,15 +726,6 @@ export default function OrderApproval({
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
             <tr>
-              <th className="sticky top-0 z-20 w-10 bg-slate-50 px-4 py-2 text-left">
-                <input
-                  type="checkbox"
-                  checked={allCloseableSelected}
-                  onChange={toggleSelectAll}
-                  disabled={closeableFiltered.length === 0}
-                  className="h-4 w-4"
-                />
-              </th>
               <SortableTh label="Order #" sortKey="orderNo" sort={sort} onClick={toggleSort} />
               <SortableTh label="Client" sortKey="client" sort={sort} onClick={toggleSort} />
               <SortableTh label="Product" sortKey="product" sort={sort} onClick={toggleSort} />
@@ -802,18 +762,6 @@ export default function OrderApproval({
               const canClose = canInitiateClose(order) && !pendingAmendmentAgainstThis;
               return (
                 <tr key={order.id} className={`transition-colors ${rowClass(order)}`}>
-                  <td className="px-4 py-2">
-                    {canClose ? (
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(order.id)}
-                        onChange={() => toggleRow(order.id)}
-                        className="h-4 w-4"
-                      />
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
                   <td className="whitespace-nowrap px-4 py-2 font-medium">
                     <button
                       type="button"
@@ -845,8 +793,12 @@ export default function OrderApproval({
                   </td>
                   <td className="relative whitespace-nowrap px-4 py-2">
                     <div className="flex items-center gap-1.5">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STAGE_BADGE_CLASS[stage]}`}>
-                        {STAGE_LABELS[stage]}
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          isAmendmentPending(order) ? "bg-violet-100 text-violet-800" : STAGE_BADGE_CLASS[stage]
+                        }`}
+                      >
+                        {isAmendmentPending(order) ? "Amendment Pending" : STAGE_LABELS[stage]}
                       </span>
                       <button
                         type="button"
@@ -928,7 +880,7 @@ export default function OrderApproval({
             })}
             {pageRows.length === 0 && (
               <tr>
-                <td colSpan={12} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={11} className="px-4 py-8 text-center text-slate-400">
                   No orders match this view.
                 </td>
               </tr>
