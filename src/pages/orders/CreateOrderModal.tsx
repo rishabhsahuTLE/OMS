@@ -891,6 +891,7 @@ export default function CreateOrderModal({
         product: selectedProduct,
         clientId: client.id,
         client: client.name,
+        bu: client.bu,
         clientManager: client.clientManager,
         dateOfSign: form.dateOfSign,
         createdOn: todayISO(),

@@ -46,6 +46,14 @@ const VIEW_TABS: { key: ViewTab; label: string }[] = [
   { key: "rejected", label: "Rejected" },
 ];
 
+function matchesTab(order: OrderRecord, tab: ViewTab): boolean {
+  if (tab === "all") return true;
+  if (tab === "amendmentPending") return isAmendmentPending(order);
+  if (tab === "approvalPending") return getDisplayStage(order) === "approvalPending" && !isAmendmentPending(order);
+  if (tab === "closurePending") return getDisplayStage(order) === "closurePending";
+  return isStuckInRejectedApproval(order); // tab === "rejected"
+}
+
 const STAGE_LABELS: Record<OrderDisplayStage, string> = {
   approvalPending: "Approval Pending",
   active: "Active",
@@ -306,12 +314,12 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
     applied.dateRange.start !== null ||
     applied.dateRange.end !== null;
 
-  const filtered = useMemo(() => {
+  // Everything except the tab condition — shared between the main list
+  // (tab-filtered on top of this) and the per-tab counts shown on the tab
+  // buttons (each tab's own condition applied on top of this same base, so
+  // the counts stay live against whatever else is currently filtered/searched).
+  const preTabFiltered = useMemo(() => {
     let result = pendingOrders;
-    if (tab === "amendmentPending") result = result.filter((o) => isAmendmentPending(o));
-    else if (tab === "approvalPending") result = result.filter((o) => getDisplayStage(o) === "approvalPending" && !isAmendmentPending(o));
-    else if (tab === "closurePending") result = result.filter((o) => getDisplayStage(o) === "closurePending");
-    else if (tab === "rejected") result = result.filter((o) => isStuckInRejectedApproval(o));
 
     if (applied.client !== "all") result = result.filter((o) => o.client === applied.client);
     if (applied.product !== "all") result = result.filter((o) => o.product === applied.product);
@@ -341,6 +349,20 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
       );
     }
 
+    return result;
+  }, [pendingOrders, applied, search]);
+
+  const tabCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        VIEW_TABS.map((t) => [t.key, preTabFiltered.filter((o) => matchesTab(o, t.key)).length])
+      ) as Record<ViewTab, number>,
+    [preTabFiltered]
+  );
+
+  const filtered = useMemo(() => {
+    let result = preTabFiltered.filter((o) => matchesTab(o, tab));
+
     if (sort.key) {
       const key = sort.key;
       result = [...result].sort((a, b) => {
@@ -350,7 +372,7 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
     }
 
     return result;
-  }, [pendingOrders, tab, applied, search, sort]);
+  }, [preTabFiltered, tab, sort]);
 
   function renderCategoryContent() {
     switch (activeCategory) {
@@ -467,6 +489,13 @@ export default function OrderPage({ orders, onUpdateOrder }: OrderPageProps) {
               }`}
             >
               {t.label}
+              <span
+                className={`ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold ${
+                  tab === t.key ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {tabCounts[t.key]}
+              </span>
             </button>
           ))}
         </div>

@@ -90,6 +90,7 @@ clients.forEach((client, cliIdx) => {
   for (let k = 0; k < count; k++) {
     const product = PRODUCTS[(cliIdx + k) % PRODUCTS.length];
     const clientManager = client.clientManager;
+    const bu = client.bu;
     const signOffset = -((orderIndex * 7) % 400) - 30;
     const createdOffset = signOffset + 3;
     const techState = technicalPattern[orderIndex % technicalPattern.length];
@@ -166,6 +167,7 @@ clients.forEach((client, cliIdx) => {
       product: product.name,
       clientId: client.id,
       client: client.name,
+      bu,
       clientManager,
       dateOfSign,
       createdOn,

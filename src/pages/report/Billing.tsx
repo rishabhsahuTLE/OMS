@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { OrderRecord } from "../../types";
+import { BUSINESS_UNITS, type OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
 import { formatDDMMYYYY } from "../../utils";
 import type { DateRange } from "../../components/DateRangePicker";
@@ -157,6 +157,7 @@ interface DrawerFilters {
   client: string;
   product: string;
   manager: string;
+  bu: string;
   minLakh: number;
   maxLakh: number;
   statusBuckets: Set<StatusBucketKey>;
@@ -167,6 +168,7 @@ const defaultDrawerFilters: DrawerFilters = {
   client: "all",
   product: "all",
   manager: "all",
+  bu: "all",
   minLakh: 0,
   maxLakh: AMOUNT_MAX_LAKH,
   dateRange: { start: null, end: null },
@@ -274,6 +276,7 @@ export default function Billing({ orders }: BillingProps) {
     applied.client !== "all" ||
     applied.product !== "all" ||
     applied.manager !== "all" ||
+    applied.bu !== "all" ||
     applied.minLakh !== 0 ||
     applied.maxLakh !== AMOUNT_MAX_LAKH ||
     applied.statusBuckets.size > 0 ||
@@ -286,6 +289,7 @@ export default function Billing({ orders }: BillingProps) {
     if (applied.client !== "all") result = result.filter((o) => o.client === applied.client);
     if (applied.product !== "all") result = result.filter((o) => o.product === applied.product);
     if (applied.manager !== "all") result = result.filter((o) => o.clientManager === applied.manager);
+    if (applied.bu !== "all") result = result.filter((o) => o.bu === applied.bu);
 
     const minRupees = applied.minLakh * 100_000;
     const maxRupees = applied.maxLakh >= AMOUNT_MAX_LAKH ? Infinity : applied.maxLakh * 100_000;
@@ -390,6 +394,21 @@ export default function Billing({ orders }: BillingProps) {
               onChange={(v) => setDraft((prev) => ({ ...prev, manager: v }))}
               searchPlaceholder="Search managers…"
             />
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">BU</label>
+              <select
+                value={draft.bu}
+                onChange={(e) => setDraft((prev) => ({ ...prev, bu: e.target.value }))}
+                className={selectClass}
+              >
+                <option value="all">All BUs</option>
+                {BUSINESS_UNITS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         );
       case "range":

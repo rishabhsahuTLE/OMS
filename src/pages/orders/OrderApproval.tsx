@@ -371,8 +371,12 @@ export default function OrderApproval({
     applied.dateRange.start !== null ||
     applied.dateRange.end !== null;
 
-  const filtered = useMemo(() => {
-    let result = orders.filter((o) => matchesTab(o, tab));
+  // Everything except the tab condition — shared between the main list
+  // (tab-filtered on top of this) and the per-tab counts shown on the tab
+  // buttons (each tab's own condition applied on top of this same base, so
+  // the counts stay live against whatever else is currently filtered/searched).
+  const preTabFiltered = useMemo(() => {
+    let result = orders;
 
     if (applied.client !== "all") result = result.filter((o) => o.client === applied.client);
     if (applied.product !== "all") result = result.filter((o) => o.product === applied.product);
@@ -402,6 +406,20 @@ export default function OrderApproval({
       );
     }
 
+    return result;
+  }, [orders, applied, search]);
+
+  const tabCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        VIEW_TABS.map((t) => [t.key, preTabFiltered.filter((o) => matchesTab(o, t.key)).length])
+      ) as Record<ViewTab, number>,
+    [preTabFiltered]
+  );
+
+  const filtered = useMemo(() => {
+    let result = preTabFiltered.filter((o) => matchesTab(o, tab));
+
     if (sort.key) {
       const key = sort.key;
       result = [...result].sort((a, b) => {
@@ -411,7 +429,7 @@ export default function OrderApproval({
     }
 
     return result;
-  }, [orders, tab, applied, search, sort]);
+  }, [preTabFiltered, tab, sort]);
 
   function renderCategoryContent() {
     switch (activeCategory) {
@@ -666,6 +684,13 @@ export default function OrderApproval({
               }`}
             >
               {t.label}
+              <span
+                className={`ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold ${
+                  tab === t.key ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {tabCounts[t.key]}
+              </span>
             </button>
           ))}
         </div>

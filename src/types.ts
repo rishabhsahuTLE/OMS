@@ -29,6 +29,7 @@ export interface Client {
   name: string;
   domain: string;
   type: string;
+  bu: string;
   billingAddress: string;
   billingState: string;
   billingCity: string;
@@ -44,6 +45,8 @@ export interface Client {
 }
 
 export const CLIENT_TYPES = ["Corporate", "University"] as const;
+
+export const BUSINESS_UNITS = ["Premiere Inst", "Enterprise CEP", "Univ-Ops", "IMPACT", "ENTERPRISE"] as const;
 
 export const STATES = [
   "Maharashtra",
@@ -111,6 +114,7 @@ export interface OrderRecord {
   product: string;
   clientId: string;
   client: string;
+  bu: string;
   clientManager: string;
   dateOfSign: string; // ISO date
   createdOn: string; // ISO date — Order Creation Date (OCD)

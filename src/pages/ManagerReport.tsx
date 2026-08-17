@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { ApprovalState, OrderRecord } from "../types";
+import { BUSINESS_UNITS, type ApprovalState, type OrderRecord } from "../types";
 import { PRODUCT_NAMES } from "../products";
 import { formatDDMMYYYY, toggleSortState, usePagination, type SortState } from "../utils";
 import type { DateRange } from "../components/DateRangePicker";
@@ -24,6 +24,7 @@ const selectClass =
 interface Filters {
   manager: string;
   product: string;
+  bu: string;
   minLakh: number;
   maxLakh: number;
   dateRange: DateRange;
@@ -32,6 +33,7 @@ interface Filters {
 const defaultFilters: Filters = {
   manager: "all",
   product: "all",
+  bu: "all",
   minLakh: 0,
   maxLakh: AMOUNT_MAX_LAKH,
   dateRange: { start: null, end: null },
@@ -343,6 +345,7 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
   const hasActiveFilters =
     applied.manager !== "all" ||
     applied.product !== "all" ||
+    applied.bu !== "all" ||
     applied.minLakh !== 0 ||
     applied.maxLakh !== AMOUNT_MAX_LAKH ||
     applied.dateRange.start !== null ||
@@ -361,6 +364,7 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
     let result = orders;
     if (applied.manager !== "all") result = result.filter((o) => o.clientManager === applied.manager);
     if (applied.product !== "all") result = result.filter((o) => o.product === applied.product);
+    if (applied.bu !== "all") result = result.filter((o) => o.bu === applied.bu);
 
     const minRupees = applied.minLakh * 100_000;
     const maxRupees = applied.maxLakh >= AMOUNT_MAX_LAKH ? Infinity : applied.maxLakh * 100_000;
@@ -422,6 +426,21 @@ export default function ManagerReport({ orders }: ManagerReportProps) {
                 {PRODUCT_NAMES.map((p) => (
                   <option key={p} value={p}>
                     {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-slate-600">BU</label>
+              <select
+                value={draft.bu}
+                onChange={(e) => setDraft((prev) => ({ ...prev, bu: e.target.value }))}
+                className={selectClass}
+              >
+                <option value="all">All BUs</option>
+                {BUSINESS_UNITS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
                   </option>
                 ))}
               </select>
