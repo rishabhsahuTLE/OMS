@@ -88,17 +88,32 @@ export interface StageStatus {
 // cancellationInProgress (awaiting TC+FC) -> cancelled. Closure can be
 // initiated from "inactive" too, in which case it skips straight to
 // "cancelled" (nothing was ever activated, so there's nothing to unwind) —
-// see initiateClosure() in utils.ts. An amendment successor (has
-// `supersedes` set) stays "inactive" even after its own T+F clear, until the
-// predecessor it supersedes reaches "cancelled" (see promoteSuccessorOf() in
-// utils.ts) — it has no distinct stored status of its own for that wait, it
-// just keeps displaying as Approval Pending (see getDisplayStage()).
+// see initiateClosure() in utils.ts. Note "active" is only reached via an
+// explicit Finance action in Open/Close Billing (Open, or Complete
+// Amendment) — Tech+Fin both confirming is necessary but not sufficient; see
+// getDisplayStage()'s "toOpen"/"toAmend" stages below for the wait in
+// between. An amendment successor (has `supersedes` set) stays "inactive"
+// even after its own T+F clear, until Finance completes the amendment via
+// Open/Close Billing's "To Amend" tab (see resolveAmendmentOf() in
+// utils.ts), which activates the successor and closes the predecessor in one
+// action.
 export type OrderLifecycleStatus = "inactive" | "active" | "cancellationInProgress" | "cancelled";
 
-// The 5 user-facing stage names — a derived/display-only layer over
+// The user-facing stage names — a derived/display-only layer over
 // OrderLifecycleStatus (see getDisplayStage() in utils.ts). "agreementOver"
-// isn't a stored status; it's a date-driven overlay on "active".
-export type OrderDisplayStage = "approvalPending" | "active" | "agreementOver" | "closurePending" | "closed";
+// isn't a stored status; it's a date-driven overlay on "active". "toOpen" and
+// "toAmend" both sit between Tech+Fin clearing and "active" — an "inactive"
+// order with both approvals confirmed is awaiting an explicit Finance action
+// in Open/Close Billing (Open for a plain order, To Amend for an amendment
+// successor) before it counts as Active.
+export type OrderDisplayStage =
+  | "approvalPending"
+  | "toOpen"
+  | "toAmend"
+  | "active"
+  | "agreementOver"
+  | "closurePending"
+  | "closed";
 
 // Finance-owned billing-closure status — entirely separate from
 // lifecycleStatus/cancellation approvals. Driven by the Close Billing tab:

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { BillingStatus, OrderRecord } from "../../types";
-import { formatDDMMYYYY, todayISO, usePagination } from "../../utils";
+import { formatDDMMYYYY, getDisplayStage, todayISO, usePagination } from "../../utils";
 import { PRODUCT_NAMES } from "../../products";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import PaginationFooter from "../../components/PaginationFooter";
@@ -17,21 +17,28 @@ interface CloseBillingProps {
   onUpdateOrder: (record: OrderRecord) => void;
 }
 
-type BillingViewTab = "toOpen" | "toClose" | "closed";
+type BillingViewTab = "toOpen" | "toAmend" | "toClose" | "closed";
 
 const VIEW_TABS: { key: BillingViewTab; label: string }[] = [
   { key: "toOpen", label: "To Open" },
+  { key: "toAmend", label: "To Amend" },
   { key: "toClose", label: "To Close" },
   { key: "closed", label: "Closed" },
 ];
 
 // Finance-owned billing closure, entirely separate from the Tech/Fin/TC/FC
-// approval chain: an activated order's billing has to be explicitly Opened
-// before it runs, and a cancelled order's billing has to be explicitly
-// Closed once cancellation finishes — this tab is where both happen, plus a
+// approval chain: a new order that's cleared Tech+Fin has to be explicitly
+// Opened before it counts as Active and its billing runs; an amendment
+// successor that's cleared Tech+Fin instead has to be explicitly completed
+// via "To Amend", which activates it and closes its predecessor in one
+// action; and a cancelled order's billing has to be explicitly Closed once
+// cancellation finishes — this tab is where all three happen, plus a
 // "Closed" bucket to catch and reverse mistakes.
 function toOpenFilter(o: OrderRecord): boolean {
-  return o.lifecycleStatus === "active" && o.billingStatus === "notOpened";
+  return getDisplayStage(o) === "toOpen";
+}
+function toAmendFilter(o: OrderRecord): boolean {
+  return getDisplayStage(o) === "toAmend";
 }
 function toCloseFilter(o: OrderRecord): boolean {
   return o.lifecycleStatus === "cancelled" && o.billingStatus === "open";
@@ -42,6 +49,7 @@ function closedFilter(o: OrderRecord): boolean {
 
 const TAB_FILTERS: Record<BillingViewTab, (o: OrderRecord) => boolean> = {
   toOpen: toOpenFilter,
+  toAmend: toAmendFilter,
   toClose: toCloseFilter,
   closed: closedFilter,
 };
@@ -74,24 +82,29 @@ function rowClass(order: OrderRecord) {
 
 interface PendingAction {
   order: OrderRecord;
-  kind: "open" | "close" | "reopen";
+  kind: "open" | "completeAmendment" | "close" | "reopen";
 }
 
 const ACTION_LABEL: Record<PendingAction["kind"], string> = {
   open: "Open Billing",
+  completeAmendment: "Complete Amendment",
   close: "Close Billing",
   reopen: "Reopen",
 };
 
-// Open starts a fresh window (today -> ongoing). Close ends the current
-// window today, leaving its start date untouched. Reopen undoes a mistaken
-// close — it clears the end date but keeps the original start date, rather
-// than starting a new window, since the closure being reversed was itself
-// the mistake.
+// Open starts a fresh window (today -> ongoing) and activates the order —
+// Tech+Fin clearing alone is no longer enough (see getDisplayStage()).
+// Complete Amendment does the same for an amendment successor; activating it
+// here also triggers App.tsx's resolveAmendmentOf(), which closes the
+// predecessor's billing in the same pass. Close ends the current window
+// today, leaving its start date untouched. Reopen undoes a mistaken close —
+// it clears the end date but keeps the original start date, rather than
+// starting a new window, since the closure being reversed was itself the
+// mistake.
 function applyBillingAction(order: OrderRecord, kind: PendingAction["kind"]): OrderRecord {
   const today = todayISO();
-  if (kind === "open") {
-    return { ...order, billingStatus: "open", billingOpenedOn: today, billingClosedOn: null };
+  if (kind === "open" || kind === "completeAmendment") {
+    return { ...order, lifecycleStatus: "active", billingStatus: "open", billingOpenedOn: today, billingClosedOn: null };
   }
   if (kind === "close") {
     return { ...order, billingStatus: "closed", billingClosedOn: today };
@@ -100,7 +113,8 @@ function applyBillingAction(order: OrderRecord, kind: PendingAction["kind"]): Or
 }
 
 const ACTION_DESCRIPTION: Record<PendingAction["kind"], string> = {
-  open: "These orders will be marked as billing Open.",
+  open: "These orders will become Active and their billing will be marked as Open.",
+  completeAmendment: "These orders will become Active and their predecessor's billing will be Closed.",
   close: "These orders will be marked as billing Closed.",
   reopen: 'These orders will be reopened and moved back to "To Close" — their cancellation status is not affected.',
 };
@@ -296,12 +310,16 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
 
   const { page, setPage, pageSize, setPageSize, totalPages, pageRows, totalRecords } = usePagination(filtered);
 
-  const showApprovedOn = tab === "toOpen";
+  const showApprovedOn = tab === "toOpen" || tab === "toAmend";
+  const showPredecessor = tab === "toAmend";
   const showCancelledOn = tab === "toClose";
-  const totalCols = 8 + (showApprovedOn ? 1 : 0) + (showCancelledOn ? 1 : 0);
+  const totalCols = 8 + (showApprovedOn ? 1 : 0) + (showPredecessor ? 1 : 0) + (showCancelledOn ? 1 : 0);
 
   function actionFor(): PendingAction["kind"] {
-    return tab === "toOpen" ? "open" : tab === "toClose" ? "close" : "reopen";
+    if (tab === "toOpen") return "open";
+    if (tab === "toAmend") return "completeAmendment";
+    if (tab === "toClose") return "close";
+    return "reopen";
   }
 
   // Switching tabs changes which orders are even eligible for the current
@@ -335,7 +353,14 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
   }
 
   function confirmMessage(action: PendingAction): string {
-    if (action.kind === "open") return `Open billing for ${action.order.orderNo}? Its billing status will move to Open.`;
+    if (action.kind === "open")
+      return `Open billing for ${action.order.orderNo}? It will become Active and its billing status will move to Open.`;
+    if (action.kind === "completeAmendment") {
+      const predecessor = orders.find((o) => o.id === action.order.supersedes);
+      return `Complete the amendment for ${action.order.orderNo}? It will become Active${
+        predecessor ? ` and ${predecessor.orderNo} will be Closed` : ""
+      }.`;
+    }
     if (action.kind === "close")
       return `Close billing for ${action.order.orderNo}? Its billing status will move to Closed.`;
     return `Reopen billing for ${action.order.orderNo}? This does not affect its cancellation status — it will move back to "To Close".`;
@@ -440,8 +465,11 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
       </div>
 
       <p className="text-xs text-slate-500">
-        <span className="font-medium text-slate-600">To Open</span> — activated orders whose billing hasn't started
-        yet. <span className="font-medium text-slate-600">To Close</span> — cancelled orders (both TC and FC
+        <span className="font-medium text-slate-600">To Open</span> — new orders that have cleared Tech and Fin and
+        are awaiting Finance to open billing, which activates them.{" "}
+        <span className="font-medium text-slate-600">To Amend</span> — amendment successors that have cleared Tech
+        and Fin and are awaiting Finance to complete the amendment, which activates them and closes their
+        predecessor. <span className="font-medium text-slate-600">To Close</span> — cancelled orders (both TC and FC
         confirmed) still awaiting billing closure. <span className="font-medium text-slate-600">Closed</span> —
         billing already closed; reopening one sends it back to "To Close" without affecting its cancellation status.
       </p>
@@ -481,6 +509,11 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
                 {showApprovedOn && (
                   <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
                     Approved On
+                  </th>
+                )}
+                {showPredecessor && (
+                  <th className="sticky top-0 z-20 whitespace-nowrap bg-slate-50 px-4 py-2 text-left font-semibold text-slate-600">
+                    Predecessor
                   </th>
                 )}
                 {showCancelledOn && (
@@ -529,6 +562,11 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
                     {showApprovedOn && (
                       <td className="whitespace-nowrap px-4 py-2 text-slate-700">
                         {order.financial.date ? formatDDMMYYYY(order.financial.date) : "—"}
+                      </td>
+                    )}
+                    {showPredecessor && (
+                      <td className="whitespace-nowrap px-4 py-2 text-slate-700">
+                        {orders.find((o) => o.id === order.supersedes)?.orderNo ?? "—"}
                       </td>
                     )}
                     {showCancelledOn && (
@@ -586,7 +624,7 @@ export default function CloseBilling({ orders, onUpdateOrder }: CloseBillingProp
       <FilterDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title="Close Billing Filters"
+        title="Open/Close Billing Filters"
         categories={FILTER_CATEGORIES}
         activeCategory={activeCategory}
         onSelectCategory={setActiveCategory}

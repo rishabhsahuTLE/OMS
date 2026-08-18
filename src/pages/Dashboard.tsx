@@ -478,6 +478,8 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
     const counts: Record<TileKey, number> = {
       all: filteredOrders.length,
       approvalPending: 0,
+      toOpen: 0,
+      toAmend: 0,
       active: 0,
       agreementOver: 0,
       closurePending: 0,

@@ -111,10 +111,10 @@ clients.forEach((client, cliIdx) => {
     const isFullyConfirmed = techState === "confirmed" && finState === "confirmed";
 
     // Orders only enter the cancellation flow once fully activated. Cycle
-    // through active / cancellation-in-progress / cancelled across just the
-    // fully-confirmed orders (not the raw order index, which would leave
-    // these buckets empty since only a handful of orders are ever fully
-    // confirmed), so every bucket has a demo-able entry.
+    // through toOpen / active / cancellation-in-progress / cancelled across
+    // just the fully-confirmed orders (not the raw order index, which would
+    // leave these buckets empty since only a handful of orders are ever
+    // fully confirmed), so every bucket has a demo-able entry.
     let lifecycleStatus: OrderLifecycleStatus = "inactive";
     let cancellationTechnical: StageStatus = { status: "pending", date: null };
     let cancellationFinancial: StageStatus = { status: "pending", date: null };
@@ -123,19 +123,25 @@ clients.forEach((client, cliIdx) => {
     // technicalPattern/financialPattern happen to line up at any given index.
     let amended = false;
     // Finance-owned billing status, seeded independently of the
-    // Tech/Fin/TC/FC approval chain so the new Close Billing tab's three
-    // categories (To Open / To Close / Closed) each have demo rows.
-    // billingOpenedOn/billingClosedOn mark the actual window billing ran in
-    // (as opposed to the projection Billing.tsx computes from
-    // firstBillingMonth/billingCycle/agreement) — the Billing report's green
-    // highlighting is keyed off this window, not off billingStatus alone.
+    // Tech/Fin/TC/FC approval chain so Open/Close Billing's To Open / To
+    // Close / Closed categories each have demo rows (To Amend only ever gets
+    // populated by actually amending an order in the running app — no
+    // seeded order carries `supersedes`). billingOpenedOn/billingClosedOn
+    // mark the actual window billing ran in (as opposed to the projection
+    // Billing.tsx computes from firstBillingMonth/billingCycle/agreement) —
+    // the Billing report's green highlighting is keyed off this window, not
+    // off billingStatus alone. Active always implies billingStatus "open" —
+    // an order only becomes Active once Finance opens it (see
+    // withRecomputedLifecycle()/getDisplayStage() in utils.ts) — so a
+    // fully-confirmed order that hasn't been opened yet stays "inactive"
+    // (display stage "toOpen") rather than being seeded straight to "active".
     let billingStatus: BillingStatus = "notOpened";
     let billingOpenedOn: string | null = null;
     let billingClosedOn: string | null = null;
     if (isFullyConfirmed) {
-      const bucket = fullyConfirmedCount % 3;
+      const bucket = fullyConfirmedCount % 4;
       amended = fullyConfirmedCount % 5 === 2;
-      if (bucket === 2) {
+      if (bucket === 3) {
         lifecycleStatus = "cancelled";
         cancellationTechnical = withMeta({ status: "confirmed", date: makeDate(finOffset + 5) }, orderIndex);
         cancellationFinancial = withMeta({ status: "confirmed", date: makeDate(finOffset + 12) }, orderIndex + 1);
@@ -144,19 +150,21 @@ clients.forEach((client, cliIdx) => {
         billingStatus = fullyConfirmedCount % 4 === 3 ? "closed" : "open";
         billingOpenedOn = makeDate(finOffset + 3);
         if (billingStatus === "closed") billingClosedOn = makeDate(finOffset + 12 + 10);
-      } else if (bucket === 1) {
+      } else if (bucket === 2) {
         lifecycleStatus = "cancellationInProgress";
         cancellationTechnical = withMeta({ status: "confirmed", date: makeDate(finOffset + 5) }, orderIndex);
         // Cancellation was only ever initiated on an order whose billing was
         // already running.
         billingStatus = "open";
         billingOpenedOn = makeDate(finOffset + 3);
-      } else {
+      } else if (bucket === 1) {
         lifecycleStatus = "active";
-        // Active orders are mostly billing-open, with a deterministic
-        // minority still awaiting finance's initial "Open Billing" action.
-        billingStatus = fullyConfirmedCount % 3 === 0 ? "notOpened" : "open";
-        if (billingStatus === "open") billingOpenedOn = makeDate(finOffset + 3);
+        billingStatus = "open";
+        billingOpenedOn = makeDate(finOffset + 3);
+      } else {
+        // bucket === 0: Tech+Fin cleared but Finance hasn't opened it yet —
+        // stays "inactive" (display stage "toOpen"), billing never started.
+        lifecycleStatus = "inactive";
       }
       fullyConfirmedCount++;
     }

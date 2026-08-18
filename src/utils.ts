@@ -237,23 +237,15 @@ export function approvalHistoryStatusLabel(status: ApprovalState): string {
 }
 
 // After any T/F/TC/FC change, check whether the order should move to the
-// next lifecycle stage — inactive -> active once both activation stages are
-// confirmed, cancellationInProgress -> cancelled once both cancellation
-// stages are confirmed. Any other lifecycle stage is left untouched. An
-// amendment successor (has `supersedes` set) is treated the same as any
-// other inactive order here — its own Tech+Fin approval is the entire
-// review for the amendment (see resolveAmendmentOf(), which reacts to this
-// function landing a successor on "active" by cancelling its predecessor in
-// the same pass — called from App.tsx wherever an order update lands on
-// "active").
+// next lifecycle stage — cancellationInProgress -> cancelled once both
+// cancellation stages are confirmed. Any other lifecycle stage is left
+// untouched: notably, an "inactive" order does NOT auto-promote to "active"
+// here even once both Tech and Fin are confirmed — see getDisplayStage()'s
+// "toOpen"/"toAmend" stages. Activation only happens via an explicit Finance
+// action in Open/Close Billing (the "Open" action for a plain order, or the
+// "Complete Amendment" action in the "To Amend" tab for an amendment
+// successor — see resolveAmendmentOf()).
 export function withRecomputedLifecycle(order: OrderRecord): OrderRecord {
-  if (
-    order.lifecycleStatus === "inactive" &&
-    order.technical.status === "confirmed" &&
-    order.financial.status === "confirmed"
-  ) {
-    return { ...order, lifecycleStatus: "active" };
-  }
   if (
     order.lifecycleStatus === "cancellationInProgress" &&
     order.cancellationTechnical.status === "confirmed" &&
@@ -266,12 +258,14 @@ export function withRecomputedLifecycle(order: OrderRecord): OrderRecord {
 
 // Runs whenever an update makes `activatedOrder.lifecycleStatus` become
 // "active" — if it's an amendment successor (has `supersedes` set), the
-// predecessor it superseded is cancelled in the same pass. There's no
-// separate TC/FC review for the predecessor under this one-process
-// amendment model, so its cancellation stages are synthesized as confirmed
-// (rather than left permanently "pending") to keep its Approval History
-// truthful, and its billing status is forced open so it lands in Close
-// Billing's "To Close" regardless of what it was before.
+// predecessor it superseded is cancelled AND has its billing closed, in the
+// same pass. There's no separate TC/FC review or Close Billing step for the
+// predecessor under this one-process amendment model, so its cancellation
+// stages are synthesized as confirmed (rather than left permanently
+// "pending") to keep its Approval History truthful, and its billing is
+// closed outright — an order can only ever be amended while "active", which
+// now implies its billing was already opened, so there's no "notOpened" case
+// to account for here.
 export function resolveAmendmentOf(activatedOrder: OrderRecord, allOrders: OrderRecord[]): OrderRecord | null {
   if (!activatedOrder.supersedes) return null;
   const predecessor = allOrders.find((o) => o.id === activatedOrder.supersedes);
@@ -286,16 +280,28 @@ export function resolveAmendmentOf(activatedOrder: OrderRecord, allOrders: Order
   return {
     ...predecessor,
     lifecycleStatus: "cancelled",
-    billingStatus: "open",
+    billingStatus: "closed",
+    billingClosedOn: today,
     cancellationTechnical: synthesizedStage,
     cancellationFinancial: synthesizedStage,
   };
 }
 
 // True for an amendment successor still awaiting its unified Tech+Fin
-// approval — the Approvals tab's dedicated "Amendment Pending" bucket.
+// approval — the Approvals tab's dedicated "Amendment Pending" bucket. Once
+// both are confirmed the successor moves to "toAmend" (see
+// getDisplayStage()) and is no longer "pending" in this sense — it's instead
+// awaiting Finance in Open/Close Billing's "To Amend" tab.
 export function isAmendmentPending(order: OrderRecord): boolean {
-  return !!order.supersedes && order.lifecycleStatus === "inactive";
+  return !!order.supersedes && getDisplayStage(order) === "approvalPending";
+}
+
+// True for an amendment successor that has cleared Tech+Fin and is now
+// awaiting Finance to complete the amendment in Open/Close Billing's
+// "To Amend" tab — the counterpart to isAmendmentPending() for the next
+// stage of the same successor's lifetime.
+export function isAwaitingAmendmentClose(order: OrderRecord): boolean {
+  return !!order.supersedes && getDisplayStage(order) === "toAmend";
 }
 
 // True if some other order is a pending amendment against this one — used
@@ -340,15 +346,21 @@ export function isAgreementOver(order: OrderRecord): boolean {
   return todayMonthIndex >= endMonthIndex;
 }
 
-// The 5 user-facing stage names, derived from lifecycleStatus (+ the
+// The user-facing stage names, derived from lifecycleStatus (+ the
 // date-driven Agreement Over overlay on "active") — see types.ts's
 // OrderDisplayStage. This is what every list/badge/filter shows; the raw
-// lifecycleStatus keeps driving the actual approval mechanics.
+// lifecycleStatus keeps driving the actual approval mechanics. An "inactive"
+// order splits three ways: still awaiting Tech/Fin ("approvalPending"), both
+// confirmed and awaiting Finance to open it ("toOpen"), or — for an
+// amendment successor — both confirmed and awaiting Finance to complete the
+// amendment ("toAmend").
 export function getDisplayStage(order: OrderRecord): OrderDisplayStage {
-  if (order.lifecycleStatus === "inactive") return "approvalPending";
   if (order.lifecycleStatus === "cancellationInProgress") return "closurePending";
   if (order.lifecycleStatus === "cancelled") return "closed";
-  return isAgreementOver(order) ? "agreementOver" : "active";
+  if (order.lifecycleStatus === "active") return isAgreementOver(order) ? "agreementOver" : "active";
+  const bothCleared = order.technical.status === "confirmed" && order.financial.status === "confirmed";
+  if (!bothCleared) return "approvalPending";
+  return order.supersedes ? "toAmend" : "toOpen";
 }
 
 export type SortDirection = "asc" | "desc";

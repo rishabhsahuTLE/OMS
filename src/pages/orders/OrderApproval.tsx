@@ -90,6 +90,8 @@ function normalizeTab(raw: string | null): ViewTab {
 
 const STAGE_LABELS: Record<OrderDisplayStage, string> = {
   approvalPending: "Pending",
+  toOpen: "To Open",
+  toAmend: "To Amend",
   active: "Active",
   agreementOver: "Agreement Over",
   closurePending: "Pending",
@@ -98,6 +100,8 @@ const STAGE_LABELS: Record<OrderDisplayStage, string> = {
 
 const STAGE_BADGE_CLASS: Record<OrderDisplayStage, string> = {
   approvalPending: "bg-amber-100 text-amber-800",
+  toOpen: "bg-sky-100 text-sky-800",
+  toAmend: "bg-violet-100 text-violet-800",
   active: "bg-emerald-100 text-emerald-700",
   agreementOver: "bg-orange-100 text-orange-700",
   closurePending: "bg-amber-100 text-amber-800",
@@ -108,10 +112,12 @@ const STAGE_BADGE_CLASS: Record<OrderDisplayStage, string> = {
 // alphabetically.
 const STAGE_RANK: Record<OrderDisplayStage, number> = {
   approvalPending: 0,
-  active: 1,
-  agreementOver: 2,
-  closurePending: 3,
-  closed: 4,
+  toOpen: 1,
+  toAmend: 1,
+  active: 2,
+  agreementOver: 3,
+  closurePending: 4,
+  closed: 5,
 };
 
 const AMOUNT_MAX_LAKH = 50;
@@ -264,6 +270,19 @@ function nextStepInfo(order: OrderRecord): NextStepInfo {
   if (stage === "approvalPending") {
     const next = getNextActionableStage(order);
     return { message: next ? `Next step: awaiting ${next.label} approval.` : "Awaiting activation." };
+  }
+
+  if (stage === "toOpen") {
+    return {
+      message: "Tech and Fin are cleared — awaiting Finance to open its billing in Open/Close Billing.",
+    };
+  }
+
+  if (stage === "toAmend") {
+    return {
+      message:
+        "Tech and Fin are cleared on this amendment — awaiting Finance to complete it in Open/Close Billing's \"To Amend\" tab.",
+    };
   }
 
   if (stage === "active") {
@@ -915,7 +934,7 @@ export default function OrderApproval({
         title="Confirm Amendment"
         message={
           pendingAmendment
-            ? `${pendingAmendment.nextOrderNo} will be created as an Amendment Pending item on the Approvals tab, needing a single Tech/Fin approval. ${pendingAmendment.original.orderNo} stays fully Active and usable until then — no separate approval needed on it. Once Tech and Fin are both confirmed, ${pendingAmendment.nextOrderNo} becomes Active (sent to Close Billing's To Open) and ${pendingAmendment.original.orderNo} is Cancelled (sent to Close Billing's To Close).`
+            ? `${pendingAmendment.nextOrderNo} will be created as an Amendment Pending item on the Approvals tab, needing a single Tech/Fin approval. ${pendingAmendment.original.orderNo} stays fully Active and usable until then — no separate approval needed on it. Once Tech and Fin are both confirmed, ${pendingAmendment.nextOrderNo} moves to Open/Close Billing's "To Amend" tab; once Finance completes it there, ${pendingAmendment.nextOrderNo} becomes Active and ${pendingAmendment.original.orderNo} is Closed.`
             : ""
         }
         confirmLabel="Confirm Amendment"

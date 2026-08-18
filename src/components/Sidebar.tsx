@@ -9,7 +9,7 @@ interface SubTab<T extends string> {
 const ordersSubTabs: SubTab<OrdersSubTabId>[] = [
   { id: "approval", label: "Manage Orders" },
   { id: "amendCancel", label: "Approvals" },
-  { id: "closeBilling", label: "Close Billing" },
+  { id: "closeBilling", label: "Open/Close Billing" },
 ];
 
 interface SidebarProps {

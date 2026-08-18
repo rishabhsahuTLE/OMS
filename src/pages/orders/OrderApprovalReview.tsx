@@ -7,6 +7,7 @@ import {
   deriveCreatedByName,
   diffOrderDetails,
   formatDDMMYYYY,
+  getDisplayStage,
   getNextActionableStage,
   todayISO,
   withRecomputedLifecycle,
@@ -341,7 +342,11 @@ export default function OrderApprovalReview({
                   </p>
                 ) : !actionable ? (
                   <p className="px-6 py-6 text-sm text-slate-400">
-                    No further action needed — every approval stage for this order is complete.
+                    {getDisplayStage(order) === "toOpen"
+                      ? "Tech and Fin are both cleared — this order is awaiting Finance to open its billing in Open/Close Billing before it becomes Active."
+                      : getDisplayStage(order) === "toAmend"
+                      ? "Tech and Fin are both cleared — this amendment is awaiting Finance to complete it in Open/Close Billing's \"To Amend\" tab, which will activate this order and close its predecessor."
+                      : "No further action needed — every approval stage for this order is complete."}
                   </p>
                 ) : (
                   <div className="space-y-4 px-6 py-6">

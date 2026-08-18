@@ -54,8 +54,13 @@ function matchesTab(order: OrderRecord, tab: ViewTab): boolean {
   return isStuckInRejectedApproval(order); // tab === "rejected"
 }
 
+// toOpen/toAmend are unreachable on this tab (pendingOrders already filters
+// down to just approvalPending/closurePending) but are still required here
+// for Record<OrderDisplayStage, ...> completeness.
 const STAGE_LABELS: Record<OrderDisplayStage, string> = {
   approvalPending: "Approval Pending",
+  toOpen: "To Open",
+  toAmend: "To Amend",
   active: "Active",
   agreementOver: "Agreement Over",
   closurePending: "Cancellation Pending",
@@ -64,6 +69,8 @@ const STAGE_LABELS: Record<OrderDisplayStage, string> = {
 
 const STAGE_BADGE_CLASS: Record<OrderDisplayStage, string> = {
   approvalPending: "bg-slate-200 text-slate-700",
+  toOpen: "bg-sky-100 text-sky-800",
+  toAmend: "bg-violet-100 text-violet-800",
   active: "bg-emerald-100 text-emerald-700",
   agreementOver: "bg-orange-100 text-orange-700",
   closurePending: "bg-amber-100 text-amber-800",
@@ -74,10 +81,12 @@ const STAGE_BADGE_CLASS: Record<OrderDisplayStage, string> = {
 // alphabetically.
 const STAGE_RANK: Record<OrderDisplayStage, number> = {
   approvalPending: 0,
-  active: 1,
-  agreementOver: 2,
-  closurePending: 3,
-  closed: 4,
+  toOpen: 1,
+  toAmend: 1,
+  active: 2,
+  agreementOver: 3,
+  closurePending: 4,
+  closed: 5,
 };
 
 const AMOUNT_MAX_LAKH = 50;
