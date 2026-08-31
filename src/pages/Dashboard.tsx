@@ -15,6 +15,7 @@ import {
   type PieSectorDataItem,
 } from "recharts";
 import type { MainTabId, OrderDisplayStage, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../types";
+import { BUSINESS_UNITS } from "../types";
 import { PRODUCT_NAMES } from "../products";
 import DateRangePicker, { type DateRange } from "../components/DateRangePicker";
 import {
@@ -22,6 +23,8 @@ import {
   buildFiscalYearColumns,
   daysBetween,
   getDisplayStage,
+  getNextActionableStage,
+  isBillingOpenInColumn,
   todayISO,
   type ApprovalStageKey,
 } from "../utils";
@@ -36,10 +39,6 @@ interface DashboardProps {
   orders: OrderRecord[];
   onNavigate: NavigateFn;
 }
-
-// Placeholder options only — there's no real Business Unit field on any
-// order/client in this app yet, so this select doesn't filter anything.
-const BU_OPTIONS = ["Univ-Ops", "Premiere Institutes", "Univ BD", "IMPACT", "Enterprise", "Enterprise CEP"];
 
 function formatINR(n: number) {
   return `₹${n.toLocaleString("en-IN")}`;
@@ -92,9 +91,10 @@ const STAGE_PIE_LABELS: Record<ApprovalStageKey, string> = {
 // Who a notification is for — BD submits, Tech decides first, then Finance;
 // a rejection at either stage always bounces back to BD, an approval always
 // hands off to whoever acts next. Same pattern for the cancellation pair
-// (BD initiates closure -> Tech -> Finance). Eventually this filters by the
-// logged-in user's actual role/team; for now every notification is shown to
-// everyone, color-coded and labeled with its destined department instead.
+// (BD initiates closure -> Tech -> Finance). There's still no real
+// login/role system, so every notification is computed for every order
+// regardless of viewer — the "My View" filter below is a manual stand-in for
+// scoping this to the logged-in user's department.
 type NotificationDept = "BD" | "Tech" | "Finance";
 
 const DEPT_STYLES: Record<NotificationDept, { border: string; text: string }> = {
@@ -201,6 +201,102 @@ const STAGE_PIE_FILTER: Record<ApprovalStageKey, OrderDisplayStage> = {
   cancellationTechnical: "closurePending",
   cancellationFinancial: "closurePending",
 };
+
+// Which department owns the next actionable stage — mirrors
+// buildOrderNotifications' dept assignment above: Tech decides Tech/TC,
+// Finance decides Fin/FC (a rejection at either is reassigned to BD
+// separately, in buildNeedsAction below, regardless of which stage rejected
+// it).
+const STAGE_DEPT: Record<ApprovalStageKey, NotificationDept> = {
+  technical: "Tech",
+  financial: "Finance",
+  cancellationTechnical: "Tech",
+  cancellationFinancial: "Finance",
+};
+
+// The date an order actually entered its current actionable stage — same
+// anchor convention as the Turnaround Time pie's pair-building above, so
+// "days waiting" here means the same thing it means there.
+const STAGE_ANCHOR: Record<ApprovalStageKey, (o: OrderRecord) => string> = {
+  technical: (o) => o.createdOn,
+  financial: (o) => o.technical.date ?? o.createdOn,
+  cancellationTechnical: (o) => o.cancellationDetails?.effectFromDate ?? o.createdOn,
+  cancellationFinancial: (o) => o.cancellationTechnical.date ?? o.createdOn,
+};
+
+interface NeedsActionItem {
+  order: OrderRecord;
+  dept: NotificationDept;
+  label: string;
+  ageDays: number;
+}
+
+// A ranked "whose turn is it" queue — every non-terminal order, oldest at
+// its current stage first. Distinct from the Notifications feed above (which
+// is a chronological log of what already happened): this is what's still
+// outstanding right now, which is what a reviewer or BD actually needs to
+// work from.
+function buildNeedsAction(orders: OrderRecord[]): NeedsActionItem[] {
+  const today = todayISO();
+  const items: NeedsActionItem[] = [];
+  orders.forEach((order) => {
+    if (order.lifecycleStatus === "cancelled") return;
+    const actionable = getNextActionableStage(order);
+    if (actionable) {
+      const rejected = order[actionable.key].status === "rejected";
+      items.push({
+        order,
+        dept: rejected ? "BD" : STAGE_DEPT[actionable.key],
+        label: rejected ? `${actionable.label} rejected — needs fix` : `${actionable.label} approval pending`,
+        ageDays: daysBetween(STAGE_ANCHOR[actionable.key](order), today),
+      });
+      return;
+    }
+    // Both approvals cleared but Finance hasn't opened billing (or, for an
+    // amendment successor, completed the amendment) yet — still someone's
+    // turn, just not an approve/reject decision.
+    const stage = getDisplayStage(order);
+    if (stage === "toOpen" || stage === "toAmend") {
+      items.push({
+        order,
+        dept: "Finance",
+        label: stage === "toAmend" ? "Awaiting Finance to complete amendment" : "Awaiting Finance to open billing",
+        ageDays: daysBetween(order.financial.date ?? order.createdOn, today),
+      });
+    }
+  });
+  return items.sort((a, b) => b.ageDays - a.ageDays);
+}
+
+function NeedsActionList({ items, onNavigate }: { items: NeedsActionItem[]; onNavigate: NavigateFn }) {
+  return (
+    <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
+      {items.map((n) => (
+        <button
+          key={n.order.id}
+          type="button"
+          onClick={() =>
+            onNavigate("orders", n.dept === "BD" ? "approval" : "amendCancel", {
+              stage: getDisplayStage(n.order),
+              q: n.order.orderNo,
+            })
+          }
+          className={`flex items-start gap-2 border-l-4 py-2 pl-2 text-left first:pt-0 hover:bg-slate-50 ${DEPT_STYLES[n.dept].border}`}
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm text-slate-700">
+              <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {n.label}
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-slate-400">
+              waiting {n.ageDays}d
+              <span className={`font-semibold ${DEPT_STYLES[n.dept].text}`}>({n.dept})</span>
+            </span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 // Recharts' activeShape render prop — the hovered slice draws itself slightly
 // larger and grows a centered name/value readout. `describeValue` lets each
@@ -329,15 +425,17 @@ function avgDays(pairs: { start: string; end: string }[]): number {
 
 export default function Dashboard({ orders, onNavigate }: DashboardProps) {
   // Compact top filter bar — Date (by Order Creation Date, same convention
-  // as every other list page's "Created On" filter), BU (Client Type —
-  // there's no real Business Unit data in this app — the BU select is
-  // presentational only (placeholder options, not wired to any filter);
-  // Date and Product still narrow `filteredOrders` below, which every
-  // chart/tile on this page is derived from.
+  // as every other list page's "Created On" filter), Business Unit (the
+  // same `order.bu` field Billing/Manager Report already filter by live),
+  // and Product all narrow `filteredOrders` below, which every chart/tile on
+  // this page is derived from. "My View" is presentational scoping only (no
+  // real login/role exists yet) — it narrows the Needs Action and
+  // Notifications lists to one department without touching the KPI tiles.
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
   const [buFilter, setBuFilter] = useState<string>("all");
   const [productFilter, setProductFilter] = useState<string>("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | NotificationDept>("all");
 
   function handleDatePresetChange(preset: DatePreset) {
     setDatePreset(preset);
@@ -357,8 +455,11 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
     if (productFilter !== "all") {
       result = result.filter((o) => o.product === productFilter);
     }
+    if (buFilter !== "all") {
+      result = result.filter((o) => o.bu === buFilter);
+    }
     return result;
-  }, [orders, dateRange, productFilter]);
+  }, [orders, dateRange, productFilter, buFilter]);
 
   const stageStats = useMemo(() => {
     const stats: Record<TileKey, { count: number; revenue: number }> = {
@@ -476,6 +577,53 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
     return events.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, 15);
   }, [filteredOrders]);
 
+  const visibleNotifications = useMemo(
+    () => (roleFilter === "all" ? notificationItems : notificationItems.filter((n) => n.dept === roleFilter)),
+    [notificationItems, roleFilter]
+  );
+
+  const needsAction = useMemo(() => buildNeedsAction(filteredOrders), [filteredOrders]);
+
+  const visibleNeedsAction = useMemo(
+    () => (roleFilter === "all" ? needsAction : needsAction.filter((n) => n.dept === roleFilter)).slice(0, 8),
+    [needsAction, roleFilter]
+  );
+
+  // "Opened Revenue" (BRD §33/FR-30) — revenue in fiscal-year columns where
+  // billing was actually open (isBillingOpenInColumn), not just where an
+  // occurrence was scheduled (billsInColumn alone) — against the full
+  // projection those same columns already produce, so the two numbers are
+  // directly comparable slices of the same fiscal year.
+  const revenueSummary = useMemo(() => {
+    let projected = 0;
+    let opened = 0;
+    fyColumns.forEach((col) => {
+      liveOrders.forEach((o) => {
+        if (!billsInColumn(o, col)) return;
+        projected += o.amount;
+        if (isBillingOpenInColumn(o, col)) opened += o.amount;
+      });
+    });
+    return { projected, opened };
+  }, [liveOrders, fyColumns]);
+
+  // Revenue "in motion" — value tied up in an amendment successor still
+  // awaiting activation (supersedes set, still "inactive") or in an order
+  // mid-cancellation — versus revenue that's settled into a plain Active
+  // order. Both predecessor and successor count while an amendment is
+  // in-flight, since neither side's value is safely resolved yet.
+  const revenueMotion = useMemo(() => {
+    let inMotion = 0;
+    let settled = 0;
+    liveOrders.forEach((o) => {
+      if (o.lifecycleStatus === "active") settled += o.amount;
+      else if (o.lifecycleStatus === "cancellationInProgress" || (o.supersedes && o.lifecycleStatus === "inactive")) {
+        inMotion += o.amount;
+      }
+    });
+    return { inMotion, settled };
+  }, [liveOrders]);
+
   return (
     <div className="flex flex-col gap-6">
       {/* -mt-6/-top-6 cancel out <main>'s own p-6 top padding (App.tsx) — that
@@ -503,7 +651,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
           className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
         >
           <option value="all">All Business Units</option>
-          {BU_OPTIONS.map((bu) => (
+          {BUSINESS_UNITS.map((bu) => (
             <option key={bu} value={bu}>
               {bu}
             </option>
@@ -521,6 +669,16 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
             </option>
           ))}
         </select>
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value as "all" | NotificationDept)}
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+        >
+          <option value="all">My View: All Roles</option>
+          <option value="BD">My View: BD</option>
+          <option value="Tech">My View: Tech</option>
+          <option value="Finance">My View: Finance</option>
+        </select>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -536,6 +694,63 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
             <span className="text-xs font-semibold text-slate-500">{formatINR(stageStats[t.key].revenue)}</span>
           </button>
         ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-1 text-sm font-semibold text-slate-700">
+            Revenue — Opened vs Projected (FY {fyColumns[0].year}–{fyColumns[11].year})
+          </h3>
+          <p className="mb-3 text-xs text-slate-400">
+            {revenueSummary.projected > 0 ? Math.round((revenueSummary.opened / revenueSummary.projected) * 100) : 0}% of
+            projected fiscal-year revenue has had its billing opened.
+          </p>
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Opened</p>
+              <p className="text-xl font-bold text-emerald-600">{formatINR(revenueSummary.opened)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-medium text-slate-500">Projected</p>
+              <p className="text-xl font-bold text-slate-700">{formatINR(revenueSummary.projected)}</p>
+            </div>
+          </div>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-emerald-500"
+              style={{
+                width: `${revenueSummary.projected > 0 ? Math.min(100, (revenueSummary.opened / revenueSummary.projected) * 100) : 0}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-1 text-sm font-semibold text-slate-700">Revenue In Motion</h3>
+          <p className="mb-3 text-xs text-slate-400">Contracted value tied up in an in-flight amendment or cancellation, vs settled Active revenue.</p>
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">In Motion</p>
+              <p className="text-xl font-bold text-amber-600">{formatINR(revenueMotion.inMotion)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-medium text-slate-500">Settled Active</p>
+              <p className="text-xl font-bold text-slate-700">{formatINR(revenueMotion.settled)}</p>
+            </div>
+          </div>
+          <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            {(() => {
+              const total = revenueMotion.inMotion + revenueMotion.settled;
+              const motionPct = total > 0 ? (revenueMotion.inMotion / total) * 100 : 0;
+              return (
+                <>
+                  <div className="h-full bg-amber-500" style={{ width: `${motionPct}%` }} />
+                  <div className="h-full bg-slate-400" style={{ width: `${100 - motionPct}%` }} />
+                </>
+              );
+            })()}
+          </div>
+        </div>
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -703,7 +918,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold text-slate-700">Turnaround Time by Stage</h3>
           {tatSlices.length === 0 ? (
@@ -742,11 +957,20 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">Needs Action — Oldest First</h3>
+          {visibleNeedsAction.length === 0 ? (
+            <p className="py-16 text-center text-sm text-slate-400">Nothing outstanding right now.</p>
+          ) : (
+            <NeedsActionList items={visibleNeedsAction} onNavigate={onNavigate} />
+          )}
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold text-slate-700">Notifications</h3>
-          {notificationItems.length === 0 ? (
+          {visibleNotifications.length === 0 ? (
             <p className="py-16 text-center text-sm text-slate-400">No recent activity.</p>
           ) : (
-            <NotificationTile items={notificationItems} onNavigate={onNavigate} />
+            <NotificationTile items={visibleNotifications} onNavigate={onNavigate} />
           )}
         </div>
       </div>
