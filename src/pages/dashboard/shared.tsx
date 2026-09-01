@@ -266,6 +266,19 @@ export function ApprovalQueueList({
   );
 }
 
+// Contracted end-of-agreement month, computed the same way isAgreementOver
+// does internally (utils.ts) — used for the Agreement Over notification's
+// displayed/sorted date wherever it's synthesized.
+export function agreementEndDate(order: OrderRecord): string {
+  const { firstBillingMonth, agreement } = order.details;
+  if (!firstBillingMonth || !agreement) return order.createdOn;
+  const [y, m] = firstBillingMonth.split("-").map(Number);
+  const endIdx = y * 12 + (m - 1) + agreement;
+  const endY = Math.floor(endIdx / 12);
+  const endM = (endIdx % 12) + 1;
+  return `${endY}-${String(endM).padStart(2, "0")}-01`;
+}
+
 // Where a given order sits right now, in plain terms, plus how long it's
 // been waiting there — null once it's past waiting on anyone (Active,
 // Agreement Over, Closed). Used by BD's "age at stage" table, which (unlike

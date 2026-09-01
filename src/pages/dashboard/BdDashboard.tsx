@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { OrderDisplayStage, OrderRecord } from "../../types";
 import { getDisplayStage } from "../../utils";
 import {
+  agreementEndDate,
   ApprovalQueueList,
   buildOrderNotifications,
   currentStageInfo,
@@ -37,19 +38,6 @@ const STAGE_LABELS: Record<OrderDisplayStage, string> = {
   closurePending: "Cancellation Pending",
   closed: "Closed",
 };
-
-// Contracted end-of-agreement month, computed the same way isAgreementOver
-// does internally (utils.ts) — used only for the Agreement Over
-// notification's displayed/sorted date.
-function agreementEndDate(order: OrderRecord): string {
-  const { firstBillingMonth, agreement } = order.details;
-  if (!firstBillingMonth || !agreement) return order.createdOn;
-  const [y, m] = firstBillingMonth.split("-").map(Number);
-  const endIdx = y * 12 + (m - 1) + agreement;
-  const endY = Math.floor(endIdx / 12);
-  const endM = (endIdx % 12) + 1;
-  return `${endY}-${String(endM).padStart(2, "0")}-01`;
-}
 
 export default function BdDashboard({ orders, onNavigate }: BdDashboardProps) {
   // No login exists, so this one picker serves both a plain BD view and

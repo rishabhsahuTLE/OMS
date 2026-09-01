@@ -1,11 +1,30 @@
-import { useMemo } from "react";
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { OrderDisplayStage, OrderRecord, OrdersSubTabId } from "../../types";
-import { buildFiscalYearColumns, daysBetween, getDisplayStage } from "../../utils";
-import BdDashboard from "./BdDashboard";
-import FinanceDashboard from "./FinanceDashboard";
-import { DashCard, formatINR, type NavigateFn } from "./shared";
-import TechDashboard from "./TechDashboard";
+import { useMemo, useState } from "react";
+import {
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { BUSINESS_UNITS, type OrderDisplayStage, type OrderRecord, type OrdersSubTabId } from "../../types";
+import { PRODUCT_NAMES } from "../../products";
+import { buildManagerStats } from "../ManagerReport";
+import {
+  billsInColumn,
+  buildFiscalYearColumns,
+  daysBetween,
+  getDisplayStage,
+  getNextActionableStage,
+  isBillingOpenInColumn,
+  type ApprovalStageKey,
+} from "../../utils";
+import { agreementEndDate, buildOrderNotifications, DashCard, DEPT_STYLES, formatINR, type NavigateFn, type NotificationItem } from "./shared";
 
 interface AdminDashboardProps {
   orders: OrderRecord[];
@@ -23,25 +42,28 @@ const STAGE_TILES: { key: TileKey; label: string; dest: OrdersSubTabId; accent: 
   { key: "closed", label: "Closed", dest: "approval", accent: "text-slate-500" },
 ];
 
-interface TatStageDef {
-  key: string;
-  label: string;
-  color: string;
-  pairs: (orders: OrderRecord[]) => { end: string; days: number }[];
+const STUCK_STAGES: { key: ApprovalStageKey; label: string; color: string }[] = [
+  { key: "technical", label: "Tech", color: "#e87ba4" },
+  { key: "financial", label: "Fin", color: "#008300" },
+  { key: "cancellationTechnical", label: "TC", color: "#4a3aa7" },
+  { key: "cancellationFinancial", label: "FC", color: "#e34948" },
+];
+
+interface TatPair {
+  end: string;
+  days: number;
 }
 
-const TAT_STAGES: TatStageDef[] = [
+const TAT_STAGES: { key: string; label: string; pairs: (orders: OrderRecord[]) => TatPair[] }[] = [
   {
     key: "technical",
     label: "Tech",
-    color: "#e87ba4",
     pairs: (orders) =>
       orders.filter((o) => o.technical.date).map((o) => ({ end: o.technical.date as string, days: daysBetween(o.createdOn, o.technical.date as string) })),
   },
   {
     key: "financial",
     label: "Fin",
-    color: "#008300",
     pairs: (orders) =>
       orders
         .filter((o) => o.technical.date && o.financial.date)
@@ -50,7 +72,6 @@ const TAT_STAGES: TatStageDef[] = [
   {
     key: "cancellationTechnical",
     label: "TC",
-    color: "#4a3aa7",
     pairs: (orders) =>
       orders
         .filter((o) => o.cancellationDetails && o.cancellationTechnical.date)
@@ -62,7 +83,6 @@ const TAT_STAGES: TatStageDef[] = [
   {
     key: "cancellationFinancial",
     label: "FC",
-    color: "#e34948",
     pairs: (orders) =>
       orders
         .filter((o) => o.cancellationTechnical.date && o.cancellationFinancial.date)
@@ -78,7 +98,41 @@ function monthKeyOf(iso: string): number {
   return y * 12 + (m - 1);
 }
 
+function avgDays(rows: TatPair[]): number | null {
+  return rows.length === 0 ? null : rows.reduce((sum, p) => sum + p.days, 0) / rows.length;
+}
+
+const STAGE_ORDER: OrderDisplayStage[] = [
+  "approvalPending",
+  "toOpen",
+  "toAmend",
+  "active",
+  "agreementOver",
+  "closurePending",
+  "closed",
+];
+
+const STAGE_LABELS: Record<OrderDisplayStage, string> = {
+  approvalPending: "Approval Pending",
+  toOpen: "To Open",
+  toAmend: "To Amend",
+  active: "Active",
+  agreementOver: "Agreement Over",
+  closurePending: "Cancellation Pending",
+  closed: "Closed",
+};
+
+const PRODUCT_COLORS: Record<string, string> = {
+  LMS: "#2a78d6",
+  Quirio: "#eb6834",
+};
+
+const BU_COLORS = ["#4f46e5", "#0d9488", "#d97706", "#e11d48", "#64748b"];
+
 export default function AdminDashboard({ orders, onNavigate }: AdminDashboardProps) {
+  const liveOrders = useMemo(() => orders.filter((o) => o.lifecycleStatus !== "cancelled"), [orders]);
+  const fyColumns = useMemo(() => buildFiscalYearColumns(new Date()), []);
+
   const stageStats = useMemo(() => {
     const stats: Record<TileKey, { count: number; revenue: number }> = {
       all: { count: 0, revenue: 0 },
@@ -100,25 +154,146 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
     return stats;
   }, [orders]);
 
-  const fyColumns = useMemo(() => buildFiscalYearColumns(new Date()), []);
+  // Every notification event across all three departments, plus the
+  // Agreement Over events BD's own tab synthesizes — this is the one place
+  // meant to show everything, unlike each role tab's own dept-scoped feed.
+  const alerts = useMemo<NotificationItem[]>(() => {
+    const orderEvents = orders.flatMap(buildOrderNotifications);
+    const agreementOverEvents: NotificationItem[] = orders
+      .filter((o) => getDisplayStage(o) === "agreementOver")
+      .map((o) => ({
+        order: o,
+        dept: "BD",
+        message: "Agreement period has ended — review renewal or amendment",
+        date: agreementEndDate(o),
+        rejected: false,
+      }));
+    return [...orderEvents, ...agreementOverEvents]
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+      .slice(0, 20);
+  }, [orders]);
 
-  // Every stage's average turnaround, bucketed by the month the decision
-  // landed in — a monthly trend to compare against, not just one all-time
-  // average per stage. A month with no decided orders for a stage is left
-  // `null` (not 0) so the line skips/connects across the gap instead of
-  // falsely dipping to "0-day turnaround."
-  const tatTrend = useMemo(() => {
-    const stagePairs = TAT_STAGES.map((stage) => ({ key: stage.key, pairs: stage.pairs(orders) }));
-    return fyColumns.map((col) => {
-      const colKey = col.year * 12 + col.month0;
-      const row: Record<string, number | string | null> = { month: col.label };
-      stagePairs.forEach(({ key, pairs }) => {
-        const inMonth = pairs.filter((p) => monthKeyOf(p.end) === colKey);
-        row[key] = inMonth.length > 0 ? inMonth.reduce((sum, p) => sum + p.days, 0) / inMonth.length : null;
+  const billingDue = useMemo(() => {
+    const toOpen = orders.filter((o) => getDisplayStage(o) === "toOpen");
+    const toAmend = orders.filter((o) => getDisplayStage(o) === "toAmend");
+    const toClose = orders.filter((o) => o.lifecycleStatus === "cancelled" && o.billingStatus === "open");
+    const total = toOpen.length + toAmend.length + toClose.length;
+    const amount = [...toOpen, ...toAmend, ...toClose].reduce((sum, o) => sum + o.amount, 0);
+    return { toOpen: toOpen.length, toAmend: toAmend.length, toClose: toClose.length, total, amount };
+  }, [orders]);
+
+  const outstanding = useMemo(() => {
+    const rows = orders.filter((o) => o.cancellationDetails && o.billingStatus !== "closed");
+    return {
+      total: rows.reduce((sum, o) => sum + (o.cancellationDetails?.outstandingBalance ?? 0), 0),
+      count: rows.length,
+    };
+  }, [orders]);
+
+  // Revenue-weighted view of where orders are actually waiting right now —
+  // combines what used to be Tech's and Finance's separate queue lists (plus
+  // the cancellation pair) into one chart, sized by value rather than count.
+  const stuckData = useMemo(() => {
+    return STUCK_STAGES.map((s) => {
+      const rows = orders.filter((o) => {
+        if (o.lifecycleStatus === "cancelled") return false;
+        const actionable = getNextActionableStage(o);
+        return actionable?.key === s.key && o[s.key].status === "pending";
       });
-      return row;
+      return { key: s.key, label: s.label, color: s.color, revenue: rows.reduce((sum, o) => sum + o.amount, 0), count: rows.length };
+    }).filter((d) => d.count > 0);
+  }, [orders]);
+
+  // This-month vs last-month average turnaround per stage, with the
+  // direction of change — an increase is worse (red, up-arrow), a decrease
+  // is better (green, down-arrow).
+  const tatMonthly = useMemo(() => {
+    const now = new Date();
+    const thisMonthKey = now.getFullYear() * 12 + now.getMonth();
+    const lastMonthKey = thisMonthKey - 1;
+    return TAT_STAGES.map((s) => {
+      const pairs = s.pairs(orders);
+      const thisAvg = avgDays(pairs.filter((p) => monthKeyOf(p.end) === thisMonthKey));
+      const lastAvg = avgDays(pairs.filter((p) => monthKeyOf(p.end) === lastMonthKey));
+      const pctChange = thisAvg != null && lastAvg != null && lastAvg !== 0 ? ((thisAvg - lastAvg) / lastAvg) * 100 : null;
+      return { key: s.key, label: s.label, thisAvg, pctChange };
     });
-  }, [orders, fyColumns]);
+  }, [orders]);
+
+  const activeBUs = useMemo(() => BUSINESS_UNITS.filter((bu) => liveOrders.some((o) => o.bu === bu)), [liveOrders]);
+
+  const buTrendData = useMemo(
+    () =>
+      fyColumns.map((col) => {
+        const row: Record<string, number | string> = { month: col.label };
+        activeBUs.forEach((bu) => {
+          row[bu] = liveOrders.filter((o) => o.bu === bu && billsInColumn(o, col)).reduce((sum, o) => sum + o.amount, 0);
+        });
+        return row;
+      }),
+    [liveOrders, fyColumns, activeBUs]
+  );
+
+  const productMetrics = useMemo(
+    () =>
+      PRODUCT_NAMES.map((product) => ({
+        product,
+        label: product,
+        revenue: liveOrders.filter((o) => o.product === product).reduce((sum, o) => sum + o.amount, 0),
+      })).filter((m) => m.revenue > 0),
+    [liveOrders]
+  );
+
+  const managerStats = useMemo(() => buildManagerStats(liveOrders).sort((a, b) => b.amount - a.amount), [liveOrders]);
+
+  const revenueMotion = useMemo(() => {
+    let inMotion = 0;
+    let settled = 0;
+    liveOrders.forEach((o) => {
+      if (o.lifecycleStatus === "active") settled += o.amount;
+      else if (o.lifecycleStatus === "cancellationInProgress" || (o.supersedes && o.lifecycleStatus === "inactive")) {
+        inMotion += o.amount;
+      }
+    });
+    return { inMotion, settled };
+  }, [liveOrders]);
+
+  const revenueSummary = useMemo(() => {
+    let projected = 0;
+    let opened = 0;
+    fyColumns.forEach((col) => {
+      liveOrders.forEach((o) => {
+        if (!billsInColumn(o, col)) return;
+        projected += o.amount;
+        if (isBillingOpenInColumn(o, col)) opened += o.amount;
+      });
+    });
+    return { projected, opened };
+  }, [liveOrders, fyColumns]);
+
+  const [selectedManager, setSelectedManager] = useState("all");
+  const managerOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
+  const scopedOrders = useMemo(
+    () => (selectedManager === "all" ? orders : orders.filter((o) => o.clientManager === selectedManager)),
+    [orders, selectedManager]
+  );
+  const stageDistribution = useMemo(() => {
+    const stats: Record<OrderDisplayStage, { count: number; revenue: number }> = {
+      approvalPending: { count: 0, revenue: 0 },
+      toOpen: { count: 0, revenue: 0 },
+      toAmend: { count: 0, revenue: 0 },
+      active: { count: 0, revenue: 0 },
+      agreementOver: { count: 0, revenue: 0 },
+      closurePending: { count: 0, revenue: 0 },
+      closed: { count: 0, revenue: 0 },
+    };
+    scopedOrders.forEach((o) => {
+      const stage = getDisplayStage(o);
+      stats[stage].count += 1;
+      stats[stage].revenue += o.amount;
+    });
+    return stats;
+  }, [scopedOrders]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -137,44 +312,274 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
         ))}
       </div>
 
-      <DashCard title={`Avg Turnaround by Stage — Monthly, FY ${fyColumns[0].year}–${fyColumns[11].year}`}>
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={tatTrend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+      <DashCard title="Alerts">
+        {alerts.length === 0 ? (
+          <p className="py-12 text-center text-sm text-slate-400">No recent activity.</p>
+        ) : (
+          <div className="flex max-h-72 flex-col divide-y divide-slate-100 overflow-y-auto">
+            {alerts.map((n, i) => (
+              <div key={`${n.order.id}-${i}`} className={`flex items-center gap-2 border-l-4 py-2 pl-2 ${DEPT_STYLES[n.dept].border}`}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onNavigate("orders", n.dept === "BD" ? "approval" : "amendCancel", {
+                      stage: getDisplayStage(n.order),
+                      q: n.order.orderNo,
+                    })
+                  }
+                  className="min-w-0 flex-1 text-left hover:bg-slate-50"
+                >
+                  <span className="block truncate text-sm text-slate-700">
+                    <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {n.message}
+                  </span>
+                  <span className={`text-xs font-semibold ${DEPT_STYLES[n.dept].text}`}>{n.dept}</span>
+                </button>
+                {n.rejected && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("orders", "approval", { edit: n.order.id })}
+                    className="shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </DashCard>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <DashCard
+          title="Billing Actions Due"
+          action={
+            <button
+              type="button"
+              onClick={() => onNavigate("orders", "closeBilling")}
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+            >
+              Go to Close Billing →
+            </button>
+          }
+        >
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xl font-bold text-slate-800">{billingDue.toOpen}</p>
+              <p className="text-xs text-slate-500">To Open</p>
+            </div>
+            <div>
+              <p className="text-xl font-bold text-slate-800">{billingDue.toAmend}</p>
+              <p className="text-xs text-slate-500">To Amend</p>
+            </div>
+            <div>
+              <p className="text-xl font-bold text-slate-800">{billingDue.toClose}</p>
+              <p className="text-xs text-slate-500">To Close</p>
+            </div>
+          </div>
+          <p className="mt-2 text-center text-xs text-slate-400">{formatINR(billingDue.amount)} total contracted value</p>
+        </DashCard>
+
+        <DashCard title="Outstanding Balance (To Close)">
+          <div className="flex h-full items-center justify-between">
+            <p className="text-2xl font-bold text-rose-600">{formatINR(outstanding.total)}</p>
+            <p className="text-xs text-slate-400">across {outstanding.count} order{outstanding.count === 1 ? "" : "s"}</p>
+          </div>
+        </DashCard>
+      </div>
+
+      <DashCard title="Where Orders Are Stuck (by revenue)">
+        {stuckData.length === 0 ? (
+          <p className="py-16 text-center text-sm text-slate-400">Nothing stuck right now.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={stuckData} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                {stuckData.map((d) => (
+                  <Cell key={d.key} fill={d.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(v, _name, entry) => {
+                  const payload = entry.payload as { label: string; count: number };
+                  return [`${formatINR(Number(v))} (${payload.count} orders)`, payload.label];
+                }}
+                contentStyle={{ fontSize: 12, borderRadius: 8 }}
+              />
+              <Legend
+                verticalAlign="bottom"
+                height={36}
+                wrapperStyle={{ fontSize: 12 }}
+                formatter={(value) => {
+                  const d = stuckData.find((x) => x.label === value);
+                  return `${value} (${d?.count ?? 0})`;
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
+      </DashCard>
+
+      <DashCard title="Turnaround Time — This Month">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {tatMonthly.map((t) => (
+            <div key={t.key} className="rounded-md border border-slate-100 bg-slate-50 p-3 text-center">
+              <p className="text-xs font-medium text-slate-500">{t.label}</p>
+              <p className="text-lg font-bold text-slate-800">{t.thisAvg != null ? `${t.thisAvg.toFixed(1)}d` : "—"}</p>
+              {t.pctChange == null ? (
+                <p className="text-xs text-slate-400">no prior month</p>
+              ) : (
+                <p
+                  className={`flex items-center justify-center gap-1 text-xs font-semibold ${
+                    t.pctChange > 0.5 ? "text-rose-600" : t.pctChange < -0.5 ? "text-emerald-600" : "text-slate-400"
+                  }`}
+                >
+                  {t.pctChange > 0.5 ? "▲" : t.pctChange < -0.5 ? "▼" : "–"} {Math.abs(t.pctChange).toFixed(0)}%
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      </DashCard>
+
+      <DashCard title={`Revenue Trend by Business Unit — FY ${fyColumns[0].year}–${fyColumns[11].year}`}>
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={buTrendData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid vertical={false} stroke="#e1e0d9" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#898781" }} axisLine={{ stroke: "#c3c2b7" }} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: "#898781" }} axisLine={false} tickLine={false} width={36} allowDecimals={false} />
-            <Tooltip formatter={(v) => `${Number(v).toFixed(1)}d`} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <YAxis
+              tick={{ fontSize: 11, fill: "#898781" }}
+              axisLine={false}
+              tickLine={false}
+              width={48}
+              tickFormatter={(v: number) => `₹${(v / 100000).toFixed(0)}L`}
+            />
+            <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            {TAT_STAGES.map((stage) => (
-              <Line
-                key={stage.key}
-                type="monotone"
-                dataKey={stage.key}
-                name={stage.label}
-                stroke={stage.color}
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                connectNulls
-              />
+            {activeBUs.map((bu, i) => (
+              <Line key={bu} type="monotone" dataKey={bu} name={bu} stroke={BU_COLORS[i % BU_COLORS.length]} strokeWidth={2} dot={{ r: 3 }} />
             ))}
           </LineChart>
         </ResponsiveContainer>
       </DashCard>
 
-      <div className="flex flex-col gap-3 border-t border-slate-200 pt-6">
-        <h2 className="text-base font-semibold text-slate-800">Tech</h2>
-        <TechDashboard orders={orders} onNavigate={onNavigate} />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <DashCard title="Product-wise Revenue">
+          {productMetrics.length === 0 ? (
+            <p className="py-16 text-center text-sm text-slate-400">No orders to show.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={productMetrics} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                  {productMetrics.map((m) => (
+                    <Cell key={m.product} fill={PRODUCT_COLORS[m.product] ?? "#64748b"} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </DashCard>
+
+        <DashCard title="Manager-wise Revenue">
+          {managerStats.length === 0 ? (
+            <p className="py-16 text-center text-sm text-slate-400">No orders to show.</p>
+          ) : (
+            <div className="flex max-h-56 flex-col divide-y divide-slate-100 overflow-y-auto">
+              {managerStats.map((m) => (
+                <button
+                  key={m.manager}
+                  type="button"
+                  onClick={() => onNavigate("report", "managerReport", { manager: m.manager })}
+                  className="flex items-center justify-between gap-3 py-2 text-left first:pt-0 hover:bg-slate-50"
+                >
+                  <span className="flex flex-col">
+                    <span className="text-sm font-medium text-slate-800">{m.manager}</span>
+                    <span className="text-xs text-slate-400">{m.total} order{m.total === 1 ? "" : "s"}</span>
+                  </span>
+                  <span className="text-sm font-semibold text-slate-700">{formatINR(m.amount)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </DashCard>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-slate-200 pt-6">
-        <h2 className="text-base font-semibold text-slate-800">Finance</h2>
-        <FinanceDashboard orders={orders} onNavigate={onNavigate} />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <DashCard title="Revenue In Motion">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">In Motion</p>
+              <p className="text-xl font-bold text-amber-600">{formatINR(revenueMotion.inMotion)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-medium text-slate-500">Settled Active</p>
+              <p className="text-xl font-bold text-slate-700">{formatINR(revenueMotion.settled)}</p>
+            </div>
+          </div>
+          <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            {(() => {
+              const total = revenueMotion.inMotion + revenueMotion.settled;
+              const motionPct = total > 0 ? (revenueMotion.inMotion / total) * 100 : 0;
+              return (
+                <>
+                  <div className="h-full bg-amber-500" style={{ width: `${motionPct}%` }} />
+                  <div className="h-full bg-slate-400" style={{ width: `${100 - motionPct}%` }} />
+                </>
+              );
+            })()}
+          </div>
+        </DashCard>
+
+        <DashCard title="Revenue — Opened vs Projected (per FBD)">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Opened</p>
+              <p className="text-xl font-bold text-emerald-600">{formatINR(revenueSummary.opened)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-medium text-slate-500">Projected</p>
+              <p className="text-xl font-bold text-slate-700">{formatINR(revenueSummary.projected)}</p>
+            </div>
+          </div>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-emerald-500"
+              style={{
+                width: `${revenueSummary.projected > 0 ? Math.min(100, (revenueSummary.opened / revenueSummary.projected) * 100) : 0}%`,
+              }}
+            />
+          </div>
+        </DashCard>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-slate-200 pt-6">
-        <h2 className="text-base font-semibold text-slate-800">BD / Client Manager</h2>
-        <BdDashboard orders={orders} onNavigate={onNavigate} />
-      </div>
+      <DashCard
+        title="Stage Distribution"
+        action={
+          <select
+            value={selectedManager}
+            onChange={(e) => setSelectedManager(e.target.value)}
+            className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          >
+            <option value="all">All Managers</option>
+            {managerOptions.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        }
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {STAGE_ORDER.map((stage) => (
+            <div key={stage} className="rounded-md border border-slate-100 bg-slate-50 p-3 text-center">
+              <p className="text-lg font-bold text-slate-800">{stageDistribution[stage].count}</p>
+              <p className="text-xs text-slate-500">{STAGE_LABELS[stage]}</p>
+              <p className="text-xs font-semibold text-slate-600">{formatINR(stageDistribution[stage].revenue)}</p>
+            </div>
+          ))}
+        </div>
+      </DashCard>
     </div>
   );
 }
