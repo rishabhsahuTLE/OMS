@@ -102,26 +102,6 @@ function avgDays(rows: TatPair[]): number | null {
   return rows.length === 0 ? null : rows.reduce((sum, p) => sum + p.days, 0) / rows.length;
 }
 
-const STAGE_ORDER: OrderDisplayStage[] = [
-  "approvalPending",
-  "toOpen",
-  "toAmend",
-  "active",
-  "agreementOver",
-  "closurePending",
-  "closed",
-];
-
-const STAGE_LABELS: Record<OrderDisplayStage, string> = {
-  approvalPending: "Approval Pending",
-  toOpen: "To Open",
-  toAmend: "To Amend",
-  active: "Active",
-  agreementOver: "Agreement Over",
-  closurePending: "Cancellation Pending",
-  closed: "Closed",
-};
-
 const PRODUCT_COLORS: Record<string, string> = {
   LMS: "#2a78d6",
   Quirio: "#eb6834",
@@ -132,6 +112,16 @@ const BU_COLORS = ["#4f46e5", "#0d9488", "#d97706", "#e11d48", "#64748b"];
 export default function AdminDashboard({ orders, onNavigate }: AdminDashboardProps) {
   const liveOrders = useMemo(() => orders.filter((o) => o.lifecycleStatus !== "cancelled"), [orders]);
   const fyColumns = useMemo(() => buildFiscalYearColumns(new Date()), []);
+
+  // Scopes the top KPI tiles to one Client Manager — the tiles themselves
+  // are the stage-wise distribution now, so this filter replaces what used
+  // to be a separate "Stage Distribution" tile at the bottom of the page.
+  const [selectedManager, setSelectedManager] = useState("all");
+  const managerOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
+  const scopedOrders = useMemo(
+    () => (selectedManager === "all" ? orders : orders.filter((o) => o.clientManager === selectedManager)),
+    [orders, selectedManager]
+  );
 
   const stageStats = useMemo(() => {
     const stats: Record<TileKey, { count: number; revenue: number }> = {
@@ -144,7 +134,7 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
       closurePending: { count: 0, revenue: 0 },
       closed: { count: 0, revenue: 0 },
     };
-    orders.forEach((o) => {
+    scopedOrders.forEach((o) => {
       const stage = getDisplayStage(o);
       stats[stage].count += 1;
       stats[stage].revenue += o.amount;
@@ -152,11 +142,12 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
       stats.all.revenue += o.amount;
     });
     return stats;
-  }, [orders]);
+  }, [scopedOrders]);
 
   // Every notification event across all three departments, plus the
   // Agreement Over events BD's own tab synthesizes — this is the one place
   // meant to show everything, unlike each role tab's own dept-scoped feed.
+  // Deliberately org-wide (not scoped by the manager filter above).
   const alerts = useMemo<NotificationItem[]>(() => {
     const orderEvents = orders.flatMap(buildOrderNotifications);
     const agreementOverEvents: NotificationItem[] = orders
@@ -206,7 +197,11 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
 
   // This-month vs last-month average turnaround per stage, with the
   // direction of change — an increase is worse (red, up-arrow), a decrease
-  // is better (green, down-arrow).
+  // is better (green, down-arrow). Mock data is generated from a fixed
+  // reference date (see mockOrders.ts), so it rarely if ever has real
+  // decisions landing in the actual current/previous calendar month — when
+  // that happens, this falls back to each stage's all-time average instead
+  // of showing an empty tile, and the card title flags it as mock data.
   const tatMonthly = useMemo(() => {
     const now = new Date();
     const thisMonthKey = now.getFullYear() * 12 + now.getMonth();
@@ -216,9 +211,11 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
       const thisAvg = avgDays(pairs.filter((p) => monthKeyOf(p.end) === thisMonthKey));
       const lastAvg = avgDays(pairs.filter((p) => monthKeyOf(p.end) === lastMonthKey));
       const pctChange = thisAvg != null && lastAvg != null && lastAvg !== 0 ? ((thisAvg - lastAvg) / lastAvg) * 100 : null;
-      return { key: s.key, label: s.label, thisAvg, pctChange };
+      const usingFallback = thisAvg == null;
+      return { key: s.key, label: s.label, displayAvg: thisAvg ?? avgDays(pairs), pctChange: usingFallback ? null : pctChange, usingFallback };
     });
   }, [orders]);
+  const tatUsesFallback = tatMonthly.some((t) => t.usingFallback);
 
   const activeBUs = useMemo(() => BUSINESS_UNITS.filter((bu) => liveOrders.some((o) => o.bu === bu)), [liveOrders]);
 
@@ -271,32 +268,23 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
     return { projected, opened };
   }, [liveOrders, fyColumns]);
 
-  const [selectedManager, setSelectedManager] = useState("all");
-  const managerOptions = useMemo(() => Array.from(new Set(orders.map((o) => o.clientManager))).sort(), [orders]);
-  const scopedOrders = useMemo(
-    () => (selectedManager === "all" ? orders : orders.filter((o) => o.clientManager === selectedManager)),
-    [orders, selectedManager]
-  );
-  const stageDistribution = useMemo(() => {
-    const stats: Record<OrderDisplayStage, { count: number; revenue: number }> = {
-      approvalPending: { count: 0, revenue: 0 },
-      toOpen: { count: 0, revenue: 0 },
-      toAmend: { count: 0, revenue: 0 },
-      active: { count: 0, revenue: 0 },
-      agreementOver: { count: 0, revenue: 0 },
-      closurePending: { count: 0, revenue: 0 },
-      closed: { count: 0, revenue: 0 },
-    };
-    scopedOrders.forEach((o) => {
-      const stage = getDisplayStage(o);
-      stats[stage].count += 1;
-      stats[stage].revenue += o.amount;
-    });
-    return stats;
-  }, [scopedOrders]);
-
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex justify-end">
+        <select
+          value={selectedManager}
+          onChange={(e) => setSelectedManager(e.target.value)}
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+        >
+          <option value="all">All Managers</option>
+          {managerOptions.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {STAGE_TILES.map((t) => (
           <button
@@ -312,44 +300,7 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
         ))}
       </div>
 
-      <DashCard title="Alerts">
-        {alerts.length === 0 ? (
-          <p className="py-12 text-center text-sm text-slate-400">No recent activity.</p>
-        ) : (
-          <div className="flex max-h-72 flex-col divide-y divide-slate-100 overflow-y-auto">
-            {alerts.map((n, i) => (
-              <div key={`${n.order.id}-${i}`} className={`flex items-center gap-2 border-l-4 py-2 pl-2 ${DEPT_STYLES[n.dept].border}`}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    onNavigate("orders", n.dept === "BD" ? "approval" : "amendCancel", {
-                      stage: getDisplayStage(n.order),
-                      q: n.order.orderNo,
-                    })
-                  }
-                  className="min-w-0 flex-1 text-left hover:bg-slate-50"
-                >
-                  <span className="block truncate text-sm text-slate-700">
-                    <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {n.message}
-                  </span>
-                  <span className={`text-xs font-semibold ${DEPT_STYLES[n.dept].text}`}>{n.dept}</span>
-                </button>
-                {n.rejected && (
-                  <button
-                    type="button"
-                    onClick={() => onNavigate("orders", "approval", { edit: n.order.id })}
-                    className="shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
-                  >
-                    Edit
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </DashCard>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-3">
         <DashCard
           title="Billing Actions Due"
           action={
@@ -385,61 +336,120 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
             <p className="text-xs text-slate-400">across {outstanding.count} order{outstanding.count === 1 ? "" : "s"}</p>
           </div>
         </DashCard>
+
+        <DashCard title={`Turnaround Time — This Month${tatUsesFallback ? " (mock data)" : ""}`}>
+          <div className="grid grid-cols-2 gap-2">
+            {tatMonthly.map((t) => (
+              <div key={t.key} className="rounded-md border border-slate-100 bg-slate-50 p-2 text-center">
+                <p className="text-xs font-medium text-slate-500">{t.label}</p>
+                <p className="text-base font-bold text-slate-800">{t.displayAvg != null ? `${t.displayAvg.toFixed(1)}d` : "—"}</p>
+                {t.usingFallback ? (
+                  <p className="text-[11px] text-slate-400">all-time avg</p>
+                ) : t.pctChange == null ? (
+                  <p className="text-[11px] text-slate-400">no prior month</p>
+                ) : (
+                  <p
+                    className={`flex items-center justify-center gap-1 text-[11px] font-semibold ${
+                      t.pctChange > 0.5 ? "text-rose-600" : t.pctChange < -0.5 ? "text-emerald-600" : "text-slate-400"
+                    }`}
+                  >
+                    {t.pctChange > 0.5 ? "▲" : t.pctChange < -0.5 ? "▼" : "–"} {Math.abs(t.pctChange).toFixed(0)}%
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </DashCard>
       </div>
 
-      <DashCard title="Where Orders Are Stuck (by revenue)">
-        {stuckData.length === 0 ? (
-          <p className="py-16 text-center text-sm text-slate-400">Nothing stuck right now.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={stuckData} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                {stuckData.map((d) => (
-                  <Cell key={d.key} fill={d.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(v, _name, entry) => {
-                  const payload = entry.payload as { label: string; count: number };
-                  return [`${formatINR(Number(v))} (${payload.count} orders)`, payload.label];
-                }}
-                contentStyle={{ fontSize: 12, borderRadius: 8 }}
-              />
-              <Legend
-                verticalAlign="bottom"
-                height={36}
-                wrapperStyle={{ fontSize: 12 }}
-                formatter={(value) => {
-                  const d = stuckData.find((x) => x.label === value);
-                  return `${value} (${d?.count ?? 0})`;
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        )}
-      </DashCard>
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-3">
+        <DashCard title="Where Orders Are Stuck (by revenue)">
+          {stuckData.length === 0 ? (
+            <p className="py-16 text-center text-sm text-slate-400">Nothing stuck right now.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={stuckData} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                  {stuckData.map((d) => (
+                    <Cell key={d.key} fill={d.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(v, _name, entry) => {
+                    const payload = entry.payload as { label: string; count: number };
+                    return [`${formatINR(Number(v))} (${payload.count} orders)`, payload.label];
+                  }}
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                />
+                <Legend
+                  verticalAlign="bottom"
+                  height={36}
+                  wrapperStyle={{ fontSize: 12 }}
+                  formatter={(value) => {
+                    const d = stuckData.find((x) => x.label === value);
+                    return `${value} (${d?.count ?? 0})`;
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </DashCard>
 
-      <DashCard title="Turnaround Time — This Month">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {tatMonthly.map((t) => (
-            <div key={t.key} className="rounded-md border border-slate-100 bg-slate-50 p-3 text-center">
-              <p className="text-xs font-medium text-slate-500">{t.label}</p>
-              <p className="text-lg font-bold text-slate-800">{t.thisAvg != null ? `${t.thisAvg.toFixed(1)}d` : "—"}</p>
-              {t.pctChange == null ? (
-                <p className="text-xs text-slate-400">no prior month</p>
-              ) : (
-                <p
-                  className={`flex items-center justify-center gap-1 text-xs font-semibold ${
-                    t.pctChange > 0.5 ? "text-rose-600" : t.pctChange < -0.5 ? "text-emerald-600" : "text-slate-400"
-                  }`}
-                >
-                  {t.pctChange > 0.5 ? "▲" : t.pctChange < -0.5 ? "▼" : "–"} {Math.abs(t.pctChange).toFixed(0)}%
-                </p>
-              )}
+        <DashCard title="Product-wise Revenue">
+          {productMetrics.length === 0 ? (
+            <p className="py-16 text-center text-sm text-slate-400">No orders to show.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={productMetrics} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                  {productMetrics.map((m) => (
+                    <Cell key={m.product} fill={PRODUCT_COLORS[m.product] ?? "#64748b"} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </DashCard>
+
+        <DashCard title="Alerts">
+          {alerts.length === 0 ? (
+            <p className="py-12 text-center text-sm text-slate-400">No recent activity.</p>
+          ) : (
+            <div className="flex max-h-72 flex-col divide-y divide-slate-100 overflow-y-auto">
+              {alerts.map((n, i) => (
+                <div key={`${n.order.id}-${i}`} className={`flex items-center gap-2 border-l-4 py-2 pl-2 ${DEPT_STYLES[n.dept].border}`}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onNavigate("orders", n.dept === "BD" ? "approval" : "amendCancel", {
+                        stage: getDisplayStage(n.order),
+                        q: n.order.orderNo,
+                      })
+                    }
+                    className="min-w-0 flex-1 text-left hover:bg-slate-50"
+                  >
+                    <span className="block truncate text-sm text-slate-700">
+                      <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {n.message}
+                    </span>
+                    <span className={`text-xs font-semibold ${DEPT_STYLES[n.dept].text}`}>{n.dept}</span>
+                  </button>
+                  {n.rejected && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigate("orders", "approval", { edit: n.order.id })}
+                      className="shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </DashCard>
+          )}
+        </DashCard>
+      </div>
 
       <DashCard title={`Revenue Trend by Business Unit — FY ${fyColumns[0].year}–${fyColumns[11].year}`}>
         <ResponsiveContainer width="100%" height={260}>
@@ -461,49 +471,6 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
           </LineChart>
         </ResponsiveContainer>
       </DashCard>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <DashCard title="Product-wise Revenue">
-          {productMetrics.length === 0 ? (
-            <p className="py-16 text-center text-sm text-slate-400">No orders to show.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={productMetrics} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                  {productMetrics.map((m) => (
-                    <Cell key={m.product} fill={PRODUCT_COLORS[m.product] ?? "#64748b"} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </DashCard>
-
-        <DashCard title="Manager-wise Revenue">
-          {managerStats.length === 0 ? (
-            <p className="py-16 text-center text-sm text-slate-400">No orders to show.</p>
-          ) : (
-            <div className="flex max-h-56 flex-col divide-y divide-slate-100 overflow-y-auto">
-              {managerStats.map((m) => (
-                <button
-                  key={m.manager}
-                  type="button"
-                  onClick={() => onNavigate("report", "managerReport", { manager: m.manager })}
-                  className="flex items-center justify-between gap-3 py-2 text-left first:pt-0 hover:bg-slate-50"
-                >
-                  <span className="flex flex-col">
-                    <span className="text-sm font-medium text-slate-800">{m.manager}</span>
-                    <span className="text-xs text-slate-400">{m.total} order{m.total === 1 ? "" : "s"}</span>
-                  </span>
-                  <span className="text-sm font-semibold text-slate-700">{formatINR(m.amount)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </DashCard>
-      </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <DashCard title="Revenue In Motion">
@@ -553,32 +520,27 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
         </DashCard>
       </div>
 
-      <DashCard
-        title="Stage Distribution"
-        action={
-          <select
-            value={selectedManager}
-            onChange={(e) => setSelectedManager(e.target.value)}
-            className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-          >
-            <option value="all">All Managers</option>
-            {managerOptions.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
+      <DashCard title="Manager-wise Revenue">
+        {managerStats.length === 0 ? (
+          <p className="py-16 text-center text-sm text-slate-400">No orders to show.</p>
+        ) : (
+          <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
+            {managerStats.map((m) => (
+              <button
+                key={m.manager}
+                type="button"
+                onClick={() => onNavigate("report", "managerReport", { manager: m.manager })}
+                className="flex items-center justify-between gap-3 py-2 text-left first:pt-0 hover:bg-slate-50"
+              >
+                <span className="flex flex-col">
+                  <span className="text-sm font-medium text-slate-800">{m.manager}</span>
+                  <span className="text-xs text-slate-400">{m.total} order{m.total === 1 ? "" : "s"}</span>
+                </span>
+                <span className="text-sm font-semibold text-slate-700">{formatINR(m.amount)}</span>
+              </button>
             ))}
-          </select>
-        }
-      >
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {STAGE_ORDER.map((stage) => (
-            <div key={stage} className="rounded-md border border-slate-100 bg-slate-50 p-3 text-center">
-              <p className="text-lg font-bold text-slate-800">{stageDistribution[stage].count}</p>
-              <p className="text-xs text-slate-500">{STAGE_LABELS[stage]}</p>
-              <p className="text-xs font-semibold text-slate-600">{formatINR(stageDistribution[stage].revenue)}</p>
-            </div>
-          ))}
-        </div>
+          </div>
+        )}
       </DashCard>
     </div>
   );
