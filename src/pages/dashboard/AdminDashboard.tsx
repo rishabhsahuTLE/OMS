@@ -93,6 +93,19 @@ const TAT_STAGES: { key: string; label: string; pairs: (orders: OrderRecord[]) =
   },
 ];
 
+// Mock data is generated from a fixed reference date (see mockOrders.ts), so
+// no stage reliably has real decisions landing in the actual current/last
+// calendar month — Cancellation-Technical in particular can have zero
+// decided orders at all. Rather than showing an empty tile, every stage
+// falls back to an illustrative number + direction here; the card title
+// flags it as mock data whenever any stage is using this fallback.
+const MOCK_TAT_FALLBACK: Record<string, { avg: number; pct: number }> = {
+  technical: { avg: 3.2, pct: -6 },
+  financial: { avg: 2.5, pct: 4 },
+  cancellationTechnical: { avg: 4.1, pct: -9 },
+  cancellationFinancial: { avg: 3.6, pct: 3 },
+};
+
 function monthKeyOf(iso: string): number {
   const [y, m] = iso.split("-").map(Number);
   return y * 12 + (m - 1);
@@ -210,9 +223,17 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
       const pairs = s.pairs(orders);
       const thisAvg = avgDays(pairs.filter((p) => monthKeyOf(p.end) === thisMonthKey));
       const lastAvg = avgDays(pairs.filter((p) => monthKeyOf(p.end) === lastMonthKey));
-      const pctChange = thisAvg != null && lastAvg != null && lastAvg !== 0 ? ((thisAvg - lastAvg) / lastAvg) * 100 : null;
-      const usingFallback = thisAvg == null;
-      return { key: s.key, label: s.label, displayAvg: thisAvg ?? avgDays(pairs), pctChange: usingFallback ? null : pctChange, usingFallback };
+      const realPctChange = thisAvg != null && lastAvg != null && lastAvg !== 0 ? ((thisAvg - lastAvg) / lastAvg) * 100 : null;
+      const allTimeAvg = avgDays(pairs);
+      const mock = MOCK_TAT_FALLBACK[s.key];
+      const usingFallback = realPctChange == null;
+      return {
+        key: s.key,
+        label: s.label,
+        displayAvg: thisAvg ?? allTimeAvg ?? mock.avg,
+        pctChange: realPctChange ?? mock.pct,
+        usingFallback,
+      };
     });
   }, [orders]);
   const tatUsesFallback = tatMonthly.some((t) => t.usingFallback);
@@ -270,37 +291,40 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex justify-end">
-        <select
-          value={selectedManager}
-          onChange={(e) => setSelectedManager(e.target.value)}
-          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-        >
-          <option value="all">All Managers</option>
-          {managerOptions.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {STAGE_TILES.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => onNavigate("orders", t.dest, t.key === "all" ? undefined : { stage: t.key })}
-            className="flex flex-col items-start gap-1 rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-indigo-300 hover:shadow-md"
+      <DashCard
+        title="Stage Distribution"
+        action={
+          <select
+            value={selectedManager}
+            onChange={(e) => setSelectedManager(e.target.value)}
+            className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
           >
-            <span className="text-xs font-medium text-slate-500">{t.label}</span>
-            <span className={`text-2xl font-bold ${t.accent}`}>{stageStats[t.key].count}</span>
-            <span className="text-xs font-semibold text-slate-500">{formatINR(stageStats[t.key].revenue)}</span>
-          </button>
-        ))}
-      </div>
+            <option value="all">All Managers</option>
+            {managerOptions.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        }
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {STAGE_TILES.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => onNavigate("orders", t.dest, t.key === "all" ? undefined : { stage: t.key })}
+              className="flex flex-col items-start gap-1 rounded-md border border-slate-100 bg-slate-50 p-3 text-left transition-colors hover:border-indigo-300 hover:bg-indigo-50"
+            >
+              <span className="text-xs font-medium text-slate-500">{t.label}</span>
+              <span className={`text-2xl font-bold ${t.accent}`}>{stageStats[t.key].count}</span>
+              <span className="text-xs font-semibold text-slate-500">{formatINR(stageStats[t.key].revenue)}</span>
+            </button>
+          ))}
+        </div>
+      </DashCard>
 
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <DashCard
           title="Billing Actions Due"
           action={
@@ -337,25 +361,19 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
           </div>
         </DashCard>
 
-        <DashCard title={`Turnaround Time — This Month${tatUsesFallback ? " (mock data)" : ""}`}>
+        <DashCard title={`TAT — This Month${tatUsesFallback ? " (mock data)" : ""}`}>
           <div className="grid grid-cols-2 gap-2">
             {tatMonthly.map((t) => (
               <div key={t.key} className="rounded-md border border-slate-100 bg-slate-50 p-2 text-center">
                 <p className="text-xs font-medium text-slate-500">{t.label}</p>
-                <p className="text-base font-bold text-slate-800">{t.displayAvg != null ? `${t.displayAvg.toFixed(1)}d` : "—"}</p>
-                {t.usingFallback ? (
-                  <p className="text-[11px] text-slate-400">all-time avg</p>
-                ) : t.pctChange == null ? (
-                  <p className="text-[11px] text-slate-400">no prior month</p>
-                ) : (
-                  <p
-                    className={`flex items-center justify-center gap-1 text-[11px] font-semibold ${
-                      t.pctChange > 0.5 ? "text-rose-600" : t.pctChange < -0.5 ? "text-emerald-600" : "text-slate-400"
-                    }`}
-                  >
-                    {t.pctChange > 0.5 ? "▲" : t.pctChange < -0.5 ? "▼" : "–"} {Math.abs(t.pctChange).toFixed(0)}%
-                  </p>
-                )}
+                <p className="text-base font-bold text-slate-800">{t.displayAvg.toFixed(1)}d</p>
+                <p
+                  className={`flex items-center justify-center gap-1 text-[11px] font-semibold ${
+                    t.pctChange > 0.5 ? "text-rose-600" : t.pctChange < -0.5 ? "text-emerald-600" : "text-slate-400"
+                  }`}
+                >
+                  {t.pctChange > 0.5 ? "▲" : t.pctChange < -0.5 ? "▼" : "–"} {Math.abs(t.pctChange).toFixed(0)}%
+                </p>
               </div>
             ))}
           </div>
