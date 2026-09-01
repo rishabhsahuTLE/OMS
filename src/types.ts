@@ -4,6 +4,8 @@ export type ReportSubTabId = "approval" | "billing" | "managerReport";
 
 export type OrdersSubTabId = "amendCancel" | "approval" | "closeBilling";
 
+export type DashboardSubTabId = "tech" | "finance" | "bd" | "admin";
+
 export type BillingCycle = "M" | "B" | "Q" | "H" | "Y" | "O";
 
 export type OrderStatusFilter = "all" | "closed" | "open";

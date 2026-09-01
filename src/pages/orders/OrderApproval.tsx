@@ -336,8 +336,18 @@ export default function OrderApproval({
   const [tab, setTab] = useState<ViewTab>(() => normalizeTab(searchParams.get("stage")));
   const [creating, setCreating] = useState(false);
   const [openInfoOrderId, setOpenInfoOrderId] = useState<string | null>(null);
-  const [editingOrder, setEditingOrder] = useState<OrderRecord | null>(null);
-  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  // A Dashboard notification (e.g. "this order was rejected — fix it") can
+  // deep-link straight into editing one order via ?edit=<id> — same
+  // read-once-on-mount convention as ?stage=/?q= above. handleAmendClick
+  // doesn't gate on lifecycleStatus itself (only the Actions-menu "Amend"
+  // button's visibility does), so this opens a still-inactive/rejected order
+  // in edit mode just as well as an active one.
+  const initialEditOrder = (() => {
+    const editId = searchParams.get("edit");
+    return editId ? orders.find((o) => o.id === editId) ?? null : null;
+  })();
+  const [editingOrder, setEditingOrder] = useState<OrderRecord | null>(initialEditOrder);
+  const [orderModalOpen, setOrderModalOpen] = useState(initialEditOrder !== null);
   const [pendingAmendment, setPendingAmendment] = useState<PendingAmendment | null>(null);
   const [cancelBatch, setCancelBatch] = useState<OrderRecord[] | null>(null);
   const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);

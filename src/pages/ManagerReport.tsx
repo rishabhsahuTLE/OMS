@@ -50,7 +50,7 @@ const OUTER_FILTER_CATEGORIES: FilterDrawerCategory[] = [
 
 type OuterSortableKey = "manager" | "total" | "technical" | "financial" | "confirmed" | "rejected" | "amount";
 
-interface ManagerStats {
+export interface ManagerStats {
   manager: string;
   orders: OrderRecord[];
   total: number;
@@ -61,7 +61,7 @@ interface ManagerStats {
   amount: number;
 }
 
-function buildManagerStats(orders: OrderRecord[]): ManagerStats[] {
+export function buildManagerStats(orders: OrderRecord[]): ManagerStats[] {
   const byManager = new Map<string, OrderRecord[]>();
   for (const o of orders) {
     const list = byManager.get(o.clientManager) ?? [];
