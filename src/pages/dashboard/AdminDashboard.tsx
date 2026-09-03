@@ -106,6 +106,18 @@ const MOCK_TAT_FALLBACK: Record<string, { avg: number; pct: number }> = {
   cancellationFinancial: { avg: 3.6, pct: 3 },
 };
 
+// Same fixed-reference-date issue as MOCK_TAT_FALLBACK above — no mock order
+// currently has an outstanding balance, and Cancellation-Technical rarely
+// has any pending orders either.
+const MOCK_OUTSTANDING = { total: 186500, count: 2 };
+
+const MOCK_STUCK_FALLBACK: Record<string, { revenue: number; count: number }> = {
+  technical: { revenue: 850000, count: 4 },
+  financial: { revenue: 620000, count: 3 },
+  cancellationTechnical: { revenue: 245000, count: 2 },
+  cancellationFinancial: { revenue: 310000, count: 2 },
+};
+
 function monthKeyOf(iso: string): number {
   const [y, m] = iso.split("-").map(Number);
   return y * 12 + (m - 1);
@@ -186,17 +198,22 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
     return { toOpen: toOpen.length, toAmend: toAmend.length, toClose: toClose.length, total, amount };
   }, [orders]);
 
+  // No mock order currently has an unresolved outstanding balance, so this
+  // would otherwise always render ₹0 — falls back to an illustrative figure,
+  // flagged in the card title, same pattern as the TAT tile below.
   const outstanding = useMemo(() => {
     const rows = orders.filter((o) => o.cancellationDetails && o.billingStatus !== "closed");
-    return {
-      total: rows.reduce((sum, o) => sum + (o.cancellationDetails?.outstandingBalance ?? 0), 0),
-      count: rows.length,
-    };
+    const total = rows.reduce((sum, o) => sum + (o.cancellationDetails?.outstandingBalance ?? 0), 0);
+    const usingMock = rows.length === 0;
+    return usingMock ? { ...MOCK_OUTSTANDING, usingMock } : { total, count: rows.length, usingMock };
   }, [orders]);
 
   // Revenue-weighted view of where orders are actually waiting right now —
   // combines what used to be Tech's and Finance's separate queue lists (plus
   // the cancellation pair) into one chart, sized by value rather than count.
+  // Cancellation-Technical in particular can have zero pending orders in the
+  // mock set — rather than silently dropping that slice, it falls back to an
+  // illustrative one, same as every other "mock data" fallback on this page.
   const stuckData = useMemo(() => {
     return STUCK_STAGES.map((s) => {
       const rows = orders.filter((o) => {
@@ -204,9 +221,14 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
         const actionable = getNextActionableStage(o);
         return actionable?.key === s.key && o[s.key].status === "pending";
       });
-      return { key: s.key, label: s.label, color: s.color, revenue: rows.reduce((sum, o) => sum + o.amount, 0), count: rows.length };
-    }).filter((d) => d.count > 0);
+      if (rows.length > 0) {
+        return { key: s.key, label: s.label, color: s.color, revenue: rows.reduce((sum, o) => sum + o.amount, 0), count: rows.length, mock: false };
+      }
+      const fallback = MOCK_STUCK_FALLBACK[s.key];
+      return { key: s.key, label: s.label, color: s.color, revenue: fallback.revenue, count: fallback.count, mock: true };
+    });
   }, [orders]);
+  const stuckUsesMock = stuckData.some((d) => d.mock);
 
   // This-month vs last-month average turnaround per stage, with the
   // direction of change — an increase is worse (red, up-arrow), a decrease
@@ -244,9 +266,13 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
     () =>
       fyColumns.map((col) => {
         const row: Record<string, number | string> = { month: col.label };
+        let total = 0;
         activeBUs.forEach((bu) => {
-          row[bu] = liveOrders.filter((o) => o.bu === bu && billsInColumn(o, col)).reduce((sum, o) => sum + o.amount, 0);
+          const rev = liveOrders.filter((o) => o.bu === bu && billsInColumn(o, col)).reduce((sum, o) => sum + o.amount, 0);
+          row[bu] = rev;
+          total += rev;
         });
+        row.Total = total;
         return row;
       }),
     [liveOrders, fyColumns, activeBUs]
@@ -354,7 +380,7 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
           <p className="mt-2 text-center text-xs text-slate-400">{formatINR(billingDue.amount)} total contracted value</p>
         </DashCard>
 
-        <DashCard title="Outstanding Balance (To Close)">
+        <DashCard title={`Outstanding Balance (To Close)${outstanding.usingMock ? " (mock data)" : ""}`}>
           <div className="flex h-full items-center justify-between">
             <p className="text-2xl font-bold text-rose-600">{formatINR(outstanding.total)}</p>
             <p className="text-xs text-slate-400">across {outstanding.count} order{outstanding.count === 1 ? "" : "s"}</p>
@@ -381,36 +407,32 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
       </div>
 
       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-3">
-        <DashCard title="Where Orders Are Stuck (by revenue)">
-          {stuckData.length === 0 ? (
-            <p className="py-16 text-center text-sm text-slate-400">Nothing stuck right now.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie data={stuckData} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                  {stuckData.map((d) => (
-                    <Cell key={d.key} fill={d.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(v, _name, entry) => {
-                    const payload = entry.payload as { label: string; count: number };
-                    return [`${formatINR(Number(v))} (${payload.count} orders)`, payload.label];
-                  }}
-                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                />
-                <Legend
-                  verticalAlign="bottom"
-                  height={36}
-                  wrapperStyle={{ fontSize: 12 }}
-                  formatter={(value) => {
-                    const d = stuckData.find((x) => x.label === value);
-                    return `${value} (${d?.count ?? 0})`;
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
+        <DashCard title={`Where Orders Are Stuck (by revenue)${stuckUsesMock ? " (mock data)" : ""}`}>
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={stuckData} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                {stuckData.map((d) => (
+                  <Cell key={d.key} fill={d.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(v, _name, entry) => {
+                  const payload = entry.payload as { label: string; count: number };
+                  return [`${formatINR(Number(v))} (${payload.count} orders)`, payload.label];
+                }}
+                contentStyle={{ fontSize: 12, borderRadius: 8 }}
+              />
+              <Legend
+                verticalAlign="bottom"
+                height={36}
+                wrapperStyle={{ fontSize: 12 }}
+                formatter={(value) => {
+                  const d = stuckData.find((x) => x.label === value);
+                  return `${value} (${d?.count ?? 0})`;
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
         </DashCard>
 
         <DashCard title="Product-wise Revenue">
@@ -486,6 +508,15 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
             {activeBUs.map((bu, i) => (
               <Line key={bu} type="monotone" dataKey={bu} name={bu} stroke={BU_COLORS[i % BU_COLORS.length]} strokeWidth={2} dot={{ r: 3 }} />
             ))}
+            <Line
+              type="monotone"
+              dataKey="Total"
+              name="Total"
+              stroke="#1b2333"
+              strokeWidth={2.5}
+              strokeDasharray="6 3"
+              dot={{ r: 3 }}
+            />
           </LineChart>
         </ResponsiveContainer>
       </DashCard>
