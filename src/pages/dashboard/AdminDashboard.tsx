@@ -381,7 +381,7 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
         </DashCard>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <DashCard title={`Where Orders Are Stuck (by revenue)${stuckUsesMock ? " (mock data)" : ""}`}>
           <StuckOrdersPie data={stuckData} />
         </DashCard>

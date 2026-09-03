@@ -144,7 +144,7 @@ export default function FinanceDashboard({ orders, onNavigate }: FinanceDashboar
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <DashCard title="Approver Queue">
           <ApprovalQueueList
             items={queue}
@@ -211,28 +211,7 @@ export default function FinanceDashboard({ orders, onNavigate }: FinanceDashboar
         </DashCard>
       </div>
 
-      <DashCard title={`Revenue Trend by Business Unit — FY ${fyColumns[0].year}–${fyColumns[11].year}`}>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={buTrendData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid vertical={false} stroke="#e1e0d9" />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#898781" }} axisLine={{ stroke: "#c3c2b7" }} tickLine={false} />
-            <YAxis
-              tick={{ fontSize: 11, fill: "#898781" }}
-              axisLine={false}
-              tickLine={false}
-              width={48}
-              tickFormatter={(v: number) => `₹${(v / 100000).toFixed(0)}L`}
-            />
-            <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            {activeBUs.map((bu, i) => (
-              <Bar key={bu} dataKey={bu} name={bu} stackId="bu" fill={BU_COLORS[i % BU_COLORS.length]} />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      </DashCard>
-
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <DashCard title="Manager-wise Revenue">
           {managerStats.length === 0 ? (
             <p className="py-16 text-center text-sm text-slate-400">No orders to show.</p>
@@ -304,6 +283,27 @@ export default function FinanceDashboard({ orders, onNavigate }: FinanceDashboar
           </DashCard>
         </div>
       </div>
+
+      <DashCard title={`Revenue Trend by Business Unit — FY ${fyColumns[0].year}–${fyColumns[11].year}`}>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={buTrendData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="#e1e0d9" />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#898781" }} axisLine={{ stroke: "#c3c2b7" }} tickLine={false} />
+            <YAxis
+              tick={{ fontSize: 11, fill: "#898781" }}
+              axisLine={false}
+              tickLine={false}
+              width={48}
+              tickFormatter={(v: number) => `₹${(v / 100000).toFixed(0)}L`}
+            />
+            <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            {activeBUs.map((bu, i) => (
+              <Bar key={bu} dataKey={bu} name={bu} stackId="bu" fill={BU_COLORS[i % BU_COLORS.length]} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </DashCard>
     </div>
   );
 }

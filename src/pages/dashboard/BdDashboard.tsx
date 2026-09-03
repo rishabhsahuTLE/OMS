@@ -197,35 +197,6 @@ export default function BdDashboard({ orders, onNavigate }: BdDashboardProps) {
         />
       </DashCard>
 
-      <DashCard title="Rejected — Needs Fix">
-        {rejectedNotifications.length === 0 ? (
-          <p className="py-12 text-center text-sm text-slate-400">Nothing rejected right now.</p>
-        ) : (
-          <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
-            {rejectedNotifications.map((n, i) => (
-              <div key={`${n.order.id}-${i}`} className={`flex items-center gap-2 border-l-4 py-2 pl-2 ${DEPT_STYLES.BD.border}`}>
-                <button
-                  type="button"
-                  onClick={() => onNavigate("orders", "approval", { stage: getDisplayStage(n.order), q: n.order.orderNo })}
-                  className="min-w-0 flex-1 text-left hover:underline"
-                >
-                  <span className="block truncate text-sm text-slate-700">
-                    <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {n.message}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate("orders", "approval", { edit: n.order.id })}
-                  className="shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
-                >
-                  Edit
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </DashCard>
-
       <DashCard title="Stage Distribution">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {STAGE_ORDER.map((stage) => (
@@ -265,7 +236,61 @@ export default function BdDashboard({ orders, onNavigate }: BdDashboardProps) {
         </div>
       </DashCard>
 
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <DashCard title="Rejected — Needs Fix">
+          {rejectedNotifications.length === 0 ? (
+            <p className="py-12 text-center text-sm text-slate-400">Nothing rejected right now.</p>
+          ) : (
+            <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
+              {rejectedNotifications.map((n, i) => (
+                <div key={`${n.order.id}-${i}`} className={`flex items-center gap-2 border-l-4 py-2 pl-2 ${DEPT_STYLES.BD.border}`}>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("orders", "approval", { stage: getDisplayStage(n.order), q: n.order.orderNo })}
+                    className="min-w-0 flex-1 text-left hover:underline"
+                  >
+                    <span className="block truncate text-sm text-slate-700">
+                      <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {n.message}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("orders", "approval", { edit: n.order.id })}
+                    className="shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+                  >
+                    Edit
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </DashCard>
+
+        <DashCard title="Notifications">
+          {updateNotifications.length === 0 ? (
+            <p className="py-12 text-center text-sm text-slate-400">No recent activity.</p>
+          ) : (
+            <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
+              {updateNotifications.map((n, i) => (
+                <button
+                  key={`${n.order.id}-${i}`}
+                  type="button"
+                  onClick={() => onNavigate("orders", "approval", { stage: getDisplayStage(n.order), q: n.order.orderNo })}
+                  className={`flex items-start gap-2 border-l-4 py-2 pl-2 text-left first:pt-0 hover:bg-slate-50 ${DEPT_STYLES.BD.border}`}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-slate-700">
+                      <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {n.message}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </DashCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <DashCard title="Age at Stage — Order-wise">
           <ApprovalQueueList items={ageQueue} onNavigate={onNavigate} destTab="approval" emptyMessage="Nothing in flight." />
         </DashCard>
@@ -274,29 +299,6 @@ export default function BdDashboard({ orders, onNavigate }: BdDashboardProps) {
           <StuckOrdersPie data={stuckData} />
         </DashCard>
       </div>
-
-      <DashCard title="Notifications">
-        {updateNotifications.length === 0 ? (
-          <p className="py-12 text-center text-sm text-slate-400">No recent activity.</p>
-        ) : (
-          <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
-            {updateNotifications.map((n, i) => (
-              <button
-                key={`${n.order.id}-${i}`}
-                type="button"
-                onClick={() => onNavigate("orders", "approval", { stage: getDisplayStage(n.order), q: n.order.orderNo })}
-                className={`flex items-start gap-2 border-l-4 py-2 pl-2 text-left first:pt-0 hover:bg-slate-50 ${DEPT_STYLES.BD.border}`}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm text-slate-700">
-                    <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {n.message}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </DashCard>
     </div>
   );
 }
