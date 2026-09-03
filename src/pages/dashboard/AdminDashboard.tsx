@@ -20,11 +20,19 @@ import {
   buildFiscalYearColumns,
   daysBetween,
   getDisplayStage,
-  getNextActionableStage,
   isBillingOpenInColumn,
-  type ApprovalStageKey,
 } from "../../utils";
-import { agreementEndDate, buildOrderNotifications, DashCard, DEPT_STYLES, formatINR, type NavigateFn, type NotificationItem } from "./shared";
+import {
+  agreementEndDate,
+  buildOrderNotifications,
+  buildStuckData,
+  DashCard,
+  DEPT_STYLES,
+  formatINR,
+  StuckOrdersPie,
+  type NavigateFn,
+  type NotificationItem,
+} from "./shared";
 
 interface AdminDashboardProps {
   orders: OrderRecord[];
@@ -40,13 +48,6 @@ const STAGE_TILES: { key: TileKey; label: string; dest: OrdersSubTabId; accent: 
   { key: "agreementOver", label: "Agreement Over", dest: "approval", accent: "text-indigo-600" },
   { key: "closurePending", label: "Cancellation Pending", dest: "amendCancel", accent: "text-rose-600" },
   { key: "closed", label: "Closed", dest: "approval", accent: "text-slate-500" },
-];
-
-const STUCK_STAGES: { key: ApprovalStageKey; label: string; color: string }[] = [
-  { key: "technical", label: "Tech", color: "#e87ba4" },
-  { key: "financial", label: "Fin", color: "#008300" },
-  { key: "cancellationTechnical", label: "TC", color: "#4a3aa7" },
-  { key: "cancellationFinancial", label: "FC", color: "#e34948" },
 ];
 
 interface TatPair {
@@ -110,13 +111,6 @@ const MOCK_TAT_FALLBACK: Record<string, { avg: number; pct: number }> = {
 // currently has an outstanding balance, and Cancellation-Technical rarely
 // has any pending orders either.
 const MOCK_OUTSTANDING = { total: 186500, count: 2 };
-
-const MOCK_STUCK_FALLBACK: Record<string, { revenue: number; count: number }> = {
-  technical: { revenue: 850000, count: 4 },
-  financial: { revenue: 620000, count: 3 },
-  cancellationTechnical: { revenue: 245000, count: 2 },
-  cancellationFinancial: { revenue: 310000, count: 2 },
-};
 
 function monthKeyOf(iso: string): number {
   const [y, m] = iso.split("-").map(Number);
@@ -208,26 +202,7 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
     return usingMock ? { ...MOCK_OUTSTANDING, usingMock } : { total, count: rows.length, usingMock };
   }, [orders]);
 
-  // Revenue-weighted view of where orders are actually waiting right now —
-  // combines what used to be Tech's and Finance's separate queue lists (plus
-  // the cancellation pair) into one chart, sized by value rather than count.
-  // Cancellation-Technical in particular can have zero pending orders in the
-  // mock set — rather than silently dropping that slice, it falls back to an
-  // illustrative one, same as every other "mock data" fallback on this page.
-  const stuckData = useMemo(() => {
-    return STUCK_STAGES.map((s) => {
-      const rows = orders.filter((o) => {
-        if (o.lifecycleStatus === "cancelled") return false;
-        const actionable = getNextActionableStage(o);
-        return actionable?.key === s.key && o[s.key].status === "pending";
-      });
-      if (rows.length > 0) {
-        return { key: s.key, label: s.label, color: s.color, revenue: rows.reduce((sum, o) => sum + o.amount, 0), count: rows.length, mock: false };
-      }
-      const fallback = MOCK_STUCK_FALLBACK[s.key];
-      return { key: s.key, label: s.label, color: s.color, revenue: fallback.revenue, count: fallback.count, mock: true };
-    });
-  }, [orders]);
+  const stuckData = useMemo(() => buildStuckData(orders), [orders]);
   const stuckUsesMock = stuckData.some((d) => d.mock);
 
   // This-month vs last-month average turnaround per stage, with the
@@ -408,31 +383,7 @@ export default function AdminDashboard({ orders, onNavigate }: AdminDashboardPro
 
       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-3">
         <DashCard title={`Where Orders Are Stuck (by revenue)${stuckUsesMock ? " (mock data)" : ""}`}>
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={stuckData} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                {stuckData.map((d) => (
-                  <Cell key={d.key} fill={d.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(v, _name, entry) => {
-                  const payload = entry.payload as { label: string; count: number };
-                  return [`${formatINR(Number(v))} (${payload.count} orders)`, payload.label];
-                }}
-                contentStyle={{ fontSize: 12, borderRadius: 8 }}
-              />
-              <Legend
-                verticalAlign="bottom"
-                height={36}
-                wrapperStyle={{ fontSize: 12 }}
-                formatter={(value) => {
-                  const d = stuckData.find((x) => x.label === value);
-                  return `${value} (${d?.count ?? 0})`;
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+          <StuckOrdersPie data={stuckData} />
         </DashCard>
 
         <DashCard title="Product-wise Revenue">

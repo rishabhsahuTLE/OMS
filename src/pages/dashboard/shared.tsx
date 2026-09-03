@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../../types";
 import {
   daysBetween,
@@ -277,6 +278,80 @@ export function agreementEndDate(order: OrderRecord): string {
   const endY = Math.floor(endIdx / 12);
   const endM = (endIdx % 12) + 1;
   return `${endY}-${String(endM).padStart(2, "0")}-01`;
+}
+
+// Revenue-weighted view of where orders are actually waiting right now,
+// across all four approval stages — shared by Admin's org-wide view and
+// BD's manager-scoped view so the two never drift apart. Mock data is
+// generated from a fixed reference date (see mockOrders.ts), so
+// Cancellation-Technical in particular can have zero pending orders — rather
+// than silently dropping that slice, it falls back to an illustrative one.
+export const STUCK_STAGES: { key: ApprovalStageKey; label: string; color: string }[] = [
+  { key: "technical", label: "Tech", color: "#e87ba4" },
+  { key: "financial", label: "Fin", color: "#008300" },
+  { key: "cancellationTechnical", label: "TC", color: "#4a3aa7" },
+  { key: "cancellationFinancial", label: "FC", color: "#e34948" },
+];
+
+const MOCK_STUCK_FALLBACK: Record<ApprovalStageKey, { revenue: number; count: number }> = {
+  technical: { revenue: 850000, count: 4 },
+  financial: { revenue: 620000, count: 3 },
+  cancellationTechnical: { revenue: 245000, count: 2 },
+  cancellationFinancial: { revenue: 310000, count: 2 },
+};
+
+export interface StuckSlice {
+  key: ApprovalStageKey;
+  label: string;
+  color: string;
+  revenue: number;
+  count: number;
+  mock: boolean;
+}
+
+export function buildStuckData(orders: OrderRecord[]): StuckSlice[] {
+  return STUCK_STAGES.map((s) => {
+    const rows = orders.filter((o) => {
+      if (o.lifecycleStatus === "cancelled") return false;
+      const actionable = getNextActionableStage(o);
+      return actionable?.key === s.key && o[s.key].status === "pending";
+    });
+    if (rows.length > 0) {
+      return { key: s.key, label: s.label, color: s.color, revenue: rows.reduce((sum, o) => sum + o.amount, 0), count: rows.length, mock: false };
+    }
+    const fallback = MOCK_STUCK_FALLBACK[s.key];
+    return { key: s.key, label: s.label, color: s.color, revenue: fallback.revenue, count: fallback.count, mock: true };
+  });
+}
+
+export function StuckOrdersPie({ data }: { data: StuckSlice[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <PieChart>
+        <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+          {data.map((d) => (
+            <Cell key={d.key} fill={d.color} />
+          ))}
+        </Pie>
+        <Tooltip
+          formatter={(v, _name, entry) => {
+            const payload = entry.payload as { label: string; count: number };
+            return [`${formatINR(Number(v))} (${payload.count} orders)`, payload.label];
+          }}
+          contentStyle={{ fontSize: 12, borderRadius: 8 }}
+        />
+        <Legend
+          verticalAlign="bottom"
+          height={36}
+          wrapperStyle={{ fontSize: 12 }}
+          formatter={(value) => {
+            const d = data.find((x) => x.label === value);
+            return `${value} (${d?.count ?? 0})`;
+          }}
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  );
 }
 
 // Where a given order sits right now, in plain terms, plus how long it's
