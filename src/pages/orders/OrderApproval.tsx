@@ -84,7 +84,9 @@ function matchesTab(order: OrderRecord, tab: ViewTab): boolean {
 // ?stage=closurePending — both now land on the merged "pending" tab.
 function normalizeTab(raw: string | null): ViewTab {
   if (raw === "approvalPending" || raw === "closurePending") return "pending";
-  if (raw === "active" || raw === "agreementOver" || raw === "closed" || raw === "rejected") return raw;
+  if (raw === "active" || raw === "agreementOver" || raw === "closed" || raw === "rejected" || raw === "amendmentPending") {
+    return raw;
+  }
   return "all";
 }
 

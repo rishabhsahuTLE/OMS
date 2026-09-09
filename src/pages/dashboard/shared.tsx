@@ -1,13 +1,19 @@
-import { useMemo, useState, type ReactNode } from "react";
-import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { ResponsiveContainer, Pie, PieChart, Cell, Legend, Tooltip } from "recharts";
 import type { MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../../types";
 import {
   daysBetween,
   getDisplayStage,
   getNextActionableStage,
+  isAmendmentPending,
   todayISO,
   type ApprovalStageKey,
 } from "../../utils";
+import type { Tone } from "./ui";
+
+// Domain calculations shared by the widget components in ./widgets — this
+// file knows about orders/stages/roles; ./ui.tsx deliberately doesn't. Every
+// function here is a pure transform from `OrderRecord[]` to plain data; the
+// widgets decide how to render it.
 
 export type NavigateFn = (
   tab: MainTabId,
@@ -19,41 +25,23 @@ export function formatINR(n: number) {
   return `₹${n.toLocaleString("en-IN")}`;
 }
 
-// The plain card shell every tile on every role dashboard uses — pulled out
-// once these four pages started repeating it dozens of times each.
-export function DashCard({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
-}
+// Which department owns a given approval stage — Approval Queue, Clearance
+// Stats, Rejected — Needs Fix and Age at Stage all use this to scope/order
+// their rows per role.
+export type RoleDept = "Tech" | "Finance";
 
-// Who a notification is for — BD submits, Tech decides first, then Finance;
-// a rejection at either stage always bounces back to BD, an approval always
-// hands off to whoever acts next. Same pattern for the cancellation pair
-// (BD initiates closure -> Tech -> Finance). There's still no real
-// login/role system — each role dashboard just filters this down to its own
-// department by construction (it only ever asks for its own dept's items),
-// rather than a viewer picking a "My View" out of everything.
-export type NotificationDept = "BD" | "Tech" | "Finance";
-
-export const DEPT_STYLES: Record<NotificationDept, { border: string; text: string }> = {
-  BD: { border: "border-indigo-400", text: "text-indigo-600" },
-  Tech: { border: "border-amber-400", text: "text-amber-600" },
-  Finance: { border: "border-emerald-400", text: "text-emerald-600" },
-};
-
-// Which department owns a given approval stage.
-export const STAGE_DEPT: Record<ApprovalStageKey, NotificationDept> = {
+export const STAGE_DEPT: Record<ApprovalStageKey, RoleDept> = {
   technical: "Tech",
   financial: "Finance",
   cancellationTechnical: "Tech",
   cancellationFinancial: "Finance",
+};
+
+export const STAGE_LABEL: Record<ApprovalStageKey, string> = {
+  technical: "Technical",
+  financial: "Financial",
+  cancellationTechnical: "Cancellation-Technical",
+  cancellationFinancial: "Cancellation-Financial",
 };
 
 // The date an order actually entered its current actionable stage — used
@@ -65,234 +53,85 @@ export const STAGE_ANCHOR: Record<ApprovalStageKey, (o: OrderRecord) => string> 
   cancellationFinancial: (o) => o.cancellationTechnical.date ?? o.createdOn,
 };
 
-export interface NotificationItem {
-  order: OrderRecord;
-  dept: NotificationDept;
-  message: string;
-  date: string;
-  // Structural rejection flag — lets a consumer (e.g. BD's rejected-orders
-  // list) filter for rejections without string-matching `message`.
-  rejected: boolean;
-}
+// A small categorical palette reused everywhere a chart needs one, so no two
+// widgets invent their own — Product-wise Revenue and Revenue Trend by BU in
+// particular.
+export const PRODUCT_COLORS: Record<string, string> = {
+  LMS: "#2a78d6",
+  Quirio: "#eb6834",
+};
 
-// A chronological log of what already happened on an order — every stage
-// leaving "pending" is one event. There's no real notification backend, so
-// this is derived entirely from the StageStatus dates already on every
-// order (skips anything still "pending", since only confirmed/rejected
-// stages carry an actual event date).
-export function buildOrderNotifications(order: OrderRecord): NotificationItem[] {
-  const events: NotificationItem[] = [
-    { order, dept: "Tech", message: "Order submitted — awaiting Technical review", date: order.createdOn, rejected: false },
-  ];
+export const BU_COLORS = ["#4f46e5", "#0d9488", "#d97706", "#e11d48", "#64748b"];
 
-  if (order.technical.status === "confirmed") {
-    events.push({
-      order,
-      dept: "Finance",
-      message: "Technical approved — ready for Financial review",
-      date: order.technical.date as string,
-      rejected: false,
-    });
-  } else if (order.technical.status === "rejected") {
-    events.push({ order, dept: "BD", message: "Technical rejected", date: order.technical.date as string, rejected: true });
-  }
+// ---------------------------------------------------------------------------
+// Stage Distribution — the 5-bucket display taxonomy already used by Manage
+// Orders' own view tabs (OrderApproval.tsx's ViewTab/matchesTab), reused
+// here rather than inventing a second stage vocabulary for the dashboard.
+// ---------------------------------------------------------------------------
 
-  if (order.financial.status === "confirmed") {
-    events.push({
-      order,
-      dept: "BD",
-      message: "Financial approved — order is now Active",
-      date: order.financial.date as string,
-      rejected: false,
-    });
-  } else if (order.financial.status === "rejected") {
-    events.push({ order, dept: "BD", message: "Financial rejected", date: order.financial.date as string, rejected: true });
-  }
+export type StageBucketKey = "pending" | "amendmentPending" | "active" | "agreementOver" | "cancelled";
 
-  if (order.cancellationDetails) {
-    events.push({
-      order,
-      dept: "Tech",
-      message: "Closure initiated — awaiting Cancellation-Technical review",
-      date: order.cancellationDetails.effectFromDate,
-      rejected: false,
-    });
-  }
-
-  if (order.cancellationTechnical.status === "confirmed") {
-    events.push({
-      order,
-      dept: "Finance",
-      message: "Cancellation-Technical approved — ready for Cancellation-Financial review",
-      date: order.cancellationTechnical.date as string,
-      rejected: false,
-    });
-  } else if (order.cancellationTechnical.status === "rejected") {
-    events.push({
-      order,
-      dept: "BD",
-      message: "Cancellation-Technical rejected",
-      date: order.cancellationTechnical.date as string,
-      rejected: true,
-    });
-  }
-
-  if (order.cancellationFinancial.status === "confirmed") {
-    events.push({
-      order,
-      dept: "BD",
-      message: "Cancellation-Financial approved — order is now Closed",
-      date: order.cancellationFinancial.date as string,
-      rejected: false,
-    });
-  } else if (order.cancellationFinancial.status === "rejected") {
-    events.push({
-      order,
-      dept: "BD",
-      message: "Cancellation-Financial rejected",
-      date: order.cancellationFinancial.date as string,
-      rejected: true,
-    });
-  }
-
-  return events;
-}
-
-export function NotificationTile({ items, onNavigate }: { items: NotificationItem[]; onNavigate: NavigateFn }) {
-  const today = todayISO();
-  return (
-    <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
-      {items.map((n, i) => (
-        <button
-          key={`${n.order.id}-${i}`}
-          type="button"
-          onClick={() =>
-            onNavigate("orders", n.dept === "BD" ? "approval" : "amendCancel", {
-              stage: getDisplayStage(n.order),
-              q: n.order.orderNo,
-            })
-          }
-          className={`flex items-start gap-2 border-l-4 py-2 pl-2 text-left first:pt-0 hover:bg-slate-50 ${DEPT_STYLES[n.dept].border}`}
-        >
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm text-slate-700">
-              <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {n.message}
-            </span>
-            <span className="flex items-center gap-1.5 text-xs text-slate-400">
-              {daysBetween(n.date, today)}d ago
-              <span className={`font-semibold ${DEPT_STYLES[n.dept].text}`}>({n.dept})</span>
-            </span>
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// A small pill flagging an amendment successor inline in a list row, before
-// the row is even opened — keyed off the same `amended` flag every table's
-// yellow-row highlight already uses house-wide.
-export function AmendmentBadge({ order }: { order: OrderRecord }) {
-  if (!order.amended) return null;
-  return (
-    <span className="ml-1.5 inline-flex shrink-0 items-center rounded-full bg-yellow-200 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-800">
-      Amendment
-    </span>
-  );
-}
-
-export interface QueueItem {
-  order: OrderRecord;
-  stageLabel: string;
-  ageDays: number;
-}
-
-// A ranked "whose turn is it" list — oldest at its current stage first by
-// default, with a toggle to flip to newest-first. Shared by Tech's and
-// Finance's approver queues, and by BD's age-at-stage table.
-export function ApprovalQueueList({
-  items,
-  onNavigate,
-  destTab,
-  emptyMessage = "Nothing outstanding right now.",
-}: {
-  items: QueueItem[];
-  onNavigate: NavigateFn;
-  destTab: OrdersSubTabId;
-  emptyMessage?: string;
-}) {
-  const [sortDir, setSortDir] = useState<"oldest" | "newest">("oldest");
-  const sorted = useMemo(
-    () => [...items].sort((a, b) => (sortDir === "oldest" ? b.ageDays - a.ageDays : a.ageDays - b.ageDays)),
-    [items, sortDir]
-  );
-
-  return (
-    <div>
-      <div className="mb-2 flex justify-end">
-        <button
-          type="button"
-          onClick={() => setSortDir((d) => (d === "oldest" ? "newest" : "oldest"))}
-          className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
-        >
-          {sortDir === "oldest" ? "Oldest first" : "Newest first"} — switch
-        </button>
-      </div>
-      {sorted.length === 0 ? (
-        <p className="py-12 text-center text-sm text-slate-400">{emptyMessage}</p>
-      ) : (
-        <div className="flex max-h-72 flex-col divide-y divide-slate-100 overflow-y-auto">
-          {sorted.map((it) => (
-            <button
-              key={it.order.id}
-              type="button"
-              onClick={() => onNavigate("orders", destTab, { stage: getDisplayStage(it.order), q: it.order.orderNo })}
-              className="flex items-center justify-between gap-3 py-2.5 text-left hover:bg-slate-50"
-            >
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center text-sm font-medium text-slate-800">
-                  {it.order.orderNo}
-                  <AmendmentBadge order={it.order} />
-                </span>
-                <span className="block truncate text-xs text-slate-500">
-                  {it.order.client} — {it.order.product} — {it.stageLabel}
-                </span>
-              </span>
-              <span className="shrink-0 text-xs font-semibold text-slate-500">{it.ageDays}d</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Contracted end-of-agreement month, computed the same way isAgreementOver
-// does internally (utils.ts) — used for the Agreement Over notification's
-// displayed/sorted date wherever it's synthesized.
-export function agreementEndDate(order: OrderRecord): string {
-  const { firstBillingMonth, agreement } = order.details;
-  if (!firstBillingMonth || !agreement) return order.createdOn;
-  const [y, m] = firstBillingMonth.split("-").map(Number);
-  const endIdx = y * 12 + (m - 1) + agreement;
-  const endY = Math.floor(endIdx / 12);
-  const endM = (endIdx % 12) + 1;
-  return `${endY}-${String(endM).padStart(2, "0")}-01`;
-}
-
-// Revenue-weighted view of where orders are actually waiting right now,
-// across all four approval stages — shared by Admin's org-wide view and
-// BD's manager-scoped view so the two never drift apart. Mock data is
-// generated from a fixed reference date (see mockOrders.ts), so
-// Cancellation-Technical in particular can have zero pending orders — rather
-// than silently dropping that slice, it falls back to an illustrative one.
-export const STUCK_STAGES: { key: ApprovalStageKey; label: string; color: string }[] = [
-  { key: "technical", label: "Tech", color: "#e87ba4" },
-  { key: "financial", label: "Fin", color: "#008300" },
-  { key: "cancellationTechnical", label: "TC", color: "#4a3aa7" },
-  { key: "cancellationFinancial", label: "FC", color: "#e34948" },
+export const STAGE_BUCKETS: { key: StageBucketKey; label: string; tone: Tone; stageParam: string }[] = [
+  { key: "pending", label: "Pending", tone: "amber", stageParam: "approvalPending" },
+  { key: "amendmentPending", label: "Amendment Pending", tone: "violet", stageParam: "amendmentPending" },
+  { key: "active", label: "Active", tone: "emerald", stageParam: "active" },
+  { key: "agreementOver", label: "Agreement Over", tone: "indigo", stageParam: "agreementOver" },
+  { key: "cancelled", label: "Cancelled", tone: "rose", stageParam: "closed" },
 ];
 
+// approvalPending/closurePending/toOpen/toAmend all collapse into "Pending"
+// here (same merge OrderApproval.tsx's own "Pending" tab already does for
+// approvalPending+closurePending — toOpen/toAmend are folded in alongside
+// them since they're pre-Active waits without their own dedicated tab).
+export function stageBucketOf(order: OrderRecord): StageBucketKey {
+  if (isAmendmentPending(order)) return "amendmentPending";
+  const stage = getDisplayStage(order);
+  if (stage === "active") return "active";
+  if (stage === "agreementOver") return "agreementOver";
+  if (stage === "closed") return "cancelled";
+  return "pending";
+}
+
+export interface StageBucketStat {
+  key: StageBucketKey;
+  label: string;
+  tone: Tone;
+  stageParam: string;
+  count: number;
+  revenue: number;
+  pct: number;
+}
+
+export function buildStageBuckets(orders: OrderRecord[]): StageBucketStat[] {
+  const counts = new Map<StageBucketKey, { count: number; revenue: number }>();
+  STAGE_BUCKETS.forEach((b) => counts.set(b.key, { count: 0, revenue: 0 }));
+  orders.forEach((o) => {
+    const c = counts.get(stageBucketOf(o))!;
+    c.count += 1;
+    c.revenue += o.amount;
+  });
+  const totalRevenue = orders.reduce((sum, o) => sum + o.amount, 0);
+  return STAGE_BUCKETS.map((b) => {
+    const c = counts.get(b.key)!;
+    return { ...b, ...c, pct: totalRevenue > 0 ? (c.revenue / totalRevenue) * 100 : 0 };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Where Orders Are Stuck (by revenue)
+// ---------------------------------------------------------------------------
+
+export const STUCK_STAGES: { key: ApprovalStageKey; label: string; color: string }[] = [
+  { key: "technical", label: "Technical", color: "#d97706" },
+  { key: "financial", label: "Financial", color: "#059669" },
+  { key: "cancellationTechnical", label: "Cancellation-Technical", color: "#4f46e5" },
+  { key: "cancellationFinancial", label: "Cancellation-Financial", color: "#e11d48" },
+];
+
+// Mock data is generated from a fixed reference date (see mockOrders.ts), so
+// a stage — Cancellation-Technical especially — can have zero pending orders
+// on any given day. Rather than silently dropping that slice, it falls back
+// to an illustrative one so the chart shape stays meaningful.
 const MOCK_STUCK_FALLBACK: Record<ApprovalStageKey, { revenue: number; count: number }> = {
   technical: { revenue: 850000, count: 4 },
   financial: { revenue: 620000, count: 3 },
@@ -306,11 +145,12 @@ export interface StuckSlice {
   color: string;
   revenue: number;
   count: number;
+  pct: number;
   mock: boolean;
 }
 
 export function buildStuckData(orders: OrderRecord[]): StuckSlice[] {
-  return STUCK_STAGES.map((s) => {
+  const raw = STUCK_STAGES.map((s) => {
     const rows = orders.filter((o) => {
       if (o.lifecycleStatus === "cancelled") return false;
       const actionable = getNextActionableStage(o);
@@ -322,28 +162,30 @@ export function buildStuckData(orders: OrderRecord[]): StuckSlice[] {
     const fallback = MOCK_STUCK_FALLBACK[s.key];
     return { key: s.key, label: s.label, color: s.color, revenue: fallback.revenue, count: fallback.count, mock: true };
   });
+  const total = raw.reduce((sum, d) => sum + d.revenue, 0);
+  return raw.map((d) => ({ ...d, pct: total > 0 ? (d.revenue / total) * 100 : 0 }));
 }
 
 export function StuckOrdersPie({ data }: { data: StuckSlice[] }) {
   return (
-    <ResponsiveContainer width="100%" height={260}>
+    <ResponsiveContainer width="100%" height={240}>
       <PieChart>
-        <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+        <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={2}>
           {data.map((d) => (
             <Cell key={d.key} fill={d.color} />
           ))}
         </Pie>
         <Tooltip
           formatter={(v, _name, entry) => {
-            const payload = entry.payload as { label: string; count: number };
-            return [`${formatINR(Number(v))} (${payload.count} orders)`, payload.label];
+            const payload = entry.payload as { label: string; count: number; pct: number };
+            return [`${formatINR(Number(v))} · ${payload.count} orders · ${payload.pct.toFixed(0)}%`, payload.label];
           }}
           contentStyle={{ fontSize: 12, borderRadius: 8 }}
         />
         <Legend
           verticalAlign="bottom"
-          height={36}
-          wrapperStyle={{ fontSize: 12 }}
+          height={48}
+          wrapperStyle={{ fontSize: 11 }}
           formatter={(value) => {
             const d = data.find((x) => x.label === value);
             return `${value} (${d?.count ?? 0})`;
@@ -352,4 +194,287 @@ export function StuckOrdersPie({ data }: { data: StuckSlice[] }) {
       </PieChart>
     </ResponsiveContainer>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Approval Queue
+// ---------------------------------------------------------------------------
+
+export interface QueueItem {
+  order: OrderRecord;
+  stageLabel: string;
+  ageDays: number;
+  amount: number;
+}
+
+export function buildApprovalQueue(orders: OrderRecord[], dept: RoleDept): QueueItem[] {
+  const today = todayISO();
+  const items: QueueItem[] = [];
+  orders.forEach((order) => {
+    if (order.lifecycleStatus === "cancelled") return;
+    const actionable = getNextActionableStage(order);
+    if (!actionable || STAGE_DEPT[actionable.key] !== dept) return;
+    if (order[actionable.key].status !== "pending") return;
+    items.push({
+      order,
+      stageLabel: `${actionable.label} approval pending`,
+      ageDays: daysBetween(STAGE_ANCHOR[actionable.key](order), today),
+      amount: order.amount,
+    });
+  });
+  return items;
+}
+
+// ---------------------------------------------------------------------------
+// Clearance Stats — Technical vs Financial average time-to-decision,
+// literally the two departments compared side by side (not "you vs
+// everyone else" — this widget shows the same organization-wide comparison
+// on both the Tech and Finance dashboards).
+// ---------------------------------------------------------------------------
+
+export interface ClearanceComparison {
+  technicalAvg: number;
+  technicalN: number;
+  financialAvg: number;
+  financialN: number;
+}
+
+// `withinDecidedDate` narrows to pairs whose *decision* (end) date falls in
+// the selected period — the "decided during period" reading of the Date
+// filter this widget uses, as opposed to filtering by order.createdOn.
+export function buildClearanceComparison(
+  orders: OrderRecord[],
+  withinDecidedDate: (dateISO: string) => boolean = () => true
+): ClearanceComparison {
+  const techPairs: { start: string; end: string }[] = [];
+  const finPairs: { start: string; end: string }[] = [];
+  orders.forEach((order) => {
+    if (order.technical.date) techPairs.push({ start: order.createdOn, end: order.technical.date });
+    if (order.cancellationDetails && order.cancellationTechnical.date) {
+      techPairs.push({ start: order.cancellationDetails.effectFromDate, end: order.cancellationTechnical.date });
+    }
+    if (order.technical.date && order.financial.date) {
+      finPairs.push({ start: order.technical.date, end: order.financial.date });
+    }
+    if (order.cancellationTechnical.date && order.cancellationFinancial.date) {
+      finPairs.push({ start: order.cancellationTechnical.date, end: order.cancellationFinancial.date });
+    }
+  });
+  const avg = (rows: { start: string; end: string }[]) =>
+    rows.length === 0 ? 0 : rows.reduce((sum, p) => sum + daysBetween(p.start, p.end), 0) / rows.length;
+  const techFiltered = techPairs.filter((p) => withinDecidedDate(p.end));
+  const finFiltered = finPairs.filter((p) => withinDecidedDate(p.end));
+  return { technicalAvg: avg(techFiltered), technicalN: techFiltered.length, financialAvg: avg(finFiltered), financialN: finFiltered.length };
+}
+
+// ---------------------------------------------------------------------------
+// TAT — This Month
+// ---------------------------------------------------------------------------
+
+interface TatPair {
+  end: string;
+  days: number;
+}
+
+const TAT_PAIR_BUILDERS: Record<ApprovalStageKey, (orders: OrderRecord[]) => TatPair[]> = {
+  technical: (orders) =>
+    orders.filter((o) => o.technical.date).map((o) => ({ end: o.technical.date as string, days: daysBetween(o.createdOn, o.technical.date as string) })),
+  financial: (orders) =>
+    orders
+      .filter((o) => o.technical.date && o.financial.date)
+      .map((o) => ({ end: o.financial.date as string, days: daysBetween(o.technical.date as string, o.financial.date as string) })),
+  cancellationTechnical: (orders) =>
+    orders
+      .filter((o) => o.cancellationDetails && o.cancellationTechnical.date)
+      .map((o) => ({
+        end: o.cancellationTechnical.date as string,
+        days: daysBetween(o.cancellationDetails!.effectFromDate, o.cancellationTechnical.date as string),
+      })),
+  cancellationFinancial: (orders) =>
+    orders
+      .filter((o) => o.cancellationTechnical.date && o.cancellationFinancial.date)
+      .map((o) => ({
+        end: o.cancellationFinancial.date as string,
+        days: daysBetween(o.cancellationTechnical.date as string, o.cancellationFinancial.date as string),
+      })),
+};
+
+// Mock data is generated from a fixed reference date (see mockOrders.ts), so
+// a stage can easily have zero decisions landing in the real current
+// calendar month — this falls back to that stage's all-time average, and
+// (if there's no history at all) to an illustrative figure, flagged via
+// `usingFallback`.
+const TAT_MOCK_FALLBACK: Record<ApprovalStageKey, number> = {
+  technical: 3.2,
+  financial: 2.5,
+  cancellationTechnical: 4.1,
+  cancellationFinancial: 3.6,
+};
+
+function monthKeyOf(iso: string): number {
+  const [y, m] = iso.split("-").map(Number);
+  return y * 12 + (m - 1);
+}
+
+function avgDays(rows: TatPair[]): number | null {
+  return rows.length === 0 ? null : rows.reduce((sum, p) => sum + p.days, 0) / rows.length;
+}
+
+export interface TatStat {
+  key: ApprovalStageKey;
+  label: string;
+  avgDays: number;
+  sampleCount: number;
+  usingFallback: boolean;
+}
+
+export function buildTatStats(orders: OrderRecord[]): TatStat[] {
+  const now = new Date();
+  const thisMonthKey = now.getFullYear() * 12 + now.getMonth();
+  return (Object.keys(TAT_PAIR_BUILDERS) as ApprovalStageKey[]).map((key) => {
+    const pairs = TAT_PAIR_BUILDERS[key](orders);
+    const thisMonthPairs = pairs.filter((p) => monthKeyOf(p.end) === thisMonthKey);
+    const thisAvg = avgDays(thisMonthPairs);
+    const allAvg = avgDays(pairs);
+    return {
+      key,
+      label: STAGE_LABEL[key],
+      avgDays: thisAvg ?? allAvg ?? TAT_MOCK_FALLBACK[key],
+      sampleCount: thisMonthPairs.length > 0 ? thisMonthPairs.length : pairs.length,
+      usingFallback: thisAvg == null,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Rejected — Needs Fix
+// ---------------------------------------------------------------------------
+
+export interface RejectedRow {
+  order: OrderRecord;
+  stageKey: ApprovalStageKey;
+  stageLabel: string;
+  reason: string;
+  rejectedDate: string;
+  daysSince: number;
+}
+
+export function buildRejectedRows(orders: OrderRecord[]): RejectedRow[] {
+  const today = todayISO();
+  const rows: RejectedRow[] = [];
+  orders.forEach((order) => {
+    const actionable = getNextActionableStage(order);
+    if (!actionable) return;
+    const stage = order[actionable.key];
+    if (stage.status !== "rejected") return;
+    rows.push({
+      order,
+      stageKey: actionable.key,
+      stageLabel: STAGE_LABEL[actionable.key],
+      reason: stage.remark && stage.remark.trim() ? stage.remark : "—",
+      rejectedDate: stage.date as string,
+      daysSince: daysBetween(stage.date as string, today),
+    });
+  });
+  return rows.sort((a, b) => b.daysSince - a.daysSince);
+}
+
+// ---------------------------------------------------------------------------
+// Age at Stage — Order-wise
+// ---------------------------------------------------------------------------
+
+export interface StageAgeInfo {
+  order: OrderRecord;
+  stageLabel: string;
+  ageDays: number;
+  stageKey: ApprovalStageKey | null;
+  stageEnteredOn: string;
+}
+
+// Where a given order sits right now, in plain terms, plus how long it's
+// been waiting there — null once it's past waiting on anyone (Active,
+// Agreement Over, Cancelled).
+export function currentStageInfo(order: OrderRecord): StageAgeInfo | null {
+  if (order.lifecycleStatus === "cancelled") return null;
+  const today = todayISO();
+  const actionable = getNextActionableStage(order);
+  if (actionable) {
+    const rejected = order[actionable.key].status === "rejected";
+    const enteredOn = STAGE_ANCHOR[actionable.key](order);
+    return {
+      order,
+      stageLabel: rejected ? `${actionable.label} rejected` : `${actionable.label} approval pending`,
+      ageDays: daysBetween(enteredOn, today),
+      stageKey: actionable.key,
+      stageEnteredOn: enteredOn,
+    };
+  }
+  const stage = getDisplayStage(order);
+  if (stage === "toOpen" || stage === "toAmend") {
+    const enteredOn = order.financial.date ?? order.createdOn;
+    return {
+      order,
+      stageLabel: stage === "toAmend" ? "Awaiting Finance to complete amendment" : "Awaiting Finance to open billing",
+      ageDays: daysBetween(enteredOn, today),
+      stageKey: null,
+      stageEnteredOn: enteredOn,
+    };
+  }
+  return null;
+}
+
+export function buildAgeRows(orders: OrderRecord[]): StageAgeInfo[] {
+  const rows: StageAgeInfo[] = [];
+  orders.forEach((o) => {
+    const info = currentStageInfo(o);
+    if (info) rows.push(info);
+  });
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
+// Revenue in Motion
+// ---------------------------------------------------------------------------
+
+export interface RevenueMotionStats {
+  active: number;
+  amendmentInFlight: number;
+  cancellationInFlight: number;
+}
+
+export function buildRevenueMotion(orders: OrderRecord[]): RevenueMotionStats {
+  let active = 0;
+  let amendmentInFlight = 0;
+  let cancellationInFlight = 0;
+  orders.forEach((o) => {
+    if (o.lifecycleStatus === "cancellationInProgress") {
+      cancellationInFlight += o.amount;
+    } else if (o.supersedes && o.lifecycleStatus === "inactive") {
+      amendmentInFlight += o.amount;
+    } else if (o.lifecycleStatus === "active") {
+      active += o.amount;
+    }
+  });
+  return { active, amendmentInFlight, cancellationInFlight };
+}
+
+// ---------------------------------------------------------------------------
+// My Pipeline (BD only)
+// ---------------------------------------------------------------------------
+
+export interface PipelineStats {
+  active: number;
+  pending: number;
+  total: number;
+}
+
+export function buildPipelineStats(orders: OrderRecord[]): PipelineStats {
+  let pending = 0;
+  let active = 0;
+  orders.forEach((o) => {
+    const stage = getDisplayStage(o);
+    if (stage === "active" || stage === "agreementOver") active += o.amount;
+    else if (stage !== "closed") pending += o.amount;
+  });
+  return { pending, active, total: pending + active };
 }

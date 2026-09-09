@@ -1,0 +1,97 @@
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import type { OrderRecord } from "../../../types";
+import { applyStructuralFilters, type DashboardFilters } from "../filters";
+import { buildStageBuckets, formatINR, type NavigateFn, type StageBucketStat } from "../shared";
+import { DashboardCard, EmptyState, toneBg, type CardSize } from "../ui";
+
+const SLICE_HEX: Record<string, string> = {
+  emerald: "#10b981",
+  amber: "#d97706",
+  rose: "#e11d48",
+  indigo: "#4f46e5",
+  violet: "#7c3aed",
+  slate: "#94a3b8",
+};
+
+// Current-state widget: shows where orders sit *right now*, so the global
+// Date filter deliberately does not apply here (see filters.ts's header
+// comment on why Date isn't blindly applied everywhere) — only the
+// structural filters (BU/Product/Manager) narrow the picture.
+export default function StageDistribution({
+  orders,
+  filters,
+  onNavigate,
+  size = "md",
+}: {
+  orders: OrderRecord[];
+  filters: DashboardFilters;
+  onNavigate: NavigateFn;
+  size?: CardSize;
+}) {
+  const scoped = applyStructuralFilters(orders, filters, { includeManager: true });
+  const buckets = buildStageBuckets(scoped);
+  const hasData = buckets.some((b) => b.count > 0);
+
+  function handleClick(bucket: StageBucketStat) {
+    onNavigate("orders", "approval", { stage: bucket.stageParam });
+  }
+
+  return (
+    <DashboardCard title="Stage Distribution" subtitle="Where every order sits right now" size={size}>
+      {!hasData ? (
+        <EmptyState />
+      ) : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="mx-auto w-full max-w-[220px] shrink-0">
+            <ResponsiveContainer width="100%" height={180}>
+              <PieChart>
+                <Pie
+                  data={buckets}
+                  dataKey="count"
+                  nameKey="label"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={44}
+                  outerRadius={72}
+                  paddingAngle={2}
+                  onClick={(d) => handleClick(d.payload as StageBucketStat)}
+                  cursor="pointer"
+                >
+                  {buckets.map((b) => (
+                    <Cell key={b.key} fill={SLICE_HEX[b.tone]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(_v, _n, entry) => {
+                    const b = entry.payload as StageBucketStat;
+                    return [`${b.count} orders · ${formatINR(b.revenue)} · ${b.pct.toFixed(0)}%`, b.label];
+                  }}
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid flex-1 grid-cols-1 gap-1.5 sm:grid-cols-1">
+            {buckets.map((b) => (
+              <button
+                key={b.key}
+                type="button"
+                onClick={() => handleClick(b)}
+                className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-slate-50"
+              >
+                <span className="flex items-center gap-2 text-xs text-slate-600">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${toneBg(b.tone)}`} />
+                  {b.label}
+                </span>
+                <span className="flex items-baseline gap-1.5">
+                  <span className="text-sm font-semibold text-slate-800">{b.count}</span>
+                  <span className="text-xs text-slate-400">{formatINR(b.revenue)}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </DashboardCard>
+  );
+}
