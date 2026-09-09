@@ -1,15 +1,10 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import type { DashboardSubTabId, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../types";
+import type { MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../types";
 import { BUSINESS_UNITS } from "../types";
 import { PRODUCT_NAMES } from "../products";
 import { todayISO } from "../utils";
 import DateRangePicker, { type DateRange } from "../components/DateRangePicker";
 import FilterDrawer, { type FilterDrawerCategory } from "../components/FilterDrawer";
-import AdminDashboard from "./dashboard/AdminDashboard";
-import BdDashboard from "./dashboard/BdDashboard";
-import FinanceDashboard from "./dashboard/FinanceDashboard";
-import TechDashboard from "./dashboard/TechDashboard";
 import {
   activeFilterCount,
   computePresetRange,
@@ -19,6 +14,21 @@ import {
   type DatePreset,
 } from "./dashboard/filters";
 import { MultiSelectFilter } from "./dashboard/ui";
+import AgeAtStage from "./dashboard/widgets/AgeAtStage";
+import ApprovalQueue from "./dashboard/widgets/ApprovalQueue";
+import BillingActionsDue from "./dashboard/widgets/BillingActionsDue";
+import ClearanceStats from "./dashboard/widgets/ClearanceStats";
+import ManagerRevenue from "./dashboard/widgets/ManagerRevenue";
+import OpenedVsProjected from "./dashboard/widgets/OpenedVsProjected";
+import OrdersStuck from "./dashboard/widgets/OrdersStuck";
+import OutstandingBalance from "./dashboard/widgets/OutstandingBalance";
+import PipelineOverview from "./dashboard/widgets/PipelineOverview";
+import ProductRevenue from "./dashboard/widgets/ProductRevenue";
+import RejectedNeedsFix from "./dashboard/widgets/RejectedNeedsFix";
+import RevenueInMotion from "./dashboard/widgets/RevenueInMotion";
+import RevenueTrend from "./dashboard/widgets/RevenueTrend";
+import StageDistribution from "./dashboard/widgets/StageDistribution";
+import TatThisMonth from "./dashboard/widgets/TatThisMonth";
 
 type NavigateFn = (
   tab: MainTabId,
@@ -30,17 +40,6 @@ interface DashboardProps {
   orders: OrderRecord[];
   onNavigate: NavigateFn;
 }
-
-// This pill bar is the one piece of "multiple roles" plumbing the dashboard
-// rebuild deliberately did not touch — Tech/Finance/BD/Admin stay exactly
-// the same route-driven switch (/dashboard/:subTab) as before. What changed
-// is only what each role renders underneath it.
-const DASHBOARD_TABS: { key: DashboardSubTabId; label: string }[] = [
-  { key: "tech", label: "Tech" },
-  { key: "finance", label: "Finance" },
-  { key: "bd", label: "BD / Client Manager" },
-  { key: "admin", label: "Admin" },
-];
 
 const FILTER_CATEGORIES: FilterDrawerCategory[] = [
   { key: "date", label: "Date" },
@@ -57,10 +56,6 @@ function toggleInSet(set: Set<string>, value: string): Set<string> {
 }
 
 export default function Dashboard({ orders, onNavigate }: DashboardProps) {
-  const { subTab } = useParams<{ subTab: string }>();
-  const navigate = useNavigate();
-  const activeTab = (subTab as DashboardSubTabId) || "admin";
-
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
   const [lastUpdated, setLastUpdated] = useState(() => todayISO());
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -78,7 +73,7 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
 
   const activeCount = activeFilterCount(filters);
 
-  const dashboardProps = { orders, filters, onNavigate };
+  const w = { orders, filters };
 
   return (
     <div className="flex flex-col gap-4">
@@ -100,24 +95,6 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
             Refresh
           </button>
         </div>
-      </div>
-
-      {/* Role switch */}
-      <div className="flex gap-2">
-        {DASHBOARD_TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => navigate(`/dashboard/${t.key}`)}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === t.key
-                ? "border border-indigo-200 bg-indigo-50 text-indigo-700"
-                : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
       </div>
 
       {/* Global filter bar — one bar for the whole dashboard, not one per
@@ -254,15 +231,68 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
         )}
       </FilterDrawer>
 
-      {activeTab === "tech" ? (
-        <TechDashboard {...dashboardProps} />
-      ) : activeTab === "finance" ? (
-        <FinanceDashboard {...dashboardProps} />
-      ) : activeTab === "bd" ? (
-        <BdDashboard {...dashboardProps} />
-      ) : (
-        <AdminDashboard {...dashboardProps} />
-      )}
+      {/* Every widget, grouped by shape rather than by who used to own it —
+          donut/chart widgets pair with donut/chart widgets, short KPI tiles
+          pair with short KPI tiles, so no grid row ever stretches a shorter
+          card to a taller neighbor's height (see ui.tsx's DashboardCard). */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-6">
+          <StageDistribution orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+        </div>
+        <div className="lg:col-span-6">
+          <OrdersStuck orders={w.orders} filters={w.filters} />
+        </div>
+
+        <div className="lg:col-span-4">
+          <BillingActionsDue orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+        </div>
+        <div className="lg:col-span-4">
+          <OutstandingBalance orders={w.orders} filters={w.filters} />
+        </div>
+        <div className="lg:col-span-4">
+          <ClearanceStats orders={w.orders} filters={w.filters} />
+        </div>
+
+        <div className="lg:col-span-12">
+          <ApprovalQueue orders={w.orders} filters={w.filters} dept="Tech" onNavigate={onNavigate} />
+        </div>
+        <div className="lg:col-span-12">
+          <ApprovalQueue orders={w.orders} filters={w.filters} dept="Finance" onNavigate={onNavigate} />
+        </div>
+
+        <div className="lg:col-span-6">
+          <TatThisMonth orders={w.orders} filters={w.filters} />
+        </div>
+        <div className="lg:col-span-6">
+          <ProductRevenue orders={w.orders} filters={w.filters} />
+        </div>
+
+        <div className="lg:col-span-6">
+          <OpenedVsProjected orders={w.orders} filters={w.filters} />
+        </div>
+        <div className="lg:col-span-6">
+          <RevenueInMotion orders={w.orders} filters={w.filters} />
+        </div>
+
+        <div className="lg:col-span-12">
+          <PipelineOverview orders={w.orders} filters={w.filters} />
+        </div>
+
+        <div className="lg:col-span-12">
+          <ManagerRevenue orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+        </div>
+
+        <div className="lg:col-span-12">
+          <RevenueTrend orders={w.orders} filters={w.filters} />
+        </div>
+
+        <div className="lg:col-span-12">
+          <RejectedNeedsFix orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+        </div>
+        <div className="lg:col-span-12">
+          <AgeAtStage orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+        </div>
+      </div>
     </div>
   );
 }

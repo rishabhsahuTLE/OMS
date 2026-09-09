@@ -48,9 +48,10 @@ export default function ApprovalQueue({
 
   return (
     <DashboardCard
-      title="Approval Queue"
+      title={`${dept === "Tech" ? "Technical" : "Financial"} Approval Queue`}
       subtitle={`${dept === "Tech" ? "Technical / Cancellation-Technical" : "Financial / Cancellation-Financial"} decisions pending`}
       size={size}
+      accent="indigo"
       action={
         <SortSwitch
           options={[
@@ -63,7 +64,7 @@ export default function ApprovalQueue({
       }
     >
       {items.length === 0 ? (
-        <EmptyState message="Nothing waiting on you right now." />
+        <EmptyState message={`Nothing waiting in the ${dept === "Tech" ? "Technical" : "Financial"} queue right now.`} />
       ) : (
         <DataTable
           columns={columns}

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { OrderRecord } from "../../../types";
 import { getDisplayStage } from "../../../utils";
 import { applyStructuralFilters, inDateRange, type DashboardFilters } from "../filters";
-import { buildAgeRows, formatINR, STAGE_DEPT, type NavigateFn, type RoleDept, type StageAgeInfo } from "../shared";
+import { buildAgeRows, formatINR, type NavigateFn, type StageAgeInfo } from "../shared";
 import { agingHealth, Badge, DashboardCard, DataTable, EmptyState, SortSwitch, type CardSize, type DataTableColumn } from "../ui";
 
 type SortKey = "oldest" | "newest" | "value";
@@ -12,25 +12,17 @@ type SortKey = "oldest" | "newest" | "value";
 export default function AgeAtStage({
   orders,
   filters,
-  dept,
   onNavigate,
   size = "lg",
 }: {
   orders: OrderRecord[];
   filters: DashboardFilters;
-  // Tech/Finance narrow to orders waiting on their own owned stages (the
-  // same population as their Approval Queue); leave undefined for BD/Admin
-  // to show organization-wide aging across every stage, including orders
-  // waiting on Finance to open/complete an amendment.
-  dept?: RoleDept;
   onNavigate: NavigateFn;
   size?: CardSize;
 }) {
   const [sort, setSort] = useState<SortKey>("oldest");
   const scoped = applyStructuralFilters(orders, filters, { includeManager: true });
-  let rows = buildAgeRows(scoped).filter((r) => inDateRange(r.stageEnteredOn, filters.dateRange));
-  if (dept) rows = rows.filter((r) => r.stageKey !== null && STAGE_DEPT[r.stageKey] === dept);
-  rows = [...rows].sort((a, b) =>
+  const rows = [...buildAgeRows(scoped).filter((r) => inDateRange(r.stageEnteredOn, filters.dateRange))].sort((a, b) =>
     sort === "value" ? b.order.amount - a.order.amount : sort === "oldest" ? b.ageDays - a.ageDays : a.ageDays - b.ageDays
   );
 

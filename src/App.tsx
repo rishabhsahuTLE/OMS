@@ -10,13 +10,9 @@ import CloseBilling from "./pages/orders/CloseBilling";
 import clientsData from "./data/clients.json";
 import { mockOrders } from "./data/mockOrders";
 import { resolveAmendmentOf } from "./utils";
-import type { Client, DashboardSubTabId, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "./types";
+import type { Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "./types";
 
-function buildPath(
-  tab: MainTabId,
-  subTab?: ReportSubTabId | OrdersSubTabId | DashboardSubTabId,
-  params?: Record<string, string>
-) {
+function buildPath(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId, params?: Record<string, string>) {
   const base = subTab ? `/${tab}/${subTab}` : `/${tab}`;
   if (!params || Object.keys(params).length === 0) return base;
   return `${base}?${new URLSearchParams(params).toString()}`;
@@ -38,11 +34,7 @@ function App() {
   const activeTab = (tabSeg || "dashboard") as MainTabId;
   const activeOrdersSubTab = (subSeg as OrdersSubTabId) || "approval";
 
-  function handleSelect(
-    tab: MainTabId,
-    subTab?: ReportSubTabId | OrdersSubTabId | DashboardSubTabId,
-    params?: Record<string, string>
-  ) {
+  function handleSelect(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId, params?: Record<string, string>) {
     navigate(buildPath(tab, subTab, params));
   }
 
@@ -81,8 +73,7 @@ function App() {
           <main className="flex-1 overflow-auto p-6">
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Navigate to="/dashboard/admin" replace />} />
-              <Route path="/dashboard/:subTab" element={<Dashboard orders={orders} onNavigate={handleSelect} />} />
+              <Route path="/dashboard" element={<Dashboard orders={orders} onNavigate={handleSelect} />} />
               <Route path="/report" element={<Navigate to="/report/billing" replace />} />
               <Route path="/report/:subTab" element={<Report orders={orders} />} />
               <Route path="/orders" element={<Navigate to="/orders/approval" replace />} />

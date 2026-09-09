@@ -1,30 +1,24 @@
 import type { OrderRecord } from "../../../types";
 import { formatDDMMYYYY, getDisplayStage } from "../../../utils";
 import { applyStructuralFilters, inDateRange, type DashboardFilters } from "../filters";
-import { buildRejectedRows, STAGE_DEPT, type NavigateFn, type RejectedRow, type RoleDept } from "../shared";
-import { agingHealth, Badge, DashboardCard, DataTable, EmptyState, type CardSize, type DataTableColumn } from "../ui";
+import { buildRejectedRows, type NavigateFn, type RejectedRow } from "../shared";
+import { agingHealth, Badge, Button, DashboardCard, DataTable, EmptyState, type CardSize, type DataTableColumn } from "../ui";
 
 // "Rejected during period" reading of Date — filters by each row's own
 // rejection date, not order.createdOn.
 export default function RejectedNeedsFix({
   orders,
   filters,
-  dept,
   onNavigate,
   size = "lg",
 }: {
   orders: OrderRecord[];
   filters: DashboardFilters;
-  // Tech/Finance narrow strictly to their own owned stages (same population
-  // their Approval Queue draws from); leave undefined for BD/Admin to show
-  // every department's rejections.
-  dept?: RoleDept;
   onNavigate: NavigateFn;
   size?: CardSize;
 }) {
   const scoped = applyStructuralFilters(orders, filters, { includeManager: true });
-  let rows = buildRejectedRows(scoped).filter((r) => inDateRange(r.rejectedDate, filters.dateRange));
-  if (dept) rows = rows.filter((r) => STAGE_DEPT[r.stageKey] === dept);
+  const rows = buildRejectedRows(scoped).filter((r) => inDateRange(r.rejectedDate, filters.dateRange));
 
   const columns: DataTableColumn<RejectedRow>[] = [
     { key: "orderNo", label: "Order Number", render: (r) => <span className="font-medium text-slate-800">{r.order.orderNo}</span> },
@@ -44,22 +38,15 @@ export default function RejectedNeedsFix({
       label: "",
       align: "right",
       render: (r) => (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onNavigate("orders", "approval", { edit: r.order.id });
-          }}
-          className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
-        >
-          Edit
-        </button>
+        <span onClick={(e) => e.stopPropagation()}>
+          <Button onClick={() => onNavigate("orders", "approval", { edit: r.order.id })}>Edit</Button>
+        </span>
       ),
     },
   ];
 
   return (
-    <DashboardCard title="Rejected — Needs Fix" size={size}>
+    <DashboardCard title="Rejected — Needs Fix" subtitle="Fix and resubmit" size={size} accent="rose">
       {rows.length === 0 ? (
         <EmptyState message="Nothing rejected right now." />
       ) : (

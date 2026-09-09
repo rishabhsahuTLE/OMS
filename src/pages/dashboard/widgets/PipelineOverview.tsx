@@ -5,7 +5,7 @@ import { DashboardCard, KPI, SegmentedBar, type CardSize } from "../ui";
 
 // "Created during period" reading of Date — of the orders created in the
 // selected window, how much value is Active vs still Pending right now.
-export default function MyPipeline({
+export default function PipelineOverview({
   orders,
   filters,
   size = "lg",
@@ -18,7 +18,7 @@ export default function MyPipeline({
   const pipeline = buildPipelineStats(scoped);
 
   return (
-    <DashboardCard title="My Pipeline" subtitle="Your commercial pipeline, this scope" size={size}>
+    <DashboardCard title="Pipeline Overview" subtitle="Contracted value, active vs. still pending" size={size}>
       <KPI label="Total Contracted Value" value={formatINR(pipeline.total)} tone="indigo" size="lg" />
       <div className="mt-4">
         <SegmentedBar

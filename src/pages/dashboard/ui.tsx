@@ -21,14 +21,21 @@ const CARD_PADDING: Record<CardSize, string> = {
 
 // The one card shell every widget renders inside. `size` only changes
 // padding/title weight, not grid placement — grid span is controlled by the
-// wrapper each role dashboard puts around a widget (see the *Dashboard.tsx
-// files), so the same widget component can be "large" on one role's layout
-// and "medium" on another's without the widget itself knowing.
+// wrapper Dashboard.tsx puts around each widget, so the same widget
+// component can be given a different span without knowing about it.
+//
+// `accent` marks a widget as something that asks the viewer to act (a
+// decision, an edit, a review) rather than just informing them — it gets a
+// colored left rail and a slightly heavier title so those widgets read as a
+// distinct "to-do" register on a page that otherwise stays deliberately
+// quiet. Used sparingly (Billing Actions Due, the two Approval Queues,
+// Rejected — Needs Fix) so it still means something.
 export function DashboardCard({
   title,
   subtitle,
   action,
   size = "md",
+  accent,
   className = "",
   bodyClassName = "",
   children,
@@ -37,15 +44,19 @@ export function DashboardCard({
   subtitle?: string;
   action?: ReactNode;
   size?: CardSize;
+  accent?: Tone;
   className?: string;
   bodyClassName?: string;
   children: ReactNode;
 }) {
+  const accentBorder = accent ? `border-l-[3px] ${ACCENT_BORDER[accent]}` : "border-l border-slate-200";
   return (
-    <div className={`flex flex-col rounded-lg border border-slate-200 bg-white shadow-sm ${CARD_PADDING[size]} ${className}`}>
+    <div
+      className={`flex flex-col rounded-lg border border-y-slate-200 border-r-slate-200 bg-white shadow-sm ${accentBorder} ${CARD_PADDING[size]} ${className}`}
+    >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h3 className={size === "sm" ? "text-xs font-semibold text-slate-700" : "text-sm font-semibold text-slate-700"}>
+          <h3 className={size === "sm" ? "text-xs font-semibold text-slate-800" : "text-sm font-semibold text-slate-800"}>
             {title}
           </h3>
           {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
@@ -90,6 +101,15 @@ const TONE_BADGE: Record<Tone, string> = {
   slate: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
+const ACCENT_BORDER: Record<Tone, string> = {
+  emerald: "border-l-emerald-500",
+  amber: "border-l-amber-500",
+  rose: "border-l-rose-500",
+  indigo: "border-l-indigo-500",
+  violet: "border-l-violet-500",
+  slate: "border-l-slate-400",
+};
+
 export function toneClass(tone: Tone) {
   return TONE_TEXT[tone];
 }
@@ -129,6 +149,31 @@ export function Badge({ tone, children }: { tone: Tone; children: ReactNode }) {
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${TONE_BADGE[tone]}`}>
       {children}
     </span>
+  );
+}
+
+// The app's one primary-button treatment (see CreateOrderModal.tsx's Save/
+// Confirm buttons) — reused here rather than inventing a dashboard-only
+// button style. `variant="ghost"` is the quieter secondary form.
+export function Button({
+  children,
+  onClick,
+  variant = "primary",
+  type = "button",
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  variant?: "primary" | "ghost";
+  type?: "button" | "submit";
+}) {
+  const cls =
+    variant === "primary"
+      ? "whitespace-nowrap rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+      : "whitespace-nowrap rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50";
+  return (
+    <button type={type} onClick={onClick} className={cls}>
+      {children}
+    </button>
   );
 }
 
@@ -193,9 +238,8 @@ export function CardSkeleton({ lines = 3 }: { lines?: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Multi-select filter (checkbox dropdown) — generalized from what used to be
-// BdDashboard's one-off ClientManagerFilter, now shared by the global filter
-// bar for Business Unit / Product / Client Manager.
+// Multi-select filter (checkbox dropdown) used by the global filter bar for
+// Business Unit / Product / Client Manager.
 // ---------------------------------------------------------------------------
 
 export function MultiSelectFilter({
@@ -349,7 +393,6 @@ export function HorizontalBarRow({
   value,
   maxValue,
   tone,
-  muted = false,
   title,
 }: {
   label: string;
@@ -357,12 +400,11 @@ export function HorizontalBarRow({
   value: string;
   maxValue: number;
   tone: Tone;
-  muted?: boolean;
   title?: string;
 }) {
   const pct = maxValue > 0 ? Math.min(100, (parsePctValue(value) / maxValue) * 100) : 0;
   return (
-    <div className={muted ? "opacity-60" : ""} title={title}>
+    <div title={title}>
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <span className="text-xs font-medium text-slate-600">{label}</span>
         <span className="flex items-center gap-1.5">
