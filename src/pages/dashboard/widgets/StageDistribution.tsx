@@ -31,6 +31,11 @@ export default function StageDistribution({
   const scoped = applyStructuralFilters(orders, filters, { includeManager: true });
   const buckets = buildStageBuckets(scoped);
   const hasData = buckets.some((b) => b.count > 0);
+  // A zero-count bucket still needs its row in the list below, but handing
+  // it to the Pie leaves an odd empty notch in the ring (paddingAngle still
+  // reserves a gap for a 0-value slice) — so the arc itself only gets the
+  // buckets that actually have something in them.
+  const sliceData = buckets.filter((b) => b.count > 0);
 
   function handleClick(bucket: StageBucketStat) {
     onNavigate("orders", "approval", { stage: bucket.stageParam });
@@ -46,18 +51,18 @@ export default function StageDistribution({
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie
-                  data={buckets}
+                  data={sliceData}
                   dataKey="count"
                   nameKey="label"
                   cx="50%"
                   cy="50%"
                   innerRadius={44}
                   outerRadius={72}
-                  paddingAngle={2}
+                  paddingAngle={sliceData.length > 1 ? 2 : 0}
                   onClick={(d) => handleClick(d.payload as StageBucketStat)}
                   cursor="pointer"
                 >
-                  {buckets.map((b) => (
+                  {sliceData.map((b) => (
                     <Cell key={b.key} fill={SLICE_HEX[b.tone]} />
                   ))}
                 </Pie>
