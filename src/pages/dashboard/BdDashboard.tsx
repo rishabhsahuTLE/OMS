@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { BUSINESS_UNITS, type OrderDisplayStage, type OrderRecord } from "../../types";
+import { BUSINESS_UNITS, type OrderDisplayStage, type OrderRecord, type OrdersSubTabId } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
 import { buildManagerStats } from "../ManagerReport";
 import { billsInColumn, buildFiscalYearColumns, getDisplayStage } from "../../utils";
@@ -40,25 +40,21 @@ const PRODUCT_COLORS: Record<string, string> = {
 
 const BU_COLORS = ["#4f46e5", "#0d9488", "#d97706", "#e11d48", "#64748b"];
 
-const STAGE_ORDER: OrderDisplayStage[] = [
-  "approvalPending",
-  "toOpen",
-  "toAmend",
-  "active",
-  "agreementOver",
-  "closurePending",
-  "closed",
-];
+// Same Stage Distribution tile set/styling as AdminDashboard.tsx, kept in
+// sync deliberately — every role dashboard's Stage Distribution should look
+// and behave identically. BD already has its own Client Manager filter above
+// this card (the checkbox dropdown below), so unlike Tech/Finance/Admin this
+// card has no second, redundant manager-select control of its own.
+type TileKey = "all" | OrderDisplayStage;
 
-const STAGE_LABELS: Record<OrderDisplayStage, string> = {
-  approvalPending: "Approval Pending",
-  toOpen: "To Open",
-  toAmend: "To Amend",
-  active: "Active",
-  agreementOver: "Agreement Over",
-  closurePending: "Cancellation Pending",
-  closed: "Closed",
-};
+const STAGE_TILES: { key: TileKey; label: string; dest: OrdersSubTabId; accent: string }[] = [
+  { key: "all", label: "All Orders", dest: "approval", accent: "text-slate-900" },
+  { key: "approvalPending", label: "Pending", dest: "approval", accent: "text-amber-600" },
+  { key: "active", label: "Active", dest: "approval", accent: "text-emerald-600" },
+  { key: "agreementOver", label: "Agreement Over", dest: "approval", accent: "text-indigo-600" },
+  { key: "closurePending", label: "Cancellation Pending", dest: "amendCancel", accent: "text-rose-600" },
+  { key: "closed", label: "Closed", dest: "approval", accent: "text-slate-500" },
+];
 
 // A dropdown of checkboxes rather than a single-select — no auth exists, so
 // this is the one control that scopes every other tile below it, and an
@@ -148,20 +144,25 @@ export default function BdDashboard({ orders, onNavigate }: BdDashboardProps) {
   const liveScopedOrders = useMemo(() => scopedOrders.filter((o) => o.lifecycleStatus !== "cancelled"), [scopedOrders]);
   const fyColumns = useMemo(() => buildFiscalYearColumns(new Date()), []);
 
-  const stageDistribution = useMemo(() => {
-    const counts: Record<OrderDisplayStage, number> = {
-      approvalPending: 0,
-      toOpen: 0,
-      toAmend: 0,
-      active: 0,
-      agreementOver: 0,
-      closurePending: 0,
-      closed: 0,
+  const stageStats = useMemo(() => {
+    const stats: Record<TileKey, { count: number; revenue: number }> = {
+      all: { count: 0, revenue: 0 },
+      approvalPending: { count: 0, revenue: 0 },
+      toOpen: { count: 0, revenue: 0 },
+      toAmend: { count: 0, revenue: 0 },
+      active: { count: 0, revenue: 0 },
+      agreementOver: { count: 0, revenue: 0 },
+      closurePending: { count: 0, revenue: 0 },
+      closed: { count: 0, revenue: 0 },
     };
     scopedOrders.forEach((o) => {
-      counts[getDisplayStage(o)] += 1;
+      const stage = getDisplayStage(o);
+      stats[stage].count += 1;
+      stats[stage].revenue += o.amount;
+      stats.all.count += 1;
+      stats.all.revenue += o.amount;
     });
-    return counts;
+    return stats;
   }, [scopedOrders]);
 
   const stuckData = useMemo(() => buildStuckData(scopedOrders), [scopedOrders]);
@@ -241,12 +242,18 @@ export default function BdDashboard({ orders, onNavigate }: BdDashboardProps) {
       </DashCard>
 
       <DashCard title="Stage Distribution">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {STAGE_ORDER.map((stage) => (
-            <div key={stage} className="rounded-md border border-slate-100 bg-slate-50 p-3 text-center">
-              <p className="text-lg font-bold text-slate-800">{stageDistribution[stage]}</p>
-              <p className="text-xs text-slate-500">{STAGE_LABELS[stage]}</p>
-            </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {STAGE_TILES.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => onNavigate("orders", t.dest, t.key === "all" ? undefined : { stage: t.key })}
+              className="flex flex-col items-start gap-1 rounded-md border border-slate-100 bg-slate-50 p-3 text-left transition-colors hover:border-indigo-300 hover:bg-indigo-50"
+            >
+              <span className="text-xs font-medium text-slate-500">{t.label}</span>
+              <span className={`text-2xl font-bold ${t.accent}`}>{stageStats[t.key].count}</span>
+              <span className="text-xs font-semibold text-slate-500">{formatINR(stageStats[t.key].revenue)}</span>
+            </button>
           ))}
         </div>
       </DashCard>
