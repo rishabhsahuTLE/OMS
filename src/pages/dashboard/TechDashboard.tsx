@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import type { OrderRecord } from "../../types";
-import { CURRENT_USER_EMAIL, daysBetween, deriveCreatedByName, getNextActionableStage, todayISO } from "../../utils";
+import type { OrderDisplayStage, OrderRecord } from "../../types";
+import { CURRENT_USER_EMAIL, daysBetween, deriveCreatedByName, getDisplayStage, getNextActionableStage, todayISO } from "../../utils";
 import {
   ApprovalQueueList,
   buildOrderNotifications,
@@ -23,7 +23,43 @@ interface TechDashboardProps {
 // three simulated reviewers seeded in mock data).
 const SELF_NAME = deriveCreatedByName(CURRENT_USER_EMAIL);
 
+const STAGE_ORDER: OrderDisplayStage[] = [
+  "approvalPending",
+  "toOpen",
+  "toAmend",
+  "active",
+  "agreementOver",
+  "closurePending",
+  "closed",
+];
+
+const STAGE_LABELS: Record<OrderDisplayStage, string> = {
+  approvalPending: "Approval Pending",
+  toOpen: "To Open",
+  toAmend: "To Amend",
+  active: "Active",
+  agreementOver: "Agreement Over",
+  closurePending: "Cancellation Pending",
+  closed: "Closed",
+};
+
 export default function TechDashboard({ orders, onNavigate }: TechDashboardProps) {
+  const stageDistribution = useMemo(() => {
+    const counts: Record<OrderDisplayStage, number> = {
+      approvalPending: 0,
+      toOpen: 0,
+      toAmend: 0,
+      active: 0,
+      agreementOver: 0,
+      closurePending: 0,
+      closed: 0,
+    };
+    orders.forEach((o) => {
+      counts[getDisplayStage(o)] += 1;
+    });
+    return counts;
+  }, [orders]);
+
   // Orders genuinely waiting on Tech right now — a rejected Tech/TC stage is
   // BD's to fix and resubmit, not Tech's to re-decide, so it's excluded here
   // (it shows up instead in BD's own "rejected" notifications).
@@ -86,6 +122,17 @@ export default function TechDashboard({ orders, onNavigate }: TechDashboardProps
 
   return (
     <div className="flex flex-col gap-6">
+      <DashCard title="Stage Distribution">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {STAGE_ORDER.map((stage) => (
+            <div key={stage} className="rounded-md border border-slate-100 bg-slate-50 p-3 text-center">
+              <p className="text-lg font-bold text-slate-800">{stageDistribution[stage]}</p>
+              <p className="text-xs text-slate-500">{STAGE_LABELS[stage]}</p>
+            </div>
+          ))}
+        </div>
+      </DashCard>
+
       <DashCard title="Approval Queue">
         <ApprovalQueueList
           items={queue}

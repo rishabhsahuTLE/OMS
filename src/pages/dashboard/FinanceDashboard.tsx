@@ -12,16 +12,17 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { BUSINESS_UNITS, type OrderRecord } from "../../types";
+import { BUSINESS_UNITS, type OrderDisplayStage, type OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
 import { buildManagerStats } from "../ManagerReport";
 import {
   billsInColumn,
   buildFiscalYearColumns,
+  CURRENT_USER_EMAIL,
   daysBetween,
+  deriveCreatedByName,
   getDisplayStage,
   getNextActionableStage,
-  isBillingOpenInColumn,
   todayISO,
 } from "../../utils";
 import { ApprovalQueueList, DashCard, formatINR, STAGE_ANCHOR, STAGE_DEPT, type NavigateFn, type QueueItem } from "./shared";
@@ -40,9 +41,76 @@ const PRODUCT_COLORS: Record<string, string> = {
 // for every BUSINESS_UNITS value without repeating a hue.
 const BU_COLORS = ["#4f46e5", "#0d9488", "#d97706", "#e11d48", "#64748b"];
 
+// The one identity the whole app has — see utils.ts's CURRENT_USER_EMAIL.
+const SELF_NAME = deriveCreatedByName(CURRENT_USER_EMAIL);
+
+const STAGE_ORDER: OrderDisplayStage[] = [
+  "approvalPending",
+  "toOpen",
+  "toAmend",
+  "active",
+  "agreementOver",
+  "closurePending",
+  "closed",
+];
+
+const STAGE_LABELS: Record<OrderDisplayStage, string> = {
+  approvalPending: "Approval Pending",
+  toOpen: "To Open",
+  toAmend: "To Amend",
+  active: "Active",
+  agreementOver: "Agreement Over",
+  closurePending: "Cancellation Pending",
+  closed: "Closed",
+};
+
 export default function FinanceDashboard({ orders, onNavigate }: FinanceDashboardProps) {
   const liveOrders = useMemo(() => orders.filter((o) => o.lifecycleStatus !== "cancelled"), [orders]);
   const fyColumns = useMemo(() => buildFiscalYearColumns(new Date()), []);
+
+  const stageDistribution = useMemo(() => {
+    const counts: Record<OrderDisplayStage, number> = {
+      approvalPending: 0,
+      toOpen: 0,
+      toAmend: 0,
+      active: 0,
+      agreementOver: 0,
+      closurePending: 0,
+      closed: 0,
+    };
+    orders.forEach((o) => {
+      counts[getDisplayStage(o)] += 1;
+    });
+    return counts;
+  }, [orders]);
+
+  // Average days-to-decision across every decided (confirmed or rejected)
+  // Fin/Cancellation-Fin stage, split by who actually processed it — the
+  // Finance-owned mirror of Tech's own Clearance Stats tile.
+  const clearanceStats = useMemo(() => {
+    const pairs: { start: string; end: string; self: boolean }[] = [];
+    orders.forEach((order) => {
+      if (order.technical.date && order.financial.date) {
+        pairs.push({
+          start: order.technical.date,
+          end: order.financial.date,
+          self: order.financial.processedBy === SELF_NAME,
+        });
+      }
+      if (order.cancellationTechnical.date && order.cancellationFinancial.date) {
+        pairs.push({
+          start: order.cancellationTechnical.date,
+          end: order.cancellationFinancial.date,
+          self: order.cancellationFinancial.processedBy === SELF_NAME,
+        });
+      }
+    });
+    const avg = (rows: typeof pairs) =>
+      rows.length === 0 ? 0 : rows.reduce((sum, p) => sum + daysBetween(p.start, p.end), 0) / rows.length;
+    const self = pairs.filter((p) => p.self);
+    const others = pairs.filter((p) => !p.self);
+    return { selfAvg: avg(self), selfN: self.length, othersAvg: avg(others), othersN: others.length };
+  }, [orders]);
 
   const queue = useMemo<QueueItem[]>(() => {
     const today = todayISO();
@@ -71,16 +139,6 @@ export default function FinanceDashboard({ orders, onNavigate }: FinanceDashboar
     const total = toOpen.length + toAmend.length + toClose.length;
     const amount = [...toOpen, ...toAmend, ...toClose].reduce((sum, o) => sum + o.amount, 0);
     return { toOpen: toOpen.length, toAmend: toAmend.length, toClose: toClose.length, total, amount };
-  }, [orders]);
-
-  // Money still owed on an order whose cancellation is underway or done but
-  // not yet closed — not surfaced anywhere else in the app today.
-  const outstanding = useMemo(() => {
-    const rows = orders.filter((o) => o.cancellationDetails && o.billingStatus !== "closed");
-    return {
-      total: rows.reduce((sum, o) => sum + (o.cancellationDetails?.outstandingBalance ?? 0), 0),
-      count: rows.length,
-    };
   }, [orders]);
 
   const productMetrics = useMemo(
@@ -117,33 +175,19 @@ export default function FinanceDashboard({ orders, onNavigate }: FinanceDashboar
     [liveOrders]
   );
 
-  const revenueMotion = useMemo(() => {
-    let inMotion = 0;
-    let settled = 0;
-    liveOrders.forEach((o) => {
-      if (o.lifecycleStatus === "active") settled += o.amount;
-      else if (o.lifecycleStatus === "cancellationInProgress" || (o.supersedes && o.lifecycleStatus === "inactive")) {
-        inMotion += o.amount;
-      }
-    });
-    return { inMotion, settled };
-  }, [liveOrders]);
-
-  const revenueSummary = useMemo(() => {
-    let projected = 0;
-    let opened = 0;
-    fyColumns.forEach((col) => {
-      liveOrders.forEach((o) => {
-        if (!billsInColumn(o, col)) return;
-        projected += o.amount;
-        if (isBillingOpenInColumn(o, col)) opened += o.amount;
-      });
-    });
-    return { projected, opened };
-  }, [liveOrders, fyColumns]);
-
   return (
     <div className="flex flex-col gap-6">
+      <DashCard title="Stage Distribution">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {STAGE_ORDER.map((stage) => (
+            <div key={stage} className="rounded-md border border-slate-100 bg-slate-50 p-3 text-center">
+              <p className="text-lg font-bold text-slate-800">{stageDistribution[stage]}</p>
+              <p className="text-xs text-slate-500">{STAGE_LABELS[stage]}</p>
+            </div>
+          ))}
+        </div>
+      </DashCard>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <DashCard title="Approver Queue">
           <ApprovalQueueList
@@ -203,86 +247,48 @@ export default function FinanceDashboard({ orders, onNavigate }: FinanceDashboar
           <p className="mt-2 text-center text-xs text-slate-400">{formatINR(billingDue.amount)} total contracted value</p>
         </DashCard>
 
-        <DashCard title="Outstanding Balance (To Close)">
-          <div className="flex h-full items-center justify-between">
-            <p className="text-2xl font-bold text-rose-600">{formatINR(outstanding.total)}</p>
-            <p className="text-xs text-slate-400">across {outstanding.count} order{outstanding.count === 1 ? "" : "s"}</p>
+        <DashCard title="Clearance Stats — Self vs Others">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500">Your avg TAT</p>
+              <p className="text-xl font-bold text-indigo-600">
+                {clearanceStats.selfN > 0 ? `${clearanceStats.selfAvg.toFixed(1)}d` : "—"}
+              </p>
+              <p className="text-xs text-slate-400">n={clearanceStats.selfN}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-medium text-slate-500">Others avg TAT</p>
+              <p className="text-xl font-bold text-slate-700">
+                {clearanceStats.othersN > 0 ? `${clearanceStats.othersAvg.toFixed(1)}d` : "—"}
+              </p>
+              <p className="text-xs text-slate-400">n={clearanceStats.othersN}</p>
+            </div>
           </div>
         </DashCard>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <DashCard title="Manager-wise Revenue">
-          {managerStats.length === 0 ? (
-            <p className="py-16 text-center text-sm text-slate-400">No orders to show.</p>
-          ) : (
-            <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
-              {managerStats.map((m) => (
-                <button
-                  key={m.manager}
-                  type="button"
-                  onClick={() => onNavigate("report", "managerReport", { manager: m.manager })}
-                  className="flex items-center justify-between gap-3 py-2 text-left first:pt-0 hover:bg-slate-50"
-                >
-                  <span className="flex flex-col">
-                    <span className="text-sm font-medium text-slate-800">{m.manager}</span>
-                    <span className="text-xs text-slate-400">{m.total} order{m.total === 1 ? "" : "s"}</span>
-                  </span>
-                  <span className="text-sm font-semibold text-slate-700">{formatINR(m.amount)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </DashCard>
-
-        <div className="flex flex-col gap-4">
-          <DashCard title="Revenue In Motion">
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500">In Motion</p>
-                <p className="text-xl font-bold text-amber-600">{formatINR(revenueMotion.inMotion)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-medium text-slate-500">Settled Active</p>
-                <p className="text-xl font-bold text-slate-700">{formatINR(revenueMotion.settled)}</p>
-              </div>
-            </div>
-            <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
-              {(() => {
-                const total = revenueMotion.inMotion + revenueMotion.settled;
-                const motionPct = total > 0 ? (revenueMotion.inMotion / total) * 100 : 0;
-                return (
-                  <>
-                    <div className="h-full bg-amber-500" style={{ width: `${motionPct}%` }} />
-                    <div className="h-full bg-slate-400" style={{ width: `${100 - motionPct}%` }} />
-                  </>
-                );
-              })()}
-            </div>
-          </DashCard>
-
-          <DashCard title="Revenue — Opened vs Projected (per FBD)">
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500">Opened</p>
-                <p className="text-xl font-bold text-emerald-600">{formatINR(revenueSummary.opened)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-medium text-slate-500">Projected</p>
-                <p className="text-xl font-bold text-slate-700">{formatINR(revenueSummary.projected)}</p>
-              </div>
-            </div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full bg-emerald-500"
-                style={{
-                  width: `${revenueSummary.projected > 0 ? Math.min(100, (revenueSummary.opened / revenueSummary.projected) * 100) : 0}%`,
-                }}
-              />
-            </div>
-          </DashCard>
-        </div>
-      </div>
+      <DashCard title="Manager-wise Revenue">
+        {managerStats.length === 0 ? (
+          <p className="py-16 text-center text-sm text-slate-400">No orders to show.</p>
+        ) : (
+          <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
+            {managerStats.map((m) => (
+              <button
+                key={m.manager}
+                type="button"
+                onClick={() => onNavigate("report", "managerReport", { manager: m.manager })}
+                className="flex items-center justify-between gap-3 py-2 text-left first:pt-0 hover:bg-slate-50"
+              >
+                <span className="flex flex-col">
+                  <span className="text-sm font-medium text-slate-800">{m.manager}</span>
+                  <span className="text-xs text-slate-400">{m.total} order{m.total === 1 ? "" : "s"}</span>
+                </span>
+                <span className="text-sm font-semibold text-slate-700">{formatINR(m.amount)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </DashCard>
 
       <DashCard title={`Revenue Trend by Business Unit — FY ${fyColumns[0].year}–${fyColumns[11].year}`}>
         <ResponsiveContainer width="100%" height={280}>

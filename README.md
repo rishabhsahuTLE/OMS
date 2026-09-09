@@ -1,12 +1,13 @@
 # OMS — Order Management System
 
-A single-page React + TypeScript app for managing customer accounts and orders (approvals, order list, billing). There is no backend and no router — all state lives in memory (`App.tsx`) and is seeded from static mock data, so a page refresh resets everything.
+A single-page React + TypeScript app for managing customer/order data (dashboards, approvals, order list, billing). There is no backend — all state lives in memory (`App.tsx`) and is seeded from static mock data, so a page refresh resets everything. Navigation is still hash-based client-side routing (`react-router-dom`'s `HashRouter`), chosen so every tab gets a bookmarkable URL with zero extra server/host config.
 
 ## Tech stack
 
 - React 19 + TypeScript
 - Vite 8 (dev server + build)
 - Tailwind CSS v4 (utility classes only, no component library)
+- react-router-dom (HashRouter, client-side only)
 - oxlint for linting
 
 ## Getting started
@@ -47,12 +48,15 @@ No environment variables are required — the app has no backend and uses static
 
 ```
 src/
-  App.tsx          # owns navigation state and top-level accounts/orders state
-  types.ts         # domain model (Account, OrderRecord, ...)
+  main.tsx         # wraps <App /> in HashRouter
+  App.tsx          # route map + top-level clients/orders state
+  types.ts         # domain model (Client, OrderRecord, ...)
+  products.ts      # per-product field definitions (LMS, Quirio)
   utils.ts         # order numbering, date formatting, mock "current user"
-  data/            # deterministic mock accounts/orders
+  data/            # deterministic mock clients/orders
   components/      # shared UI (Sidebar, Modal, DateRangePicker, ...)
-  pages/           # Dashboard, Report (Approval/Billing), Order Management (Account/Order/Closing Bill)
+  pages/           # Dashboard (role sub-dashboards), Report (Approval/Billing/Manager Report),
+                    # Order Management (Manage Orders/Amend-Cancel/Close Billing)
 ```
 
 See `CLAUDE.md` for a deeper architecture walkthrough.

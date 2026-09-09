@@ -353,29 +353,3 @@ export function StuckOrdersPie({ data }: { data: StuckSlice[] }) {
     </ResponsiveContainer>
   );
 }
-
-// Where a given order sits right now, in plain terms, plus how long it's
-// been waiting there — null once it's past waiting on anyone (Active,
-// Agreement Over, Closed). Used by BD's "age at stage" table, which (unlike
-// Tech's/Finance's own queues) needs to cover every stage, not just one
-// department's.
-export function currentStageInfo(order: OrderRecord): { stageLabel: string; ageDays: number } | null {
-  if (order.lifecycleStatus === "cancelled") return null;
-  const today = todayISO();
-  const actionable = getNextActionableStage(order);
-  if (actionable) {
-    const rejected = order[actionable.key].status === "rejected";
-    return {
-      stageLabel: rejected ? `${actionable.label} rejected` : `${actionable.label} approval pending`,
-      ageDays: daysBetween(STAGE_ANCHOR[actionable.key](order), today),
-    };
-  }
-  const stage = getDisplayStage(order);
-  if (stage === "toOpen" || stage === "toAmend") {
-    return {
-      stageLabel: stage === "toAmend" ? "Awaiting Finance to complete amendment" : "Awaiting Finance to open billing",
-      ageDays: daysBetween(order.financial.date ?? order.createdOn, today),
-    };
-  }
-  return null;
-}

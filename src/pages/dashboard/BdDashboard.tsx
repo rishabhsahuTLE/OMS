@@ -1,25 +1,44 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { OrderDisplayStage, OrderRecord } from "../../types";
-import { getDisplayStage } from "../../utils";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { BUSINESS_UNITS, type OrderDisplayStage, type OrderRecord } from "../../types";
+import { PRODUCT_NAMES } from "../../products";
+import { buildManagerStats } from "../ManagerReport";
+import { billsInColumn, buildFiscalYearColumns, getDisplayStage } from "../../utils";
 import {
   agreementEndDate,
-  ApprovalQueueList,
   buildOrderNotifications,
   buildStuckData,
-  currentStageInfo,
   DashCard,
   DEPT_STYLES,
   formatINR,
   StuckOrdersPie,
   type NavigateFn,
   type NotificationItem,
-  type QueueItem,
 } from "./shared";
 
 interface BdDashboardProps {
   orders: OrderRecord[];
   onNavigate: NavigateFn;
 }
+
+const PRODUCT_COLORS: Record<string, string> = {
+  LMS: "#2a78d6",
+  Quirio: "#eb6834",
+};
+
+const BU_COLORS = ["#4f46e5", "#0d9488", "#d97706", "#e11d48", "#64748b"];
 
 const STAGE_ORDER: OrderDisplayStage[] = [
   "approvalPending",
@@ -126,10 +145,8 @@ export default function BdDashboard({ orders, onNavigate }: BdDashboardProps) {
     [orders, selectedManagers]
   );
 
-  const rejectedNotifications = useMemo(
-    () => scopedOrders.flatMap(buildOrderNotifications).filter((n) => n.dept === "BD" && n.rejected),
-    [scopedOrders]
-  );
+  const liveScopedOrders = useMemo(() => scopedOrders.filter((o) => o.lifecycleStatus !== "cancelled"), [scopedOrders]);
+  const fyColumns = useMemo(() => buildFiscalYearColumns(new Date()), []);
 
   const stageDistribution = useMemo(() => {
     const counts: Record<OrderDisplayStage, number> = {
@@ -147,28 +164,54 @@ export default function BdDashboard({ orders, onNavigate }: BdDashboardProps) {
     return counts;
   }, [scopedOrders]);
 
-  const ageQueue = useMemo<QueueItem[]>(() => {
-    const items: QueueItem[] = [];
-    scopedOrders.forEach((order) => {
-      const info = currentStageInfo(order);
-      if (info) items.push({ order, stageLabel: info.stageLabel, ageDays: info.ageDays });
-    });
-    return items;
-  }, [scopedOrders]);
-
   const stuckData = useMemo(() => buildStuckData(scopedOrders), [scopedOrders]);
   const stuckUsesMock = stuckData.some((d) => d.mock);
 
-  const pipeline = useMemo(() => {
-    let pending = 0;
-    let active = 0;
-    scopedOrders.forEach((o) => {
-      const stage = getDisplayStage(o);
-      if (stage === "active" || stage === "agreementOver") active += o.amount;
-      else if (stage !== "closed") pending += o.amount;
-    });
-    return { pending, active, total: pending + active };
+  // Every billing action currently sitting against this manager scope, across
+  // all three Open/Close Billing buckets — same conditions Finance's own tile
+  // uses (see FinanceDashboard.tsx), just scoped by the manager filter above.
+  const billingDue = useMemo(() => {
+    const toOpen = scopedOrders.filter((o) => getDisplayStage(o) === "toOpen");
+    const toAmend = scopedOrders.filter((o) => getDisplayStage(o) === "toAmend");
+    const toClose = scopedOrders.filter((o) => o.lifecycleStatus === "cancelled" && o.billingStatus === "open");
+    const total = toOpen.length + toAmend.length + toClose.length;
+    const amount = [...toOpen, ...toAmend, ...toClose].reduce((sum, o) => sum + o.amount, 0);
+    return { toOpen: toOpen.length, toAmend: toAmend.length, toClose: toClose.length, total, amount };
   }, [scopedOrders]);
+
+  const productMetrics = useMemo(
+    () =>
+      PRODUCT_NAMES.map((product) => ({
+        product,
+        label: product,
+        revenue: liveScopedOrders.filter((o) => o.product === product).reduce((sum, o) => sum + o.amount, 0),
+      })).filter((m) => m.revenue > 0),
+    [liveScopedOrders]
+  );
+
+  const activeBUs = useMemo(
+    () => BUSINESS_UNITS.filter((bu) => liveScopedOrders.some((o) => o.bu === bu)),
+    [liveScopedOrders]
+  );
+
+  const buTrendData = useMemo(
+    () =>
+      fyColumns.map((col) => {
+        const row: Record<string, number | string> = { month: col.label };
+        activeBUs.forEach((bu) => {
+          row[bu] = liveScopedOrders
+            .filter((o) => o.bu === bu && billsInColumn(o, col))
+            .reduce((sum, o) => sum + o.amount, 0);
+        });
+        return row;
+      }),
+    [liveScopedOrders, fyColumns, activeBUs]
+  );
+
+  const managerStats = useMemo(
+    () => buildManagerStats(liveScopedOrders).sort((a, b) => b.amount - a.amount),
+    [liveScopedOrders]
+  );
 
   const updateNotifications = useMemo<NotificationItem[]>(() => {
     const orderUpdates = scopedOrders.flatMap(buildOrderNotifications).filter((n) => n.dept === "BD" && !n.rejected);
@@ -208,64 +251,36 @@ export default function BdDashboard({ orders, onNavigate }: BdDashboardProps) {
         </div>
       </DashCard>
 
-      <DashCard title="My Pipeline">
-        <div className="mb-2 grid grid-cols-3 gap-2 text-center">
+      <DashCard
+        title="Billing Actions Due"
+        action={
+          <button
+            type="button"
+            onClick={() => onNavigate("orders", "closeBilling")}
+            className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+          >
+            Go to Close Billing →
+          </button>
+        }
+      >
+        <div className="grid grid-cols-3 gap-3 text-center">
           <div>
-            <p className="text-xs font-medium text-slate-500">Active</p>
-            <p className="text-lg font-bold text-emerald-600">{formatINR(pipeline.active)}</p>
+            <p className="text-xl font-bold text-slate-800">{billingDue.toOpen}</p>
+            <p className="text-xs text-slate-500">To Open</p>
           </div>
           <div>
-            <p className="text-xs font-medium text-slate-500">Pending</p>
-            <p className="text-lg font-bold text-amber-600">{formatINR(pipeline.pending)}</p>
+            <p className="text-xl font-bold text-slate-800">{billingDue.toAmend}</p>
+            <p className="text-xs text-slate-500">To Amend</p>
           </div>
           <div>
-            <p className="text-xs font-medium text-slate-500">Total</p>
-            <p className="text-lg font-bold text-slate-800">{formatINR(pipeline.total)}</p>
+            <p className="text-xl font-bold text-slate-800">{billingDue.toClose}</p>
+            <p className="text-xs text-slate-500">To Close</p>
           </div>
         </div>
-        <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
-          {(() => {
-            const activePct = pipeline.total > 0 ? (pipeline.active / pipeline.total) * 100 : 0;
-            return (
-              <>
-                <div className="h-full bg-emerald-500" style={{ width: `${activePct}%` }} />
-                <div className="h-full bg-amber-500" style={{ width: `${100 - activePct}%` }} />
-              </>
-            );
-          })()}
-        </div>
+        <p className="mt-2 text-center text-xs text-slate-400">{formatINR(billingDue.amount)} total contracted value</p>
       </DashCard>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <DashCard title="Rejected — Needs Fix">
-          {rejectedNotifications.length === 0 ? (
-            <p className="py-12 text-center text-sm text-slate-400">Nothing rejected right now.</p>
-          ) : (
-            <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
-              {rejectedNotifications.map((n, i) => (
-                <div key={`${n.order.id}-${i}`} className={`flex items-center gap-2 border-l-4 py-2 pl-2 ${DEPT_STYLES.BD.border}`}>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate("orders", "approval", { stage: getDisplayStage(n.order), q: n.order.orderNo })}
-                    className="min-w-0 flex-1 text-left hover:underline"
-                  >
-                    <span className="block truncate text-sm text-slate-700">
-                      <span className="font-medium text-slate-800">{n.order.orderNo}</span> — {n.message}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate("orders", "approval", { edit: n.order.id })}
-                    className="shrink-0 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
-                  >
-                    Edit
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </DashCard>
-
         <DashCard title="Notifications">
           {updateNotifications.length === 0 ? (
             <p className="py-12 text-center text-sm text-slate-400">No recent activity.</p>
@@ -288,17 +303,75 @@ export default function BdDashboard({ orders, onNavigate }: BdDashboardProps) {
             </div>
           )}
         </DashCard>
+
+        <DashCard title="Product-wise Revenue">
+          {productMetrics.length === 0 ? (
+            <p className="py-16 text-center text-sm text-slate-400">No orders to show.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie data={productMetrics} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                  {productMetrics.map((m) => (
+                    <Cell key={m.product} fill={PRODUCT_COLORS[m.product] ?? "#64748b"} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </DashCard>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <DashCard title="Age at Stage — Order-wise">
-          <ApprovalQueueList items={ageQueue} onNavigate={onNavigate} destTab="approval" emptyMessage="Nothing in flight." />
-        </DashCard>
-
         <DashCard title={`Where Orders Are Stuck (by revenue)${stuckUsesMock ? " (mock data)" : ""}`}>
           <StuckOrdersPie data={stuckData} />
         </DashCard>
+
+        <DashCard title="Manager-wise Revenue">
+          {managerStats.length === 0 ? (
+            <p className="py-16 text-center text-sm text-slate-400">No orders to show.</p>
+          ) : (
+            <div className="flex max-h-64 flex-col divide-y divide-slate-100 overflow-y-auto">
+              {managerStats.map((m) => (
+                <button
+                  key={m.manager}
+                  type="button"
+                  onClick={() => onNavigate("report", "managerReport", { manager: m.manager })}
+                  className="flex items-center justify-between gap-3 py-2 text-left first:pt-0 hover:bg-slate-50"
+                >
+                  <span className="flex flex-col">
+                    <span className="text-sm font-medium text-slate-800">{m.manager}</span>
+                    <span className="text-xs text-slate-400">{m.total} order{m.total === 1 ? "" : "s"}</span>
+                  </span>
+                  <span className="text-sm font-semibold text-slate-700">{formatINR(m.amount)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </DashCard>
       </div>
+
+      <DashCard title={`Revenue Trend by Business Unit — FY ${fyColumns[0].year}–${fyColumns[11].year}`}>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={buTrendData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="#e1e0d9" />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#898781" }} axisLine={{ stroke: "#c3c2b7" }} tickLine={false} />
+            <YAxis
+              tick={{ fontSize: 11, fill: "#898781" }}
+              axisLine={false}
+              tickLine={false}
+              width={48}
+              tickFormatter={(v: number) => `₹${(v / 100000).toFixed(0)}L`}
+            />
+            <Tooltip formatter={(v) => formatINR(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            {activeBUs.map((bu, i) => (
+              <Bar key={bu} dataKey={bu} name={bu} stackId="bu" fill={BU_COLORS[i % BU_COLORS.length]} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </DashCard>
     </div>
   );
 }
