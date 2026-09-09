@@ -21,6 +21,12 @@ interface TechDashboardProps {
 // Trend, Revenue in Motion, Opened vs Projected, Manager-wise Revenue, or My
 // Pipeline — there's no CSS hiding involved, those widgets simply aren't
 // imported into this file.
+// Widgets are grouped by natural shape/height, not just by the prompt's
+// literal TOP/MAIN/BOTTOM order — pairing a donut+list card (Stage
+// Distribution) next to a single-number KPI card (Clearance Stats) leaves
+// the grid row stretched to the taller one's height, with dead space inside
+// the shorter card. Same-shape widgets are paired instead so a row's height
+// is never dictated by a mismatched neighbor.
 export default function TechDashboard({ orders, filters, onNavigate }: TechDashboardProps) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -28,7 +34,7 @@ export default function TechDashboard({ orders, filters, onNavigate }: TechDashb
         <StageDistribution orders={orders} filters={filters} onNavigate={onNavigate} />
       </div>
       <div className="lg:col-span-6">
-        <TatThisMonth orders={orders} filters={filters} dept="Tech" />
+        <OrdersStuck orders={orders} filters={filters} dept="Tech" />
       </div>
 
       <div className="lg:col-span-12">
@@ -36,7 +42,7 @@ export default function TechDashboard({ orders, filters, onNavigate }: TechDashb
       </div>
 
       <div className="lg:col-span-6">
-        <OrdersStuck orders={orders} filters={filters} dept="Tech" />
+        <TatThisMonth orders={orders} filters={filters} dept="Tech" />
       </div>
       <div className="lg:col-span-6">
         <ClearanceStats orders={orders} filters={filters} />

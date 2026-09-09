@@ -25,6 +25,10 @@ interface FinanceDashboardProps {
 // revenue impact?" — a deliberate mixture of execution widgets (Approval
 // Queue, Billing Actions Due) and financial analytics. No My Pipeline (that's
 // BD's own portfolio view, not Finance's job) — per the matrix, not CSS.
+// Grouped by shape/height rather than the prompt's literal order: the three
+// short single/triple-number KPI tiles share one dense row, the two
+// donut-chart widgets share another, so no row is ever stretched to a
+// mismatched neighbor's height (see TechDashboard.tsx's note).
 export default function FinanceDashboard({ orders, filters, onNavigate }: FinanceDashboardProps) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -32,10 +36,17 @@ export default function FinanceDashboard({ orders, filters, onNavigate }: Financ
         <BillingActionsDue orders={orders} filters={filters} onNavigate={onNavigate} />
       </div>
       <div className="lg:col-span-4">
-        <StageDistribution orders={orders} filters={filters} onNavigate={onNavigate} />
+        <OutstandingBalance orders={orders} filters={filters} />
       </div>
       <div className="lg:col-span-4">
-        <OutstandingBalance orders={orders} filters={filters} />
+        <ClearanceStats orders={orders} filters={filters} />
+      </div>
+
+      <div className="lg:col-span-6">
+        <StageDistribution orders={orders} filters={filters} onNavigate={onNavigate} />
+      </div>
+      <div className="lg:col-span-6">
+        <OrdersStuck orders={orders} filters={filters} dept="Finance" />
       </div>
 
       <div className="lg:col-span-12">
@@ -43,13 +54,9 @@ export default function FinanceDashboard({ orders, filters, onNavigate }: Financ
       </div>
 
       <div className="lg:col-span-6">
-        <OrdersStuck orders={orders} filters={filters} dept="Finance" />
-      </div>
-      <div className="lg:col-span-6">
         <OpenedVsProjected orders={orders} filters={filters} />
       </div>
-
-      <div className="lg:col-span-12">
+      <div className="lg:col-span-6">
         <RevenueInMotion orders={orders} filters={filters} />
       </div>
 
@@ -57,14 +64,11 @@ export default function FinanceDashboard({ orders, filters, onNavigate }: Financ
         <ProductRevenue orders={orders} filters={filters} />
       </div>
       <div className="lg:col-span-6">
-        <ClearanceStats orders={orders} filters={filters} />
+        <ManagerRevenue orders={orders} filters={filters} onNavigate={onNavigate} />
       </div>
 
       <div className="lg:col-span-12">
         <RevenueTrend orders={orders} filters={filters} />
-      </div>
-      <div className="lg:col-span-12">
-        <ManagerRevenue orders={orders} filters={filters} onNavigate={onNavigate} />
       </div>
 
       <div className="lg:col-span-12">

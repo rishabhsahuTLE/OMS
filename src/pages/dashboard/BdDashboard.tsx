@@ -23,6 +23,9 @@ interface BdDashboardProps {
 // commercially-oriented dashboard. My Pipeline is BD-only per the matrix; no
 // Approval Queue/Clearance Stats here, those are execution-level widgets
 // that belong to whoever actually makes the Tech/Fin decision.
+// Grouped by shape/height (see TechDashboard.tsx's note): the two short KPI
+// tiles share a row, the three donut-chart widgets share a row, rather than
+// mixing shapes and stretching the shorter card to a taller neighbor's height.
 export default function BdDashboard({ orders, filters, onNavigate }: BdDashboardProps) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -31,17 +34,17 @@ export default function BdDashboard({ orders, filters, onNavigate }: BdDashboard
       </div>
 
       <div className="lg:col-span-6">
-        <StageDistribution orders={orders} filters={filters} onNavigate={onNavigate} />
-      </div>
-      <div className="lg:col-span-6">
         <BillingActionsDue orders={orders} filters={filters} onNavigate={onNavigate} />
-      </div>
-
-      <div className="lg:col-span-6">
-        <OrdersStuck orders={orders} filters={filters} />
       </div>
       <div className="lg:col-span-6">
         <OpenedVsProjected orders={orders} filters={filters} />
+      </div>
+
+      <div className="lg:col-span-6">
+        <StageDistribution orders={orders} filters={filters} onNavigate={onNavigate} />
+      </div>
+      <div className="lg:col-span-6">
+        <OrdersStuck orders={orders} filters={filters} />
       </div>
 
       <div className="lg:col-span-12">

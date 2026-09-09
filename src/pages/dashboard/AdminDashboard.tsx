@@ -23,24 +23,32 @@ interface AdminDashboardProps {
 // Admin's objective: "what's the overall health of the OMS?" — the broadest
 // overview, but deliberately not personal/execution widgets: no Approval
 // Queue, Clearance Stats, or My Pipeline here (per the matrix).
+// Grouped by shape/height (see TechDashboard.tsx's note): Stage Distribution
+// pairs with the other donut widget (Where Orders Are Stuck), the two short
+// KPI tiles (Billing Actions Due, Outstanding Balance) share their own row,
+// and TAT pairs with Product-wise Revenue rather than a mismatched KPI tile.
 export default function AdminDashboard({ orders, filters, onNavigate }: AdminDashboardProps) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-      <div className="lg:col-span-4">
+      <div className="lg:col-span-6">
         <StageDistribution orders={orders} filters={filters} onNavigate={onNavigate} />
       </div>
-      <div className="lg:col-span-4">
+      <div className="lg:col-span-6">
+        <OrdersStuck orders={orders} filters={filters} />
+      </div>
+
+      <div className="lg:col-span-6">
         <BillingActionsDue orders={orders} filters={filters} onNavigate={onNavigate} />
       </div>
-      <div className="lg:col-span-4">
+      <div className="lg:col-span-6">
         <OutstandingBalance orders={orders} filters={filters} compact />
       </div>
 
       <div className="lg:col-span-6">
-        <OrdersStuck orders={orders} filters={filters} />
+        <TatThisMonth orders={orders} filters={filters} />
       </div>
       <div className="lg:col-span-6">
-        <TatThisMonth orders={orders} filters={filters} />
+        <ProductRevenue orders={orders} filters={filters} />
       </div>
 
       <div className="lg:col-span-6">
@@ -50,10 +58,7 @@ export default function AdminDashboard({ orders, filters, onNavigate }: AdminDas
         <RevenueInMotion orders={orders} filters={filters} />
       </div>
 
-      <div className="lg:col-span-6">
-        <ProductRevenue orders={orders} filters={filters} />
-      </div>
-      <div className="lg:col-span-6">
+      <div className="lg:col-span-12">
         <ManagerRevenue orders={orders} filters={filters} onNavigate={onNavigate} />
       </div>
 
