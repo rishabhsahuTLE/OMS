@@ -52,7 +52,7 @@ export function DashboardCard({
   const accentBorder = accent ? `border-l-[3px] ${ACCENT_BORDER[accent]}` : "border-l border-slate-200";
   return (
     <div
-      className={`flex flex-col rounded-lg border border-y-slate-200 border-r-slate-200 bg-white shadow-sm ${accentBorder} ${CARD_PADDING[size]} ${className}`}
+      className={`@container flex h-full flex-col rounded-lg border border-y-slate-200 border-r-slate-200 bg-white shadow-sm ${accentBorder} ${CARD_PADDING[size]} ${className}`}
     >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>

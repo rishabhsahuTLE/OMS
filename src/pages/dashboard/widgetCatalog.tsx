@@ -55,9 +55,9 @@ export type WidgetTier = "chart" | "statSmall" | "statMedium" | "queue" | "full"
 // checked across 1-4 columns and stretches them to fill the row, so turning
 // a widget on/off never leaves a gap or a squeezed-in extra column.
 export const TIER_GRID_COLUMNS: Partial<Record<WidgetTier, string>> = {
-  chart: "repeat(auto-fit,minmax(560px,1fr))",
-  statSmall: "repeat(auto-fit,minmax(320px,1fr))",
-  statMedium: "repeat(auto-fit,minmax(380px,1fr))",
+  chart: "repeat(3,minmax(0,1fr))",
+  statSmall: "repeat(3,minmax(0,1fr))",
+  statMedium: "repeat(2,minmax(0,1fr))",
   queue: "repeat(auto-fit,minmax(560px,1fr))",
 };
 
@@ -98,16 +98,16 @@ export const WIDGET_CATALOG: WidgetDef[] = [
     render: (p) => <ProductRevenue orders={p.orders} filters={p.filters} />,
   },
   {
-    key: "tat",
-    label: "TAT — This Month",
-    tier: "chart",
-    render: (p) => <TatThisMonth orders={p.orders} filters={p.filters} />,
-  },
-  {
     key: "billingActionsDue",
     label: "Billing Actions Due",
     tier: "full",
     render: (p) => <BillingActionsDue orders={p.orders} filters={p.filters} onNavigate={p.onNavigate} />,
+  },
+  {
+    key: "tat",
+    label: "TAT — This Month",
+    tier: "full",
+    render: (p) => <TatThisMonth orders={p.orders} filters={p.filters} />,
   },
   {
     key: "outstandingBalance",
