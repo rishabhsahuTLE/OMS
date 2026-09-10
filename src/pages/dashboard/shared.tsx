@@ -8,7 +8,7 @@ import {
   todayISO,
   type ApprovalStageKey,
 } from "../../utils";
-import type { Tone } from "./ui";
+import { LegendList, type LegendItem, type Tone } from "./ui";
 
 // Domain calculations shared by the widget components in ./widgets — this
 // file knows about orders/stages/roles; ./ui.tsx deliberately doesn't. Every
@@ -57,8 +57,8 @@ export const STAGE_ANCHOR: Record<ApprovalStageKey, (o: OrderRecord) => string> 
 // widgets invent their own — Product-wise Revenue and Revenue Trend by BU in
 // particular.
 export const PRODUCT_COLORS: Record<string, string> = {
-  LMS: "#2a78d6",
-  Quirio: "#eb6834",
+  LMS: "#3e77bc",
+  Quirio: "#bc6c52",
 };
 
 export const BU_COLORS = ["#4f46e5", "#0d9488", "#d97706", "#e11d48", "#64748b"];
@@ -122,10 +122,10 @@ export function buildStageBuckets(orders: OrderRecord[]): StageBucketStat[] {
 // ---------------------------------------------------------------------------
 
 export const STUCK_STAGES: { key: ApprovalStageKey; label: string; color: string }[] = [
-  { key: "technical", label: "Technical", color: "#d97706" },
-  { key: "financial", label: "Financial", color: "#059669" },
-  { key: "cancellationTechnical", label: "Cancellation-Technical", color: "#4f46e5" },
-  { key: "cancellationFinancial", label: "Cancellation-Financial", color: "#e11d48" },
+  { key: "technical", label: "Technical", color: "#b07635" },
+  { key: "financial", label: "Financial", color: "#268a75" },
+  { key: "cancellationTechnical", label: "Cancellation-Technical", color: "#5656c6" },
+  { key: "cancellationFinancial", label: "Cancellation-Financial", color: "#b53b5f" },
 ];
 
 // Mock data is generated from a fixed reference date (see mockOrders.ts), so
@@ -167,36 +167,40 @@ export function buildStuckData(orders: OrderRecord[]): StuckSlice[] {
 }
 
 export function StuckOrdersPie({ data }: { data: StuckSlice[] }) {
+  // A LegendList, not recharts' own <Legend>, is what keeps this in the same
+  // Technical -> Financial -> Cancellation-Technical -> Cancellation-Financial
+  // chronological order as `data` (recharts' auto-derived legend payload
+  // doesn't reliably preserve source order), and matches the uniform
+  // dot+label / value+pct row shape Stage Distribution and Product-wise
+  // Revenue also use.
+  const items: LegendItem[] = data.map((d) => ({
+    key: d.key,
+    label: d.label,
+    color: d.color,
+    value: formatINR(d.revenue),
+    pct: d.pct,
+  }));
   return (
-    <div>
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
-          <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={68} outerRadius={112} paddingAngle={2}>
-            {data.map((d) => (
-              <Cell key={d.key} fill={d.color} />
-            ))}
-          </Pie>
-          <Tooltip
-            formatter={(v, _name, entry) => {
-              const payload = entry.payload as { label: string; count: number; pct: number };
-              return [`${formatINR(Number(v))} (${payload.count} orders, ${payload.pct.toFixed(0)}%)`, payload.label];
-            }}
-            contentStyle={{ fontSize: 12, borderRadius: 8 }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-      {/* A custom legend, not recharts' own <Legend>, is what keeps this in
-          the same Technical -> Financial -> Cancellation-Technical ->
-          Cancellation-Financial chronological order as `data` — recharts'
-          auto-derived legend payload doesn't reliably preserve source order. */}
-      <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-1.5">
-        {data.map((d) => (
-          <span key={d.key} className="flex items-center gap-2 text-xs text-slate-600">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
-            {d.label} ({d.count})
-          </span>
-        ))}
+    <div className="flex flex-col gap-4 @lg:flex-row @lg:items-center">
+      <div className="mx-auto w-full max-w-[240px] shrink-0">
+        <ResponsiveContainer width="100%" height={240}>
+          <PieChart>
+            <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={82} paddingAngle={2}>
+              {data.map((d) => (
+                <Cell key={d.key} fill={d.color} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(v, _name, entry) => {
+                const payload = entry.payload as { label: string; count: number; pct: number };
+                return [`${formatINR(Number(v))} (${payload.count} orders, ${payload.pct.toFixed(0)}%)`, payload.label];
+              }}
+              contentStyle={{ fontSize: 12, borderRadius: 8 }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
       </div>
+      <LegendList items={items} />
     </div>
   );
 }

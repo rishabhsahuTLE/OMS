@@ -1,9 +1,9 @@
-import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { OrderRecord } from "../../../types";
 import { PRODUCT_NAMES } from "../../../products";
 import { applyStructuralFilters, type DashboardFilters } from "../filters";
 import { formatINR, PRODUCT_COLORS } from "../shared";
-import { DashboardCard, EmptyState, type CardSize } from "../ui";
+import { DashboardCard, EmptyState, LegendList, type CardSize, type LegendItem } from "../ui";
 
 // Active orders only, current state — no Date filter.
 export default function ProductRevenue({
@@ -23,28 +23,40 @@ export default function ProductRevenue({
     return { product, label: product, revenue, count: rows.length, pct: totalRevenue > 0 ? (revenue / totalRevenue) * 100 : 0 };
   }).filter((m) => m.revenue > 0);
 
+  const items: LegendItem[] = metrics.map((m) => ({
+    key: m.product,
+    label: m.label,
+    color: PRODUCT_COLORS[m.product] ?? "#64748b",
+    value: formatINR(m.revenue),
+    pct: m.pct,
+  }));
+
   return (
     <DashboardCard title="Product-wise Revenue" size={size}>
       {metrics.length === 0 ? (
         <EmptyState />
       ) : (
-        <ResponsiveContainer width="100%" height={340}>
-          <PieChart>
-            <Pie data={metrics} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={72} outerRadius={118} paddingAngle={2}>
-              {metrics.map((m) => (
-                <Cell key={m.product} fill={PRODUCT_COLORS[m.product] ?? "#64748b"} />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(v, _n, entry) => {
-                const m = entry.payload as (typeof metrics)[number];
-                return [`${formatINR(Number(v))} (${m.count} orders, ${m.pct.toFixed(0)}%)`, m.label];
-              }}
-              contentStyle={{ fontSize: 12, borderRadius: 8 }}
-            />
-            <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 13 }} />
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="flex flex-col gap-4 @lg:flex-row @lg:items-center">
+          <div className="mx-auto w-full max-w-[240px] shrink-0">
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie data={metrics} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={54} outerRadius={88} paddingAngle={2}>
+                  {metrics.map((m) => (
+                    <Cell key={m.product} fill={PRODUCT_COLORS[m.product] ?? "#64748b"} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(v, _n, entry) => {
+                    const m = entry.payload as (typeof metrics)[number];
+                    return [`${formatINR(Number(v))} (${m.count} orders, ${m.pct.toFixed(0)}%)`, m.label];
+                  }}
+                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <LegendList items={items} />
+        </div>
       )}
     </DashboardCard>
   );

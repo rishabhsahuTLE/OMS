@@ -110,12 +110,31 @@ const ACCENT_BORDER: Record<Tone, string> = {
   slate: "border-l-slate-400",
 };
 
+// Hex equivalents of the same tones, for contexts that need a literal CSS
+// color rather than a Tailwind class — chart fills and LegendList's dots in
+// particular, so a donut slice and its legend dot are always the same color.
+// Each is muted toward neutral slate rather than the fully-saturated tone
+// used for badges/borders elsewhere, so a donut of these reads calmer than a
+// status indicator does.
+const TONE_HEX: Record<Tone, string> = {
+  emerald: "#2ea185",
+  amber: "#b07635",
+  rose: "#b53b5f",
+  indigo: "#5656c6",
+  violet: "#744ecb",
+  slate: "#94a3b8",
+};
+
 export function toneClass(tone: Tone) {
   return TONE_TEXT[tone];
 }
 
 export function toneBg(tone: Tone) {
   return TONE_BG[tone];
+}
+
+export function toneHex(tone: Tone) {
+  return TONE_HEX[tone];
 }
 
 // A single big number + label, the atomic unit most widgets are built from.
@@ -333,6 +352,61 @@ export function SortSwitch<K extends string>({
           {o.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Donut legend list — the uniform "dot + label, value (pct%)" row shape
+// Stage Distribution, Where Orders Are Stuck, and Product-wise Revenue all
+// render their donut's legend with, one row per slice, stacked vertically
+// regardless of card width (unlike a wrapping/horizontal legend, this never
+// reflows differently at different widths).
+// ---------------------------------------------------------------------------
+
+export interface LegendItem {
+  key: string;
+  label: string;
+  color: string;
+  value: string;
+  pct: number;
+  onClick?: () => void;
+}
+
+function LegendRowContent({ item }: { item: LegendItem }) {
+  return (
+    <>
+      <span className="flex items-center gap-2 text-sm text-slate-600">
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+        {item.label}
+      </span>
+      <span className="flex items-baseline gap-1.5 whitespace-nowrap">
+        <span className="text-sm font-semibold text-slate-800">{item.value}</span>
+        <span className="text-xs text-slate-400">({item.pct.toFixed(0)}%)</span>
+      </span>
+    </>
+  );
+}
+
+export function LegendList({ items }: { items: LegendItem[] }) {
+  return (
+    <div className="flex flex-1 flex-col justify-center gap-1">
+      {items.map((item) =>
+        item.onClick ? (
+          <button
+            key={item.key}
+            type="button"
+            onClick={item.onClick}
+            className="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-slate-50"
+          >
+            <LegendRowContent item={item} />
+          </button>
+        ) : (
+          <div key={item.key} className="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5">
+            <LegendRowContent item={item} />
+          </div>
+        )
+      )}
     </div>
   );
 }
