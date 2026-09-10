@@ -55,13 +55,18 @@ export type WidgetKey =
 export type WidgetTier = "tall" | "short" | "full";
 
 // The CSS grid-template-columns value each grid-shaped tier lays its visible
-// members out with. Each column has a target width with only a little give
-// (not a bare 1fr) — turning a widget on/off changes how many *columns* fit
-// per row, but a partial row is left as genuine empty space at the end
-// rather than stretching the widgets that are present to fill it.
+// members out with — a single fixed column width per tier, not a min/max
+// range. That's deliberate: `repeat(auto-fill, minmax(min,max))` counts how
+// many columns fit using *max* whenever both bounds are fixed lengths, so a
+// range like minmax(520px,600px) can under-fill a row (e.g. leaving a 3rd
+// 520px-wide column's worth of space empty just because it isn't 600px) —
+// exactly the "row not fully covered" bug a fixed length avoids: auto-fill
+// always packs as many of these as truly fit before wrapping, and any
+// leftover space in the final row is genuine remainder (not enough widgets
+// left to fill it), never a column that could have fit but didn't.
 export const TIER_GRID_COLUMNS: Partial<Record<WidgetTier, string>> = {
-  tall: "repeat(auto-fill,minmax(520px,600px))",
-  short: "repeat(auto-fill,minmax(300px,360px))",
+  tall: "repeat(auto-fill,560px)",
+  short: "repeat(auto-fill,330px)",
 };
 
 // Every grid-tier widget shares one fixed height per tier, so row-mates are
