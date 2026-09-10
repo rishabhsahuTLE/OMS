@@ -1,9 +1,11 @@
 import clientsData from "./clients.json";
 import { PRODUCTS } from "../products";
+import { baseOrderNo } from "../utils";
 import type {
   ApprovalState,
   BillingCycle,
   BillingStatus,
+  CancellationDetails,
   Client,
   OrderRecord,
   OrderLifecycleStatus,
@@ -77,6 +79,28 @@ function orderCountFor(clientIndex: number): number {
 // Agreement Over against the real current date.
 const AGREEMENT_MONTHS_CYCLE: (number | null)[] = [12, 12, 6, 24, 3, null, 18, 12, 9, null, 1, 2];
 
+// Rotating, realistic reasons for the orders below that actually go through
+// cancellation initiation (bucket 2 / bucket 3) — CancellationConfirm.tsx's
+// own mandatory-fields shape (see initiateClosure() in utils.ts), which the
+// mock generator previously left unset entirely on every cancelled/
+// cancellation-in-progress order (an inconsistent seed no real order could
+// ever be in).
+const CANCELLATION_REASONS = [
+  "Client requested early termination.",
+  "Budget reallocated away from this engagement.",
+  "Service no longer required by the client.",
+  "Client switching to an alternate vendor.",
+];
+
+function makeCancellationDetails(seed: number, amount: number, effectFromOffset: number): CancellationDetails {
+  return {
+    effectFromDate: makeDate(effectFromOffset),
+    outstandingBalance: Math.round((amount * (0.15 + (seed % 4) * 0.07)) / 100) * 100,
+    reason: CANCELLATION_REASONS[seed % CANCELLATION_REASONS.length],
+    comments: "",
+  };
+}
+
 export const mockOrders: OrderRecord[] = [];
 
 let orderIndex = 0;
@@ -138,6 +162,7 @@ clients.forEach((client, cliIdx) => {
     let billingStatus: BillingStatus = "notOpened";
     let billingOpenedOn: string | null = null;
     let billingClosedOn: string | null = null;
+    let cancellationDetails: CancellationDetails | undefined;
     if (isFullyConfirmed) {
       const bucket = fullyConfirmedCount % 4;
       amended = fullyConfirmedCount % 5 === 2;
@@ -147,9 +172,13 @@ clients.forEach((client, cliIdx) => {
         cancellationFinancial = withMeta({ status: "confirmed", date: makeDate(finOffset + 12) }, orderIndex + 1);
         // Cancelled orders are mostly still awaiting billing closure (open),
         // with a deterministic minority already closed by finance.
-        billingStatus = fullyConfirmedCount % 4 === 3 ? "closed" : "open";
+        billingStatus = fullyConfirmedCount % 12 === 3 ? "closed" : "open";
         billingOpenedOn = makeDate(finOffset + 3);
         if (billingStatus === "closed") billingClosedOn = makeDate(finOffset + 12 + 10);
+        // A cancelled order always went through cancellation initiation on
+        // the way here (see initiateClosure() in utils.ts) — it's never
+        // actually cancelled without cancellationDetails.
+        cancellationDetails = makeCancellationDetails(orderIndex, amount, finOffset + 2);
       } else if (bucket === 2) {
         lifecycleStatus = "cancellationInProgress";
         cancellationTechnical = withMeta({ status: "confirmed", date: makeDate(finOffset + 5) }, orderIndex);
@@ -157,6 +186,7 @@ clients.forEach((client, cliIdx) => {
         // already running.
         billingStatus = "open";
         billingOpenedOn = makeDate(finOffset + 3);
+        cancellationDetails = makeCancellationDetails(orderIndex, amount, finOffset + 2);
       } else if (bucket === 1) {
         lifecycleStatus = "active";
         billingStatus = "open";
@@ -190,6 +220,7 @@ clients.forEach((client, cliIdx) => {
       billingStatus,
       billingOpenedOn,
       billingClosedOn,
+      cancellationDetails,
       details: {
         clientManager,
         billingAddress: client.billingAddress,
@@ -221,3 +252,55 @@ clients.forEach((client, cliIdx) => {
     orderIndex++;
   }
 });
+
+// --- Seeded amendment pair --------------------------------------------------
+// The main loop above deliberately never sets `supersedes` (a successor is
+// only ever created by actually walking Manage Orders' Amend flow — see
+// confirmAmendment() in OrderApproval.tsx, which this mirrors field-for-
+// field), so Stage Distribution's "Amendment Pending" bucket, Billing
+// Actions Due's "To Amend" bucket, and Revenue in Motion's "Amendment
+// In-flight" segment would otherwise always read zero. These two
+// hand-authored successors give each a real demo row: one still awaiting
+// its unified Tech+Fin review ("Amendment Pending"), one past that and
+// awaiting Finance to complete the amendment in Close Billing ("To Amend").
+// Per confirmAmendment(), the predecessor itself is left completely
+// untouched while its successor is worked through, so neither predecessor
+// needs any change here.
+function makeAmendmentSuccessor(predecessor: OrderRecord, seed: number, stage: "amendmentPending" | "toAmend"): OrderRecord {
+  const bothConfirmed = stage === "toAmend";
+  const reviewOffset = 24 + seed * 3;
+  const amendedAmount = predecessor.amount + 8500 + seed * 500;
+  return {
+    ...predecessor,
+    id: `${predecessor.id}-amend`,
+    orderNo: `${baseOrderNo(predecessor.orderNo)}/1`,
+    amended: true,
+    supersedes: predecessor.id,
+    lifecycleStatus: "inactive",
+    technical: bothConfirmed ? withMeta({ status: "confirmed", date: makeDate(reviewOffset) }, seed) : { status: "pending", date: null },
+    financial: bothConfirmed
+      ? withMeta({ status: "confirmed", date: makeDate(reviewOffset + 6) }, seed + 1)
+      : { status: "pending", date: null },
+    cancellationTechnical: { status: "pending", date: null },
+    cancellationFinancial: { status: "pending", date: null },
+    billingStatus: "notOpened",
+    billingOpenedOn: null,
+    billingClosedOn: null,
+    cancellationDetails: undefined,
+    amount: amendedAmount,
+    createdOn: makeDate(reviewOffset - 4),
+    details: {
+      ...predecessor.details,
+      netAmount: amendedAmount,
+      remarks: "Amendment: revised rate per client request.",
+    },
+  };
+}
+
+const activeOrdersForAmendment = mockOrders.filter((o) => o.lifecycleStatus === "active");
+if (activeOrdersForAmendment[0]) {
+  mockOrders.push(makeAmendmentSuccessor(activeOrdersForAmendment[0], 1, "amendmentPending"));
+}
+if (activeOrdersForAmendment[1]) {
+  mockOrders.push(makeAmendmentSuccessor(activeOrdersForAmendment[1], 2, "toAmend"));
+}
