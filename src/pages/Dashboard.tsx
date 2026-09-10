@@ -14,7 +14,7 @@ import {
   type DatePreset,
 } from "./dashboard/filters";
 import { MultiSelectFilter } from "./dashboard/ui";
-import { buildWidgetSections, TIER_GRID_COLUMNS, type WidgetKey } from "./dashboard/widgetCatalog";
+import { buildWidgetSections, TIER_GRID_COLUMNS, TIER_HEIGHT_PX, type WidgetKey } from "./dashboard/widgetCatalog";
 
 type NavigateFn = (
   tab: MainTabId,
@@ -220,13 +220,15 @@ export default function Dashboard({ orders, onNavigate, visibleWidgets }: Dashbo
       </FilterDrawer>
 
       {/* Rendered entirely from the Configuration page's selection (see
-          widgetCatalog.ts's buildWidgetSections) — a "grid" section is an
-          auto-fit row that automatically packs however many of its
-          same-tier widgets are currently checked into 1-4 columns and
-          stretches them to fill the width (turning a widget on/off just
-          reflows its row-mates, never leaving a gap); a "solo" section
-          (tables, and the two big charts) always takes the full row to
-          itself. Every section shares the same gap-4 rhythm. */}
+          widgetCatalog.tsx's buildWidgetSections). A "grid" section gives
+          its tier's currently-checked widgets a fixed height (TIER_HEIGHT_PX)
+          and a target column width with only a little give (TIER_GRID_
+          COLUMNS) — so row-mates are always the same height, and a row with
+          fewer widgets than fit its width just ends in genuine empty space
+          rather than stretching what's there to cover it. A "solo" section
+          (data tables, Billing Actions Due) always takes the full row to
+          itself at its own natural height. Every section shares the same
+          gap-4 rhythm. */}
       {sections.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-400">
           No widgets are turned on. Pick some in Configuration.
@@ -238,7 +240,9 @@ export default function Dashboard({ orders, onNavigate, visibleWidgets }: Dashbo
           ) : (
             <div key={`grid-${i}`} className="grid gap-4" style={{ gridTemplateColumns: TIER_GRID_COLUMNS[section.tier] }}>
               {section.items.map((item) => (
-                <div key={item.key}>{item.render(commonProps)}</div>
+                <div key={item.key} style={{ height: TIER_HEIGHT_PX[section.tier] }}>
+                  {item.render(commonProps)}
+                </div>
               ))}
             </div>
           )

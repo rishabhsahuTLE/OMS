@@ -28,23 +28,25 @@ export default function ProductRevenue({
       {metrics.length === 0 ? (
         <EmptyState />
       ) : (
-        <ResponsiveContainer width="100%" height={340}>
-          <PieChart>
-            <Pie data={metrics} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={72} outerRadius={118} paddingAngle={2}>
-              {metrics.map((m) => (
-                <Cell key={m.product} fill={PRODUCT_COLORS[m.product] ?? "#64748b"} />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(v, _n, entry) => {
-                const m = entry.payload as (typeof metrics)[number];
-                return [`${formatINR(Number(v))} (${m.count} orders, ${m.pct.toFixed(0)}%)`, m.label];
-              }}
-              contentStyle={{ fontSize: 12, borderRadius: 8 }}
-            />
-            <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 13 }} />
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="flex h-full flex-col justify-center">
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={metrics} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={58} outerRadius={96} paddingAngle={2}>
+                {metrics.map((m) => (
+                  <Cell key={m.product} fill={PRODUCT_COLORS[m.product] ?? "#64748b"} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(v, _n, entry) => {
+                  const m = entry.payload as (typeof metrics)[number];
+                  return [`${formatINR(Number(v))} (${m.count} orders, ${m.pct.toFixed(0)}%)`, m.label];
+                }}
+                contentStyle={{ fontSize: 12, borderRadius: 8 }}
+              />
+              <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 13 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </DashboardCard>
   );

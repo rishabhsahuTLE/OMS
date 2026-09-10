@@ -7,12 +7,10 @@ import { DashboardCard, KPI, type CardSize } from "../ui";
 export default function OutstandingBalance({
   orders,
   filters,
-  compact = false,
-  size = "sm",
+  size = "md",
 }: {
   orders: OrderRecord[];
   filters: DashboardFilters;
-  compact?: boolean;
   size?: CardSize;
 }) {
   const scoped = applyStructuralFilters(orders, filters);
@@ -22,15 +20,15 @@ export default function OutstandingBalance({
 
   return (
     <DashboardCard title="Outstanding Balance (To Close)" size={size}>
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex h-full items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-medium text-slate-500">Total outstanding</p>
-          <p className={compact ? "text-lg font-bold text-rose-600" : "text-2xl font-bold text-rose-600"}>{formatINR(total)}</p>
+          <p className="text-sm font-medium text-slate-500">Total outstanding</p>
+          <p className="text-3xl font-bold text-rose-600">{formatINR(total)}</p>
           <p className="text-xs text-slate-400">
             across {rows.length} order{rows.length === 1 ? "" : "s"}
           </p>
         </div>
-        <KPI label="Avg. per order" value={formatINR(avgPerOrder)} tone="slate" size={compact ? "sm" : "md"} align="right" />
+        <KPI label="Avg. per order" value={formatINR(avgPerOrder)} tone="slate" size="lg" align="right" />
       </div>
     </DashboardCard>
   );

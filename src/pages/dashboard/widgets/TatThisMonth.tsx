@@ -22,7 +22,7 @@ export default function TatThisMonth({
 
   return (
     <DashboardCard title="TAT — This Month" subtitle={usingFallback ? "Some stages use illustrative data" : undefined} size={size}>
-      <div className="flex flex-col justify-center gap-6 py-2">
+      <div className="flex h-full flex-col justify-center gap-6">
         {stats.map((s) => (
           <HorizontalBarRow
             key={s.key}

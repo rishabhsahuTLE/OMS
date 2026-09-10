@@ -42,23 +42,35 @@ export type WidgetKey =
   | "rejectedNeedsFix"
   | "ageAtStage";
 
-// A widget's tier is what its row-mates are drawn from and how wide each
-// gets at minimum — grouping by tier (rather than one blanket grid) is what
-// keeps a lane's row height from ever being dictated by a much taller or
-// much shorter neighbor (see ui.tsx's DashboardCard and buildWidgetSections
-// below). "full" widgets (tables and the two big charts) always take the
+// A widget's tier is what its row-mates are drawn from and roughly how tall
+// it naturally renders — grouping by tier (rather than one blanket grid) is
+// what keeps row-mates the same height without that height being dictated
+// by a much taller or much shorter neighbor. Deliberately just two grid
+// tiers ("tall" and "short") rather than a finer-grained size per widget:
+// - "tall": the 4 donut/bar charts and the 2 approval-queue tables — all in
+//   the same ~380-500px range.
+// - "short": the simpler single/double-KPI stat tiles — all ~150-220px.
+// "full" widgets (data tables and Billing Actions Due) always take the
 // entire row to themselves regardless of what else is visible.
-export type WidgetTier = "chart" | "statSmall" | "statMedium" | "queue" | "full";
+export type WidgetTier = "tall" | "short" | "full";
 
 // The CSS grid-template-columns value each grid-shaped tier lays its visible
-// members out with — auto-fit distributes however many are actually
-// checked across 1-4 columns and stretches them to fill the row, so turning
-// a widget on/off never leaves a gap or a squeezed-in extra column.
+// members out with. Each column has a target width with only a little give
+// (not a bare 1fr) — turning a widget on/off changes how many *columns* fit
+// per row, but a partial row is left as genuine empty space at the end
+// rather than stretching the widgets that are present to fill it.
 export const TIER_GRID_COLUMNS: Partial<Record<WidgetTier, string>> = {
-  chart: "repeat(auto-fit,minmax(560px,1fr))",
-  statSmall: "repeat(auto-fit,minmax(320px,1fr))",
-  statMedium: "repeat(auto-fit,minmax(380px,1fr))",
-  queue: "repeat(auto-fit,minmax(560px,1fr))",
+  tall: "repeat(auto-fill,minmax(520px,600px))",
+  short: "repeat(auto-fill,minmax(300px,360px))",
+};
+
+// Every grid-tier widget shares one fixed height per tier, so row-mates are
+// never stretched unevenly and a widget with little content doesn't just
+// get taller with dead space — it gets to lay that same content out at a
+// more generous, centered size instead (see each widget's own JSX).
+export const TIER_HEIGHT_PX: Partial<Record<WidgetTier, number>> = {
+  tall: 420,
+  short: 210,
 };
 
 export interface WidgetCommonProps {
@@ -75,32 +87,34 @@ export interface WidgetDef {
 }
 
 // Order here is the dashboard's display order top-to-bottom — see
-// buildWidgetSections, which walks this list and only starts a new section
-// when the tier actually changes, so e.g. the four chart-tier widgets stay
-// one shared row-group even though other tiers sit before and after them.
+// buildWidgetSections, which walks this list and only starts a new grid
+// section when the tier changes (or a "full" widget is reached) — so e.g.
+// the tall-tier chart widgets near the top and the tall-tier approval
+// queues further down each still form their own row-group, since a "full"
+// widget (Billing Actions Due) sits between them and breaks the run.
 export const WIDGET_CATALOG: WidgetDef[] = [
   {
     key: "stageDistribution",
     label: "Stage Distribution",
-    tier: "chart",
+    tier: "tall",
     render: (p) => <StageDistribution orders={p.orders} filters={p.filters} onNavigate={p.onNavigate} />,
   },
   {
     key: "ordersStuck",
     label: "Where Orders Are Stuck",
-    tier: "chart",
+    tier: "tall",
     render: (p) => <OrdersStuck orders={p.orders} filters={p.filters} />,
   },
   {
     key: "productRevenue",
     label: "Product-wise Revenue",
-    tier: "chart",
+    tier: "tall",
     render: (p) => <ProductRevenue orders={p.orders} filters={p.filters} />,
   },
   {
     key: "tat",
     label: "TAT — This Month",
-    tier: "chart",
+    tier: "tall",
     render: (p) => <TatThisMonth orders={p.orders} filters={p.filters} />,
   },
   {
@@ -112,43 +126,43 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   {
     key: "outstandingBalance",
     label: "Outstanding Balance (To Close)",
-    tier: "statSmall",
+    tier: "short",
     render: (p) => <OutstandingBalance orders={p.orders} filters={p.filters} />,
   },
   {
     key: "revenueInMotion",
     label: "Revenue in Motion",
-    tier: "statSmall",
+    tier: "short",
     render: (p) => <RevenueInMotion orders={p.orders} filters={p.filters} />,
   },
   {
     key: "openedVsProjected",
     label: "Revenue — Opened vs Projected",
-    tier: "statSmall",
+    tier: "short",
     render: (p) => <OpenedVsProjected orders={p.orders} filters={p.filters} />,
   },
   {
     key: "clearanceStats",
     label: "Clearance Stats",
-    tier: "statMedium",
+    tier: "short",
     render: (p) => <ClearanceStats orders={p.orders} filters={p.filters} />,
   },
   {
     key: "pipelineOverview",
     label: "Pipeline Overview",
-    tier: "statMedium",
+    tier: "short",
     render: (p) => <PipelineOverview orders={p.orders} filters={p.filters} />,
   },
   {
     key: "approvalQueueTech",
     label: "Technical Approval Queue",
-    tier: "queue",
+    tier: "tall",
     render: (p) => <ApprovalQueue orders={p.orders} filters={p.filters} dept="Tech" onNavigate={p.onNavigate} />,
   },
   {
     key: "approvalQueueFinance",
     label: "Financial Approval Queue",
-    tier: "queue",
+    tier: "tall",
     render: (p) => <ApprovalQueue orders={p.orders} filters={p.filters} dept="Finance" onNavigate={p.onNavigate} />,
   },
   {

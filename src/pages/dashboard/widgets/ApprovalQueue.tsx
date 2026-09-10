@@ -64,13 +64,15 @@ export default function ApprovalQueue({
       }
     >
       {items.length === 0 ? (
-        <EmptyState message={`Nothing waiting in the ${dept === "Tech" ? "Technical" : "Financial"} queue right now.`} />
+        <div className="flex h-full flex-col justify-center">
+          <EmptyState message={`Nothing waiting in the ${dept === "Tech" ? "Technical" : "Financial"} queue right now.`} />
+        </div>
       ) : (
         <DataTable
           columns={columns}
           rows={items}
           rowKey={(r) => r.order.id}
-          maxHeight="max-h-96"
+          maxHeight="max-h-64"
           onRowClick={(r) => onNavigate("orders", "amendCancel", { stage: getDisplayStage(r.order), q: r.order.orderNo })}
         />
       )}

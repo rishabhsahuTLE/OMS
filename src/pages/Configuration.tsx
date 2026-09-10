@@ -7,20 +7,18 @@ interface ConfigurationProps {
 
 // Human-friendly group headers for the checklist — purely presentational,
 // doesn't affect how Dashboard.tsx lays anything out (that's driven by
-// WidgetDef.tier in widgetCatalog.tsx, not this label).
+// WidgetDef.tier in widgetCatalog.tsx, not this label). "tall" covers both
+// the donut/bar charts and the two approval-queue tables — they're grouped
+// together on the dashboard because they render at the same height, not
+// because they're the same kind of thing, so the checklist gives them a
+// label that says so rather than calling them all "Charts".
 const TIER_LABELS: Record<WidgetTier, string> = {
-  chart: "Charts",
+  tall: "Charts & Approval Queues",
+  short: "Stat Tiles",
   full: "Tables & Full-width Reports",
-  statSmall: "Stat Tiles",
-  statMedium: "Stat Tiles",
-  queue: "Approval Queues",
 };
 
-// Display order for the group headings themselves — independent of
-// WIDGET_CATALOG's own (layout) order, since e.g. the two stat-tile tiers
-// should read as one group here even though Billing Actions Due (tier
-// "full") sits between them on the dashboard.
-const TIER_GROUP_ORDER: WidgetTier[] = ["chart", "queue", "statSmall", "statMedium", "full"];
+const TIER_GROUP_ORDER: WidgetTier[] = ["tall", "short", "full"];
 
 function toggle(set: Set<WidgetKey>, key: WidgetKey): Set<WidgetKey> {
   const next = new Set(set);
@@ -31,17 +29,9 @@ function toggle(set: Set<WidgetKey>, key: WidgetKey): Set<WidgetKey> {
 
 export default function Configuration({ visibleWidgets, onChange }: ConfigurationProps) {
   const groups = TIER_GROUP_ORDER.map((tier) => ({
-    tier,
     label: TIER_LABELS[tier],
     items: WIDGET_CATALOG.filter((w) => w.tier === tier),
-  })).reduce<{ label: string; items: typeof WIDGET_CATALOG }[]>((acc, g) => {
-    // statSmall and statMedium share the "Stat Tiles" label — merge them
-    // into one visual group rather than showing the heading twice.
-    const existing = acc.find((a) => a.label === g.label);
-    if (existing) existing.items.push(...g.items);
-    else acc.push({ label: g.label, items: g.items });
-    return acc;
-  }, []);
+  }));
 
   return (
     <div className="flex flex-col gap-4">
