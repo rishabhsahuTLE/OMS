@@ -30,22 +30,20 @@ export default function OpenedVsProjected({
 
   return (
     <DashboardCard title="Revenue — Opened vs Projected" subtitle={`FY ${fyColumns[0].year}–${fyColumns[11].year}`} size={size}>
-      <div className="flex h-full flex-col justify-center">
-        <div className="flex items-end justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-500">Opened</p>
-            <p className="text-2xl font-bold text-emerald-600">{formatINR(opened)}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-sm font-medium text-slate-500">Projected (full FY)</p>
-            <p className="text-2xl font-bold text-slate-700">{formatINR(projected)}</p>
-          </div>
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-xs font-medium text-slate-500">Opened</p>
+          <p className="text-xl font-bold text-emerald-600">{formatINR(opened)}</p>
         </div>
-        <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-slate-100">
-          <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+        <div className="text-right">
+          <p className="text-xs font-medium text-slate-500">Projected (full FY)</p>
+          <p className="text-xl font-bold text-slate-700">{formatINR(projected)}</p>
         </div>
-        <p className="mt-1.5 text-right text-sm text-slate-400">{pct.toFixed(1)}% opened</p>
       </div>
+      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-1 text-right text-xs text-slate-400">{pct.toFixed(1)}% opened</p>
     </DashboardCard>
   );
 }

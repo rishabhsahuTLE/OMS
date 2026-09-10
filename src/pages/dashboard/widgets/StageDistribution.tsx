@@ -46,9 +46,9 @@ export default function StageDistribution({
       {!hasData ? (
         <EmptyState />
       ) : (
-        <div className="flex h-full flex-col justify-center gap-4 sm:flex-row sm:items-center">
-          <div className="mx-auto w-full max-w-[280px] shrink-0">
-            <ResponsiveContainer width="100%" height={260}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="mx-auto w-full max-w-[320px] shrink-0">
+            <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={sliceData}

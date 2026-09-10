@@ -24,9 +24,7 @@ export default function OrdersStuck({
 
   return (
     <DashboardCard title="Where Orders Are Stuck (by revenue)" subtitle={subtitle} size={size}>
-      <div className="flex h-full flex-col justify-center">
-        <StuckOrdersPie data={stuck} />
-      </div>
+      <StuckOrdersPie data={stuck} />
     </DashboardCard>
   );
 }

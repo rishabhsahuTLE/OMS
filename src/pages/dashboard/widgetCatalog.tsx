@@ -42,63 +42,23 @@ export type WidgetKey =
   | "rejectedNeedsFix"
   | "ageAtStage";
 
-// A widget's tier is what its row-mates are drawn from and roughly how tall
-// it naturally renders — grouping by tier (rather than one blanket grid) is
-// what keeps row-mates the same height without that height being dictated
-// by a much taller or much shorter neighbor. Deliberately just two grid
-// tiers ("tall" and "short") rather than a finer-grained size per widget:
-// - "tall": the 4 donut/bar charts and the 2 approval-queue tables — all in
-//   the same ~380-500px range.
-// - "short": the simpler single/double-KPI stat tiles — all ~150-220px.
-// "full" widgets (data tables and Billing Actions Due) always take the
+// A widget's tier is what its row-mates are drawn from and how wide each
+// gets at minimum — grouping by tier (rather than one blanket grid) is what
+// keeps a lane's row height from ever being dictated by a much taller or
+// much shorter neighbor (see ui.tsx's DashboardCard and buildWidgetSections
+// below). "full" widgets (tables and the two big charts) always take the
 // entire row to themselves regardless of what else is visible.
-export type WidgetTier = "tall" | "short" | "full";
+export type WidgetTier = "chart" | "statSmall" | "statMedium" | "queue" | "full";
 
-// Pure-CSS auto-fit/auto-fill can't solve this properly: a grid's column
-// template applies to *every* row alike, so whenever the visible item count
-// in a section isn't a multiple of however many columns fit, the last row
-// is left partly covered no matter which minmax() trick is used (verified
-// by checking real laptop widths, not just one wide monitor — a fixed max
-// undercounts, a flexible 1fr max stretches full rows but still strands a
-// leftover row; forcing every item into one shared column count, in turn,
-// can squeeze a prime item count like 5 into columns so narrow their own
-// content overlaps). Dashboard.tsx instead measures its own content width
-// and, per section, splits the widgets into balanced row-groups — see
-// splitIntoRowGroups below — each rendered as its *own* grid, so every row
-// is independently a clean, fully-covered, comfortably-wide division.
-export const TIER_MIN_ITEM_WIDTH: Partial<Record<WidgetTier, number>> = {
-  tall: 420,
-  short: 260,
-};
-
-// Splits `itemCount` same-tier widgets into row-groups, each sized so it
-// both fits within `maxCols` (the most columns that fit at the tier's
-// minimum comfortable width) and, being its own independent grid, is
-// completely filled by exactly the widgets in it — there's no shared
-// column template to leave a leftover row partly covered elsewhere. Row
-// sizes are balanced as evenly as possible (5 widgets at maxCols=4 becomes
-// [3, 2], not [4, 1]) so no single row ends up narrower than it needs to be
-// just to keep an earlier row at the max.
-export function splitIntoRowGroups(itemCount: number, maxCols: number): number[] {
-  if (itemCount <= 0) return [];
-  const cols = Math.max(1, maxCols);
-  const rows = Math.ceil(itemCount / cols);
-  const base = Math.floor(itemCount / rows);
-  const remainder = itemCount % rows;
-  return Array.from({ length: rows }, (_, i) => base + (i < remainder ? 1 : 0));
-}
-
-export function maxColumnsThatFit(containerWidth: number, minItemWidth: number, gap = 16): number {
-  return Math.max(1, Math.floor((containerWidth + gap) / (minItemWidth + gap)));
-}
-
-// Every grid-tier widget shares one fixed height per tier, so row-mates are
-// never stretched unevenly and a widget with little content doesn't just
-// get taller with dead space — it gets to lay that same content out at a
-// more generous, centered size instead (see each widget's own JSX).
-export const TIER_HEIGHT_PX: Partial<Record<WidgetTier, number>> = {
-  tall: 420,
-  short: 210,
+// The CSS grid-template-columns value each grid-shaped tier lays its visible
+// members out with — auto-fit distributes however many are actually
+// checked across 1-4 columns and stretches them to fill the row, so turning
+// a widget on/off never leaves a gap or a squeezed-in extra column.
+export const TIER_GRID_COLUMNS: Partial<Record<WidgetTier, string>> = {
+  chart: "repeat(auto-fit,minmax(560px,1fr))",
+  statSmall: "repeat(auto-fit,minmax(320px,1fr))",
+  statMedium: "repeat(auto-fit,minmax(380px,1fr))",
+  queue: "repeat(auto-fit,minmax(560px,1fr))",
 };
 
 export interface WidgetCommonProps {
@@ -115,34 +75,32 @@ export interface WidgetDef {
 }
 
 // Order here is the dashboard's display order top-to-bottom — see
-// buildWidgetSections, which walks this list and only starts a new grid
-// section when the tier changes (or a "full" widget is reached) — so e.g.
-// the tall-tier chart widgets near the top and the tall-tier approval
-// queues further down each still form their own row-group, since a "full"
-// widget (Billing Actions Due) sits between them and breaks the run.
+// buildWidgetSections, which walks this list and only starts a new section
+// when the tier actually changes, so e.g. the four chart-tier widgets stay
+// one shared row-group even though other tiers sit before and after them.
 export const WIDGET_CATALOG: WidgetDef[] = [
   {
     key: "stageDistribution",
     label: "Stage Distribution",
-    tier: "tall",
+    tier: "chart",
     render: (p) => <StageDistribution orders={p.orders} filters={p.filters} onNavigate={p.onNavigate} />,
   },
   {
     key: "ordersStuck",
     label: "Where Orders Are Stuck",
-    tier: "tall",
+    tier: "chart",
     render: (p) => <OrdersStuck orders={p.orders} filters={p.filters} />,
   },
   {
     key: "productRevenue",
     label: "Product-wise Revenue",
-    tier: "tall",
+    tier: "chart",
     render: (p) => <ProductRevenue orders={p.orders} filters={p.filters} />,
   },
   {
     key: "tat",
     label: "TAT — This Month",
-    tier: "tall",
+    tier: "chart",
     render: (p) => <TatThisMonth orders={p.orders} filters={p.filters} />,
   },
   {
@@ -154,43 +112,43 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   {
     key: "outstandingBalance",
     label: "Outstanding Balance (To Close)",
-    tier: "short",
+    tier: "statSmall",
     render: (p) => <OutstandingBalance orders={p.orders} filters={p.filters} />,
   },
   {
     key: "revenueInMotion",
     label: "Revenue in Motion",
-    tier: "short",
+    tier: "statSmall",
     render: (p) => <RevenueInMotion orders={p.orders} filters={p.filters} />,
   },
   {
     key: "openedVsProjected",
     label: "Revenue — Opened vs Projected",
-    tier: "short",
+    tier: "statSmall",
     render: (p) => <OpenedVsProjected orders={p.orders} filters={p.filters} />,
   },
   {
     key: "clearanceStats",
     label: "Clearance Stats",
-    tier: "short",
+    tier: "statMedium",
     render: (p) => <ClearanceStats orders={p.orders} filters={p.filters} />,
   },
   {
     key: "pipelineOverview",
     label: "Pipeline Overview",
-    tier: "short",
+    tier: "statMedium",
     render: (p) => <PipelineOverview orders={p.orders} filters={p.filters} />,
   },
   {
     key: "approvalQueueTech",
     label: "Technical Approval Queue",
-    tier: "tall",
+    tier: "queue",
     render: (p) => <ApprovalQueue orders={p.orders} filters={p.filters} dept="Tech" onNavigate={p.onNavigate} />,
   },
   {
     key: "approvalQueueFinance",
     label: "Financial Approval Queue",
-    tier: "tall",
+    tier: "queue",
     render: (p) => <ApprovalQueue orders={p.orders} filters={p.filters} dept="Finance" onNavigate={p.onNavigate} />,
   },
   {

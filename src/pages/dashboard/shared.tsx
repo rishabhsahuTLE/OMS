@@ -169,9 +169,9 @@ export function buildStuckData(orders: OrderRecord[]): StuckSlice[] {
 export function StuckOrdersPie({ data }: { data: StuckSlice[] }) {
   return (
     <div>
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={300}>
         <PieChart>
-          <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={58} outerRadius={96} paddingAngle={2}>
+          <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={68} outerRadius={112} paddingAngle={2}>
             {data.map((d) => (
               <Cell key={d.key} fill={d.color} />
             ))}

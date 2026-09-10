@@ -52,7 +52,7 @@ export function DashboardCard({
   const accentBorder = accent ? `border-l-[3px] ${ACCENT_BORDER[accent]}` : "border-l border-slate-200";
   return (
     <div
-      className={`flex h-full flex-col rounded-lg border border-y-slate-200 border-r-slate-200 bg-white shadow-sm ${accentBorder} ${CARD_PADDING[size]} ${className}`}
+      className={`flex flex-col rounded-lg border border-y-slate-200 border-r-slate-200 bg-white shadow-sm ${accentBorder} ${CARD_PADDING[size]} ${className}`}
     >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
@@ -134,10 +134,10 @@ export function KPI({
   size?: "sm" | "md" | "lg";
   align?: "left" | "right";
 }) {
-  const valueClass = size === "lg" ? "text-3xl font-bold" : size === "sm" ? "text-xl font-bold" : "text-2xl font-bold";
+  const valueClass = size === "lg" ? "text-2xl font-bold" : size === "sm" ? "text-lg font-bold" : "text-xl font-bold";
   return (
     <div className={align === "right" ? "text-right" : "text-left"}>
-      <p className="text-sm font-medium text-slate-500">{label}</p>
+      <p className="text-xs font-medium text-slate-500">{label}</p>
       <p className={`${valueClass} ${TONE_TEXT[tone]}`}>{value}</p>
       {sublabel && <p className="text-xs text-slate-400">{sublabel}</p>}
     </div>
@@ -354,7 +354,7 @@ export function SegmentedBar({ segments }: { segments: BarSegment[] }) {
   const total = segments.reduce((sum, s) => sum + s.value, 0);
   return (
     <div>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
         {segments.map((s) => (
           <div
             key={s.key}
@@ -363,13 +363,13 @@ export function SegmentedBar({ segments }: { segments: BarSegment[] }) {
           />
         ))}
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {segments.map((s) => (
-          <div key={s.key} className="flex items-center gap-2.5">
-            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${TONE_BG[s.tone]}`} />
+          <div key={s.key} className="flex items-center gap-2">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${TONE_BG[s.tone]}`} />
             <span className="min-w-0 flex-1">
-              <span className="block text-sm text-slate-500">{s.label}</span>
-              <span className="block text-base font-semibold text-slate-800">
+              <span className="block text-xs text-slate-500">{s.label}</span>
+              <span className="block text-sm font-semibold text-slate-800">
                 {s.display}
                 <span className="ml-1 text-xs font-normal text-slate-400">
                   ({total > 0 ? ((s.value / total) * 100).toFixed(0) : 0}%)

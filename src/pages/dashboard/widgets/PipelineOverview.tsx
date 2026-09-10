@@ -19,16 +19,14 @@ export default function PipelineOverview({
 
   return (
     <DashboardCard title="Pipeline Overview" subtitle="Contracted value, active vs. still pending" size={size}>
-      <div className="flex h-full flex-col justify-center">
-        <KPI label="Total Contracted Value" value={formatINR(pipeline.total)} tone="indigo" size="lg" />
-        <div className="mt-4">
-          <SegmentedBar
-            segments={[
-              { key: "active", label: "Active", value: pipeline.active, tone: "emerald", display: formatINR(pipeline.active) },
-              { key: "pending", label: "Pending", value: pipeline.pending, tone: "amber", display: formatINR(pipeline.pending) },
-            ]}
-          />
-        </div>
+      <KPI label="Total Contracted Value" value={formatINR(pipeline.total)} tone="indigo" size="lg" />
+      <div className="mt-4">
+        <SegmentedBar
+          segments={[
+            { key: "active", label: "Active", value: pipeline.active, tone: "emerald", display: formatINR(pipeline.active) },
+            { key: "pending", label: "Pending", value: pipeline.pending, tone: "amber", display: formatINR(pipeline.pending) },
+          ]}
+        />
       </div>
     </DashboardCard>
   );
