@@ -54,20 +54,43 @@ export type WidgetKey =
 // entire row to themselves regardless of what else is visible.
 export type WidgetTier = "tall" | "short" | "full";
 
-// The CSS grid-template-columns value each grid-shaped tier lays its visible
-// members out with — a single fixed column width per tier, not a min/max
-// range. That's deliberate: `repeat(auto-fill, minmax(min,max))` counts how
-// many columns fit using *max* whenever both bounds are fixed lengths, so a
-// range like minmax(520px,600px) can under-fill a row (e.g. leaving a 3rd
-// 520px-wide column's worth of space empty just because it isn't 600px) —
-// exactly the "row not fully covered" bug a fixed length avoids: auto-fill
-// always packs as many of these as truly fit before wrapping, and any
-// leftover space in the final row is genuine remainder (not enough widgets
-// left to fill it), never a column that could have fit but didn't.
-export const TIER_GRID_COLUMNS: Partial<Record<WidgetTier, string>> = {
-  tall: "repeat(auto-fill,560px)",
-  short: "repeat(auto-fill,330px)",
+// Pure-CSS auto-fit/auto-fill can't solve this properly: a grid's column
+// template applies to *every* row alike, so whenever the visible item count
+// in a section isn't a multiple of however many columns fit, the last row
+// is left partly covered no matter which minmax() trick is used (verified
+// by checking real laptop widths, not just one wide monitor — a fixed max
+// undercounts, a flexible 1fr max stretches full rows but still strands a
+// leftover row; forcing every item into one shared column count, in turn,
+// can squeeze a prime item count like 5 into columns so narrow their own
+// content overlaps). Dashboard.tsx instead measures its own content width
+// and, per section, splits the widgets into balanced row-groups — see
+// splitIntoRowGroups below — each rendered as its *own* grid, so every row
+// is independently a clean, fully-covered, comfortably-wide division.
+export const TIER_MIN_ITEM_WIDTH: Partial<Record<WidgetTier, number>> = {
+  tall: 420,
+  short: 260,
 };
+
+// Splits `itemCount` same-tier widgets into row-groups, each sized so it
+// both fits within `maxCols` (the most columns that fit at the tier's
+// minimum comfortable width) and, being its own independent grid, is
+// completely filled by exactly the widgets in it — there's no shared
+// column template to leave a leftover row partly covered elsewhere. Row
+// sizes are balanced as evenly as possible (5 widgets at maxCols=4 becomes
+// [3, 2], not [4, 1]) so no single row ends up narrower than it needs to be
+// just to keep an earlier row at the max.
+export function splitIntoRowGroups(itemCount: number, maxCols: number): number[] {
+  if (itemCount <= 0) return [];
+  const cols = Math.max(1, maxCols);
+  const rows = Math.ceil(itemCount / cols);
+  const base = Math.floor(itemCount / rows);
+  const remainder = itemCount % rows;
+  return Array.from({ length: rows }, (_, i) => base + (i < remainder ? 1 : 0));
+}
+
+export function maxColumnsThatFit(containerWidth: number, minItemWidth: number, gap = 16): number {
+  return Math.max(1, Math.floor((containerWidth + gap) / (minItemWidth + gap)));
+}
 
 // Every grid-tier widget shares one fixed height per tier, so row-mates are
 // never stretched unevenly and a widget with little content doesn't just

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../types";
 import { BUSINESS_UNITS } from "../types";
 import { PRODUCT_NAMES } from "../products";
@@ -14,7 +14,35 @@ import {
   type DatePreset,
 } from "./dashboard/filters";
 import { MultiSelectFilter } from "./dashboard/ui";
-import { buildWidgetSections, TIER_GRID_COLUMNS, TIER_HEIGHT_PX, type WidgetKey } from "./dashboard/widgetCatalog";
+import {
+  buildWidgetSections,
+  maxColumnsThatFit,
+  splitIntoRowGroups,
+  TIER_HEIGHT_PX,
+  TIER_MIN_ITEM_WIDTH,
+  type WidgetKey,
+} from "./dashboard/widgetCatalog";
+
+// Measures how wide the dashboard's own content column actually is, live —
+// this is what lets column counts be computed from a real pixel width (see
+// chooseColumnCount in widgetCatalog.tsx) instead of guessing from the
+// viewport, which would be thrown off by the sidebar's width and the page's
+// own padding.
+function useContentWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setWidth(entry.contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
 
 type NavigateFn = (
   tab: MainTabId,
@@ -62,9 +90,10 @@ export default function Dashboard({ orders, onNavigate, visibleWidgets }: Dashbo
 
   const commonProps = { orders, filters, onNavigate };
   const sections = useMemo(() => buildWidgetSections(visibleWidgets), [visibleWidgets]);
+  const [contentRef, contentWidth] = useContentWidth();
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={contentRef} className="flex flex-col gap-4">
       {/* Compact header — no wasted vertical space: title/subtitle on the
           left, Last updated + Refresh on the right, all on one row. */}
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -222,31 +251,50 @@ export default function Dashboard({ orders, onNavigate, visibleWidgets }: Dashbo
       {/* Rendered entirely from the Configuration page's selection (see
           widgetCatalog.tsx's buildWidgetSections). A "grid" section gives
           its tier's currently-checked widgets a fixed height (TIER_HEIGHT_PX)
-          and a target column width with only a little give (TIER_GRID_
-          COLUMNS) — so row-mates are always the same height, and a row with
-          fewer widgets than fit its width just ends in genuine empty space
-          rather than stretching what's there to cover it. A "solo" section
+          and splits into balanced row-groups from the real measured width
+          (see useContentWidth/splitIntoRowGroups) — each row-group is its
+          *own* independent grid, so every row is completely filled by
+          exactly the widgets in it, at a comfortable width, rather than one
+          shared column count across the whole section leaving a leftover
+          row either partly empty or squeezed too narrow. A "solo" section
           (data tables, Billing Actions Due) always takes the full row to
-          itself at its own natural height. Every section shares the same
-          gap-4 rhythm. */}
+          itself at its own natural height. Every row shares the same gap-4
+          rhythm. */}
       {sections.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-400">
           No widgets are turned on. Pick some in Configuration.
         </div>
       ) : (
-        sections.map((section, i) =>
-          section.type === "solo" ? (
-            <div key={section.item.key}>{section.item.render(commonProps)}</div>
-          ) : (
-            <div key={`grid-${i}`} className="grid gap-4" style={{ gridTemplateColumns: TIER_GRID_COLUMNS[section.tier] }}>
-              {section.items.map((item) => (
-                <div key={item.key} style={{ height: TIER_HEIGHT_PX[section.tier] }}>
-                  {item.render(commonProps)}
+        sections.map((section, i) => {
+          if (section.type === "solo") {
+            return <div key={section.item.key}>{section.item.render(commonProps)}</div>;
+          }
+          const maxCols = maxColumnsThatFit(contentWidth, TIER_MIN_ITEM_WIDTH[section.tier] ?? 300);
+          const rowSizes = splitIntoRowGroups(section.items.length, maxCols);
+          let offset = 0;
+          const rows = rowSizes.map((size) => {
+            const rowItems = section.items.slice(offset, offset + size);
+            offset += size;
+            return rowItems;
+          });
+          return (
+            <div key={`grid-${i}`} className="flex flex-col gap-4">
+              {rows.map((rowItems, rowIdx) => (
+                <div
+                  key={rowIdx}
+                  className="grid gap-4"
+                  style={{ gridTemplateColumns: `repeat(${rowItems.length}, minmax(0, 1fr))` }}
+                >
+                  {rowItems.map((item) => (
+                    <div key={item.key} style={{ height: TIER_HEIGHT_PX[section.tier] }}>
+                      {item.render(commonProps)}
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
-          )
-        )
+          );
+        })
       )}
     </div>
   );
