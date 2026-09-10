@@ -18,12 +18,12 @@ export default function OrdersStuck({
   const stuck = buildStuckData(scoped);
   const usesMock = stuck.some((d) => d.mock);
 
+  const subtitle = usesMock
+    ? "Pending orders distribution, by revenue — some stages use illustrative data"
+    : "Pending orders distribution, by revenue";
+
   return (
-    <DashboardCard
-      title="Where Orders Are Stuck (by revenue)"
-      subtitle={usesMock ? "Some stages use illustrative data" : undefined}
-      size={size}
-    >
+    <DashboardCard title="Where Orders Are Stuck (by revenue)" subtitle={subtitle} size={size}>
       <StuckOrdersPie data={stuck} />
     </DashboardCard>
   );

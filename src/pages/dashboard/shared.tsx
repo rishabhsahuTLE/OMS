@@ -1,4 +1,4 @@
-import { ResponsiveContainer, Pie, PieChart, Cell, Legend, Tooltip } from "recharts";
+import { ResponsiveContainer, Pie, PieChart, Cell, Tooltip } from "recharts";
 import type { MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../../types";
 import {
   daysBetween,
@@ -168,31 +168,36 @@ export function buildStuckData(orders: OrderRecord[]): StuckSlice[] {
 
 export function StuckOrdersPie({ data }: { data: StuckSlice[] }) {
   return (
-    <ResponsiveContainer width="100%" height={240}>
-      <PieChart>
-        <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={2}>
-          {data.map((d) => (
-            <Cell key={d.key} fill={d.color} />
-          ))}
-        </Pie>
-        <Tooltip
-          formatter={(v, _name, entry) => {
-            const payload = entry.payload as { label: string; count: number; pct: number };
-            return [`${formatINR(Number(v))} · ${payload.count} orders · ${payload.pct.toFixed(0)}%`, payload.label];
-          }}
-          contentStyle={{ fontSize: 12, borderRadius: 8 }}
-        />
-        <Legend
-          verticalAlign="bottom"
-          height={48}
-          wrapperStyle={{ fontSize: 11 }}
-          formatter={(value) => {
-            const d = data.find((x) => x.label === value);
-            return `${value} (${d?.count ?? 0})`;
-          }}
-        />
-      </PieChart>
-    </ResponsiveContainer>
+    <div>
+      <ResponsiveContainer width="100%" height={200}>
+        <PieChart>
+          <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={2}>
+            {data.map((d) => (
+              <Cell key={d.key} fill={d.color} />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(v, _name, entry) => {
+              const payload = entry.payload as { label: string; count: number; pct: number };
+              return [`${formatINR(Number(v))} (${payload.count} orders, ${payload.pct.toFixed(0)}%)`, payload.label];
+            }}
+            contentStyle={{ fontSize: 12, borderRadius: 8 }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      {/* A custom legend, not recharts' own <Legend>, is what keeps this in
+          the same Technical -> Financial -> Cancellation-Technical ->
+          Cancellation-Financial chronological order as `data` — recharts'
+          auto-derived legend payload doesn't reliably preserve source order. */}
+      <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+        {data.map((d) => (
+          <span key={d.key} className="flex items-center gap-1.5 text-[11px] text-slate-600">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
+            {d.label} ({d.count})
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 

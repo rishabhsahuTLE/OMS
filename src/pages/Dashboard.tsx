@@ -231,68 +231,50 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
         )}
       </FilterDrawer>
 
-      {/* Every widget, grouped by shape rather than by who used to own it —
-          donut/chart widgets pair with donut/chart widgets, short KPI tiles
-          pair with short KPI tiles, so no grid row ever stretches a shorter
-          card to a taller neighbor's height (see ui.tsx's DashboardCard). */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <div className="lg:col-span-6">
-          <StageDistribution orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
-        </div>
-        <div className="lg:col-span-6">
-          <OrdersStuck orders={w.orders} filters={w.filters} />
-        </div>
+      {/* Every "lane" below is an auto-fit grid, not a hand-picked set of
+          column spans: each widget gets a minimum width and CSS distributes
+          the remaining space across however many widgets are actually
+          present. Add or remove a widget from a lane and its row-mates
+          automatically grow or shrink to fill the freed-up width — nothing
+          here needs to be re-balanced by hand. Widgets are grouped into a
+          lane by how tall they naturally render, so a lane's row height is
+          never dictated by a much shorter or much taller neighbor (the
+          "empty space inside a stretched card" problem) — see ui.tsx's
+          DashboardCard. Every lane and every full-width widget below shares
+          the same gap-4 rhythm as the rest of the page, so spacing reads as
+          one consistent grid rather than a mix of different gaps. */}
 
-        <div className="lg:col-span-4">
-          <BillingActionsDue orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
-        </div>
-        <div className="lg:col-span-4">
-          <OutstandingBalance orders={w.orders} filters={w.filters} />
-        </div>
-        <div className="lg:col-span-4">
-          <ClearanceStats orders={w.orders} filters={w.filters} />
-        </div>
-
-        <div className="lg:col-span-12">
-          <ApprovalQueue orders={w.orders} filters={w.filters} dept="Tech" onNavigate={onNavigate} />
-        </div>
-        <div className="lg:col-span-12">
-          <ApprovalQueue orders={w.orders} filters={w.filters} dept="Finance" onNavigate={onNavigate} />
-        </div>
-
-        <div className="lg:col-span-6">
-          <TatThisMonth orders={w.orders} filters={w.filters} />
-        </div>
-        <div className="lg:col-span-6">
-          <ProductRevenue orders={w.orders} filters={w.filters} />
-        </div>
-
-        <div className="lg:col-span-6">
-          <OpenedVsProjected orders={w.orders} filters={w.filters} />
-        </div>
-        <div className="lg:col-span-6">
-          <RevenueInMotion orders={w.orders} filters={w.filters} />
-        </div>
-
-        <div className="lg:col-span-12">
-          <PipelineOverview orders={w.orders} filters={w.filters} />
-        </div>
-
-        <div className="lg:col-span-12">
-          <ManagerRevenue orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
-        </div>
-
-        <div className="lg:col-span-12">
-          <RevenueTrend orders={w.orders} filters={w.filters} />
-        </div>
-
-        <div className="lg:col-span-12">
-          <RejectedNeedsFix orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
-        </div>
-        <div className="lg:col-span-12">
-          <AgeAtStage orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
-        </div>
+      {/* Chart-shaped widgets — donuts and the 4-row TAT bars are all in the
+          same rough height range. */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-4">
+        <StageDistribution orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+        <OrdersStuck orders={w.orders} filters={w.filters} />
+        <ProductRevenue orders={w.orders} filters={w.filters} />
+        <TatThisMonth orders={w.orders} filters={w.filters} />
       </div>
+
+      {/* Compact KPI/stat widgets — short, single-purpose tiles. */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+        <BillingActionsDue orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+        <OutstandingBalance orders={w.orders} filters={w.filters} />
+        <ClearanceStats orders={w.orders} filters={w.filters} />
+        <OpenedVsProjected orders={w.orders} filters={w.filters} />
+        <RevenueInMotion orders={w.orders} filters={w.filters} />
+        <PipelineOverview orders={w.orders} filters={w.filters} />
+      </div>
+
+      {/* The two approval queues sit at half width side by side rather than
+          full width each — if either one is ever removed, the other expands
+          to fill the freed width automatically (same auto-fit mechanism). */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(560px,1fr))] gap-4">
+        <ApprovalQueue orders={w.orders} filters={w.filters} dept="Tech" onNavigate={onNavigate} />
+        <ApprovalQueue orders={w.orders} filters={w.filters} dept="Finance" onNavigate={onNavigate} />
+      </div>
+
+      <ManagerRevenue orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+      <RevenueTrend orders={w.orders} filters={w.filters} />
+      <RejectedNeedsFix orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+      <AgeAtStage orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
     </div>
   );
 }

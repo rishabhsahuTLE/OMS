@@ -368,7 +368,7 @@ export function SegmentedBar({ segments }: { segments: BarSegment[] }) {
           <div key={s.key} className="flex items-center gap-2">
             <span className={`h-2 w-2 shrink-0 rounded-full ${TONE_BG[s.tone]}`} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs text-slate-500">{s.label}</span>
+              <span className="block text-xs text-slate-500">{s.label}</span>
               <span className="block text-sm font-semibold text-slate-800">
                 {s.display}
                 <span className="ml-1 text-xs font-normal text-slate-400">
@@ -459,7 +459,7 @@ export function DataTable<T>({
             {columns.map((c) => (
               <th
                 key={c.key}
-                className={`sticky top-0 z-10 border-b border-slate-200 bg-white py-1.5 text-xs font-semibold text-slate-500 ${alignClass(
+                className={`sticky top-0 z-10 whitespace-nowrap border-b border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-500 first:pl-0 last:pr-0 ${alignClass(
                   c.align
                 )}`}
               >
@@ -476,7 +476,7 @@ export function DataTable<T>({
               className={`border-b border-slate-50 last:border-0 ${onRowClick ? "cursor-pointer hover:bg-slate-50" : ""}`}
             >
               {columns.map((c) => (
-                <td key={c.key} className={`py-2 text-slate-700 ${alignClass(c.align)}`}>
+                <td key={c.key} className={`px-2 py-2 text-slate-700 first:pl-0 last:pr-0 ${alignClass(c.align)}`}>
                   {c.render(row)}
                 </td>
               ))}
