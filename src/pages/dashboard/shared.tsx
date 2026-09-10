@@ -169,9 +169,9 @@ export function buildStuckData(orders: OrderRecord[]): StuckSlice[] {
 export function StuckOrdersPie({ data }: { data: StuckSlice[] }) {
   return (
     <div>
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={300}>
         <PieChart>
-          <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={48} outerRadius={78} paddingAngle={2}>
+          <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={68} outerRadius={112} paddingAngle={2}>
             {data.map((d) => (
               <Cell key={d.key} fill={d.color} />
             ))}
@@ -189,10 +189,10 @@ export function StuckOrdersPie({ data }: { data: StuckSlice[] }) {
           the same Technical -> Financial -> Cancellation-Technical ->
           Cancellation-Financial chronological order as `data` — recharts'
           auto-derived legend payload doesn't reliably preserve source order. */}
-      <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+      <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-1.5">
         {data.map((d) => (
-          <span key={d.key} className="flex items-center gap-1.5 text-[11px] text-slate-600">
-            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
+          <span key={d.key} className="flex items-center gap-2 text-xs text-slate-600">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
             {d.label} ({d.count})
           </span>
         ))}

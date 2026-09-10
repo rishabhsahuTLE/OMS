@@ -28,9 +28,9 @@ export default function ProductRevenue({
       {metrics.length === 0 ? (
         <EmptyState />
       ) : (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={340}>
           <PieChart>
-            <Pie data={metrics} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+            <Pie data={metrics} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={72} outerRadius={118} paddingAngle={2}>
               {metrics.map((m) => (
                 <Cell key={m.product} fill={PRODUCT_COLORS[m.product] ?? "#64748b"} />
               ))}
@@ -38,11 +38,11 @@ export default function ProductRevenue({
             <Tooltip
               formatter={(v, _n, entry) => {
                 const m = entry.payload as (typeof metrics)[number];
-                return [`${formatINR(Number(v))} · ${m.count} orders · ${m.pct.toFixed(0)}%`, m.label];
+                return [`${formatINR(Number(v))} (${m.count} orders, ${m.pct.toFixed(0)}%)`, m.label];
               }}
               contentStyle={{ fontSize: 12, borderRadius: 8 }}
             />
-            <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 12 }} />
+            <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 13 }} />
           </PieChart>
         </ResponsiveContainer>
       )}

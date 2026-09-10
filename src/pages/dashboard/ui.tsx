@@ -405,14 +405,14 @@ export function HorizontalBarRow({
   const pct = maxValue > 0 ? Math.min(100, (parsePctValue(value) / maxValue) * 100) : 0;
   return (
     <div title={title}>
-      <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-xs font-medium text-slate-600">{label}</span>
-        <span className="flex items-center gap-1.5">
-          {sublabel && <span className="text-[11px] text-slate-400">{sublabel}</span>}
-          <span className={`text-xs font-semibold ${TONE_TEXT[tone]}`}>{value}</span>
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <span className="text-sm font-medium text-slate-600">{label}</span>
+        <span className="flex items-center gap-2">
+          {sublabel && <span className="text-xs text-slate-400">{sublabel}</span>}
+          <span className={`text-sm font-semibold ${TONE_TEXT[tone]}`}>{value}</span>
         </span>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
         <div className={`h-full rounded-full ${TONE_BG[tone]}`} style={{ width: `${pct}%` }} />
       </div>
     </div>

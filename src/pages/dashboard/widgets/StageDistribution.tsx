@@ -46,9 +46,9 @@ export default function StageDistribution({
       {!hasData ? (
         <EmptyState />
       ) : (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="mx-auto w-full max-w-[220px] shrink-0">
-            <ResponsiveContainer width="100%" height={180}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="mx-auto w-full max-w-[320px] shrink-0">
+            <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={sliceData}
@@ -56,8 +56,8 @@ export default function StageDistribution({
                   nameKey="label"
                   cx="50%"
                   cy="50%"
-                  innerRadius={44}
-                  outerRadius={72}
+                  innerRadius={68}
+                  outerRadius={110}
                   paddingAngle={sliceData.length > 1 ? 2 : 0}
                   onClick={(d) => handleClick(d.payload as StageBucketStat)}
                   cursor="pointer"
@@ -69,27 +69,27 @@ export default function StageDistribution({
                 <Tooltip
                   formatter={(_v, _n, entry) => {
                     const b = entry.payload as StageBucketStat;
-                    return [`${b.count} orders · ${formatINR(b.revenue)} · ${b.pct.toFixed(0)}%`, b.label];
+                    return [`${b.count} orders, ${formatINR(b.revenue)} (${b.pct.toFixed(0)}%)`, b.label];
                   }}
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                 />
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="grid flex-1 grid-cols-1 gap-1.5 sm:grid-cols-1">
+          <div className="grid flex-1 grid-cols-1 gap-2.5 sm:grid-cols-1">
             {buckets.map((b) => (
               <button
                 key={b.key}
                 type="button"
                 onClick={() => handleClick(b)}
-                className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-slate-50"
+                className="flex items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
               >
-                <span className="flex items-center gap-2 text-xs text-slate-600">
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${toneBg(b.tone)}`} />
+                <span className="flex items-center gap-2 text-sm text-slate-600">
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${toneBg(b.tone)}`} />
                   {b.label}
                 </span>
-                <span className="flex items-baseline gap-1.5">
-                  <span className="text-sm font-semibold text-slate-800">{b.count}</span>
+                <span className="flex items-baseline gap-2">
+                  <span className="text-base font-semibold text-slate-800">{b.count}</span>
                   <span className="text-xs text-slate-400">{formatINR(b.revenue)}</span>
                 </span>
               </button>

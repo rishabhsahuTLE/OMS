@@ -244,22 +244,34 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
           the same gap-4 rhythm as the rest of the page, so spacing reads as
           one consistent grid rather than a mix of different gaps. */}
 
-      {/* Chart-shaped widgets — donuts and the 4-row TAT bars are all in the
-          same rough height range. */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-4">
+      {/* Chart-shaped widgets — donuts and the TAT bars, at a wide-enough
+          minimum (560px) that each chart itself was enlarged to actually
+          fill — see each widget's own chart dimensions — rather than
+          leaving a small chart floating in a lot of empty card margin. */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(560px,1fr))] gap-4">
         <StageDistribution orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
         <OrdersStuck orders={w.orders} filters={w.filters} />
         <ProductRevenue orders={w.orders} filters={w.filters} />
         <TatThisMonth orders={w.orders} filters={w.filters} />
       </div>
 
-      {/* Compact KPI/stat widgets — short, single-purpose tiles. */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
-        <BillingActionsDue orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+      {/* Billing Actions Due is meaningfully taller than every other stat
+          tile (3 KPIs + a proportion bar + a footer action) — rather than
+          force it into a row of shorter tiles and leave them stretched with
+          dead space at the bottom, it gets the full width to itself. */}
+      <BillingActionsDue orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+
+      {/* The remaining stat tiles split into two lanes by how tall they
+          actually render (measured, not guessed): Outstanding Balance /
+          Revenue in Motion / Opened vs Projected are all short single-row
+          tiles, while Clearance Stats / Pipeline Overview run a bit taller. */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
         <OutstandingBalance orders={w.orders} filters={w.filters} />
-        <ClearanceStats orders={w.orders} filters={w.filters} />
-        <OpenedVsProjected orders={w.orders} filters={w.filters} />
         <RevenueInMotion orders={w.orders} filters={w.filters} />
+        <OpenedVsProjected orders={w.orders} filters={w.filters} />
+      </div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(380px,1fr))] gap-4">
+        <ClearanceStats orders={w.orders} filters={w.filters} />
         <PipelineOverview orders={w.orders} filters={w.filters} />
       </div>
 
