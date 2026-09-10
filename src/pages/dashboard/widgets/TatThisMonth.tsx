@@ -1,7 +1,7 @@
 import type { OrderRecord } from "../../../types";
 import { applyStructuralFilters, type DashboardFilters } from "../filters";
-import { buildTatStats } from "../shared";
-import { DashboardCard, HorizontalBarRow, tatHealth, type CardSize } from "../ui";
+import { buildTatStats, STAGE_COLOR } from "../shared";
+import { DashboardCard, HorizontalBarRow, type CardSize } from "../ui";
 
 // TAT is inherently "this month" by definition, so the global Date filter is
 // not applied a second time on top of it (see filters.ts) — BU/Product/
@@ -30,7 +30,7 @@ export default function TatThisMonth({
             sublabel={`n=${s.sampleCount}`}
             value={`${s.avgDays.toFixed(1)}d`}
             maxValue={maxValue}
-            tone={tatHealth(s.avgDays)}
+            color={STAGE_COLOR[s.key]}
             title={`${s.label}: ${s.avgDays.toFixed(1)} days average, ${s.sampleCount} order${s.sampleCount === 1 ? "" : "s"}`}
           />
         ))}

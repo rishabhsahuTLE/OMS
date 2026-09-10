@@ -44,6 +44,18 @@ export const STAGE_LABEL: Record<ApprovalStageKey, string> = {
   cancellationFinancial: "Cancellation-Financial",
 };
 
+// One color per stage, reused everywhere that stage's name appears (Where
+// Orders Are Stuck, Clearance Stats, TAT — This Month) so "Technical" is
+// always the same color no matter which widget it's shown in. Muted,
+// moderate-saturation hues — never red/rose, which this dashboard reserves
+// for status severity (rejected/cancelled/overdue), not category identity.
+export const STAGE_COLOR: Record<ApprovalStageKey, string> = {
+  technical: "#3d5a80",
+  financial: "#2f8f7a",
+  cancellationTechnical: "#7d5ba6",
+  cancellationFinancial: "#c98a3a",
+};
+
 // The date an order actually entered its current actionable stage — used
 // consistently everywhere "age at stage" or turnaround time is computed.
 export const STAGE_ANCHOR: Record<ApprovalStageKey, (o: OrderRecord) => string> = {
@@ -122,10 +134,10 @@ export function buildStageBuckets(orders: OrderRecord[]): StageBucketStat[] {
 // ---------------------------------------------------------------------------
 
 export const STUCK_STAGES: { key: ApprovalStageKey; label: string; color: string }[] = [
-  { key: "technical", label: "Technical", color: "#b07635" },
-  { key: "financial", label: "Financial", color: "#268a75" },
-  { key: "cancellationTechnical", label: "Cancellation-Technical", color: "#5656c6" },
-  { key: "cancellationFinancial", label: "Cancellation-Financial", color: "#b53b5f" },
+  { key: "technical", label: "Technical", color: STAGE_COLOR.technical },
+  { key: "financial", label: "Financial", color: STAGE_COLOR.financial },
+  { key: "cancellationTechnical", label: "Cancellation-Technical", color: STAGE_COLOR.cancellationTechnical },
+  { key: "cancellationFinancial", label: "Cancellation-Financial", color: STAGE_COLOR.cancellationFinancial },
 ];
 
 // Mock data is generated from a fixed reference date (see mockOrders.ts), so

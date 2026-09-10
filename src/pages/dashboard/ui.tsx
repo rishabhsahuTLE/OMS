@@ -146,6 +146,7 @@ export function KPI({
   value,
   sublabel,
   tone = "slate",
+  color,
   size = "md",
   align = "left",
 }: {
@@ -153,6 +154,11 @@ export function KPI({
   value: string;
   sublabel?: string;
   tone?: Tone;
+  // A literal color, for values that identify a recurring category (e.g.
+  // Technical/Financial) rather than a status — takes priority over `tone`
+  // so the same category always renders in the exact same color across
+  // every widget that shows it, not just the same named Tone.
+  color?: string;
   size?: "sm" | "md" | "lg";
   align?: "left" | "right";
 }) {
@@ -160,7 +166,9 @@ export function KPI({
   return (
     <div className={align === "right" ? "text-right" : "text-left"}>
       <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className={`${valueClass} ${TONE_TEXT[tone]}`}>{value}</p>
+      <p className={`${valueClass} ${color ? "" : TONE_TEXT[tone]}`} style={color ? { color } : undefined}>
+        {value}
+      </p>
       {sublabel && <p className="text-xs text-slate-400">{sublabel}</p>}
     </div>
   );
@@ -200,19 +208,10 @@ export function Button({
 }
 
 // ---------------------------------------------------------------------------
-// Health / aging thresholds — shared so a "3 days" bar and a "3 days" table
-// row always agree on whether that's healthy.
+// Aging threshold — shared so every "N days old" badge agrees on what's
+// healthy vs. overdue.
 // ---------------------------------------------------------------------------
 
-export function tatHealth(days: number): Tone {
-  if (days <= 3) return "emerald";
-  if (days <= 7) return "amber";
-  return "rose";
-}
-
-// Age-at-stage waits are naturally longer than a single TAT step, so this
-// uses a more lenient scale than tatHealth rather than flagging everything
-// past day 4 as critical.
 export function agingHealth(days: number): Tone {
   if (days <= 5) return "emerald";
   if (days <= 14) return "amber";
@@ -425,9 +424,13 @@ export interface BarSegment {
   value: number;
   tone: Tone;
   display: string;
+  // A literal color, for segments that identify a recurring category (e.g.
+  // Technical/Financial) rather than a status — takes priority over `tone`,
+  // same reasoning as KPI's own `color` prop.
+  color?: string;
 }
 
-export function SegmentedBar({ segments }: { segments: BarSegment[] }) {
+export function SegmentedBar({ segments, legend = true }: { segments: BarSegment[]; legend?: boolean }) {
   const total = segments.reduce((sum, s) => sum + s.value, 0);
   const pctOf = (s: BarSegment) => (total > 0 ? (s.value / total) * 100 : 0);
   return (
@@ -436,39 +439,49 @@ export function SegmentedBar({ segments }: { segments: BarSegment[] }) {
         {segments.map((s) => (
           <div
             key={s.key}
-            className={`h-full ${TONE_BG[s.tone]}`}
-            style={{ width: `${pctOf(s)}%` }}
+            className={`h-full ${s.color ? "" : TONE_BG[s.tone]}`}
+            style={{ width: `${pctOf(s)}%`, backgroundColor: s.color }}
           />
         ))}
       </div>
-      {segments.length === 2 ? (
-        // Exactly 2 segments: pin one to the leftmost edge, the other to the
-        // rightmost — the same "leftmost/rightmost" convention KPI's own
-        // align="right" already uses elsewhere in these widgets.
-        <div className="mt-3 flex items-start justify-between gap-4">
-          {segments.map((s) => (
-            <div key={s.key} className="flex items-center gap-2">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${TONE_BG[s.tone]}`} />
-              <span>
-                <span className="block text-xs text-slate-500">{s.label}</span>
-                <span className="block text-sm font-semibold text-slate-800">
-                  {s.display}
-                  <span className="ml-1 text-xs font-normal text-slate-400">({pctOf(s).toFixed(0)}%)</span>
+      {legend &&
+        (segments.length === 2 ? (
+          // Exactly 2 segments: pin one to the leftmost edge, the other to
+          // the rightmost — the same "leftmost/rightmost" convention KPI's
+          // own align="right" already uses elsewhere in these widgets.
+          <div className="mt-3 flex items-start justify-between gap-4">
+            {segments.map((s) => (
+              <div key={s.key} className="flex items-center gap-2">
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${s.color ? "" : TONE_BG[s.tone]}`}
+                  style={{ backgroundColor: s.color }}
+                />
+                <span>
+                  <span className="block text-xs text-slate-500">{s.label}</span>
+                  <span className="block text-sm font-semibold text-slate-800">
+                    {s.display}
+                    <span className="ml-1 text-xs font-normal text-slate-400">({pctOf(s).toFixed(0)}%)</span>
+                  </span>
                 </span>
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        // 3+ segments: a left-aligned vertical list, one row per segment —
-        // the same dot+label / value+pct row shape LegendList uses for the
-        // donut widgets, so bar and donut legends read as one convention.
-        <div className="mt-3">
-          <LegendList
-            items={segments.map((s) => ({ key: s.key, label: s.label, color: toneHex(s.tone), value: s.display, pct: pctOf(s) }))}
-          />
-        </div>
-      )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          // 3+ segments: a left-aligned vertical list, one row per segment —
+          // the same dot+label / value+pct row shape LegendList uses for the
+          // donut widgets, so bar and donut legends read as one convention.
+          <div className="mt-3">
+            <LegendList
+              items={segments.map((s) => ({
+                key: s.key,
+                label: s.label,
+                color: s.color ?? toneHex(s.tone),
+                value: s.display,
+                pct: pctOf(s),
+              }))}
+            />
+          </div>
+        ))}
     </div>
   );
 }
@@ -482,14 +495,19 @@ export function HorizontalBarRow({
   sublabel,
   value,
   maxValue,
-  tone,
+  tone = "slate",
+  color,
   title,
 }: {
   label: string;
   sublabel?: string;
   value: string;
   maxValue: number;
-  tone: Tone;
+  tone?: Tone;
+  // A literal color, for rows that identify a recurring category (e.g.
+  // Technical/Financial) rather than a status — takes priority over `tone`,
+  // same reasoning as KPI's own `color` prop.
+  color?: string;
   title?: string;
 }) {
   const pct = maxValue > 0 ? Math.min(100, (parsePctValue(value) / maxValue) * 100) : 0;
@@ -499,11 +517,11 @@ export function HorizontalBarRow({
         <span className="text-sm font-medium text-slate-600">{label}</span>
         <span className="flex items-center gap-2">
           {sublabel && <span className="text-xs text-slate-400">{sublabel}</span>}
-          <span className={`text-sm font-semibold ${TONE_TEXT[tone]}`}>{value}</span>
+          <span className={`text-sm font-semibold ${color ? "text-slate-800" : TONE_TEXT[tone]}`}>{value}</span>
         </span>
       </div>
       <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-        <div className={`h-full rounded-full ${TONE_BG[tone]}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full ${color ? "" : TONE_BG[tone]}`} style={{ width: `${pct}%`, backgroundColor: color }} />
       </div>
     </div>
   );

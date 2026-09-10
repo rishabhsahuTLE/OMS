@@ -41,6 +41,7 @@ export default function BillingActionsDue({
       {total > 0 && (
         <div className="mt-4">
           <SegmentedBar
+            legend={false}
             segments={[
               { key: "open", label: "To Open", value: toOpen.length, tone: "slate", display: String(toOpen.length) },
               { key: "amend", label: "To Amend", value: toAmend.length, tone: "amber", display: String(toAmend.length) },
