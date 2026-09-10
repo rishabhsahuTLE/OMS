@@ -14,21 +14,7 @@ import {
   type DatePreset,
 } from "./dashboard/filters";
 import { MultiSelectFilter } from "./dashboard/ui";
-import AgeAtStage from "./dashboard/widgets/AgeAtStage";
-import ApprovalQueue from "./dashboard/widgets/ApprovalQueue";
-import BillingActionsDue from "./dashboard/widgets/BillingActionsDue";
-import ClearanceStats from "./dashboard/widgets/ClearanceStats";
-import ManagerRevenue from "./dashboard/widgets/ManagerRevenue";
-import OpenedVsProjected from "./dashboard/widgets/OpenedVsProjected";
-import OrdersStuck from "./dashboard/widgets/OrdersStuck";
-import OutstandingBalance from "./dashboard/widgets/OutstandingBalance";
-import PipelineOverview from "./dashboard/widgets/PipelineOverview";
-import ProductRevenue from "./dashboard/widgets/ProductRevenue";
-import RejectedNeedsFix from "./dashboard/widgets/RejectedNeedsFix";
-import RevenueInMotion from "./dashboard/widgets/RevenueInMotion";
-import RevenueTrend from "./dashboard/widgets/RevenueTrend";
-import StageDistribution from "./dashboard/widgets/StageDistribution";
-import TatThisMonth from "./dashboard/widgets/TatThisMonth";
+import { buildWidgetSections, TIER_GRID_COLUMNS, type WidgetKey } from "./dashboard/widgetCatalog";
 
 type NavigateFn = (
   tab: MainTabId,
@@ -39,6 +25,7 @@ type NavigateFn = (
 interface DashboardProps {
   orders: OrderRecord[];
   onNavigate: NavigateFn;
+  visibleWidgets: Set<WidgetKey>;
 }
 
 const FILTER_CATEGORIES: FilterDrawerCategory[] = [
@@ -55,7 +42,7 @@ function toggleInSet(set: Set<string>, value: string): Set<string> {
   return next;
 }
 
-export default function Dashboard({ orders, onNavigate }: DashboardProps) {
+export default function Dashboard({ orders, onNavigate, visibleWidgets }: DashboardProps) {
   const [filters, setFilters] = useState<DashboardFilters>(DEFAULT_FILTERS);
   const [lastUpdated, setLastUpdated] = useState(() => todayISO());
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -73,7 +60,8 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
 
   const activeCount = activeFilterCount(filters);
 
-  const w = { orders, filters };
+  const commonProps = { orders, filters, onNavigate };
+  const sections = useMemo(() => buildWidgetSections(visibleWidgets), [visibleWidgets]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -231,62 +219,31 @@ export default function Dashboard({ orders, onNavigate }: DashboardProps) {
         )}
       </FilterDrawer>
 
-      {/* Every "lane" below is an auto-fit grid, not a hand-picked set of
-          column spans: each widget gets a minimum width and CSS distributes
-          the remaining space across however many widgets are actually
-          present. Add or remove a widget from a lane and its row-mates
-          automatically grow or shrink to fill the freed-up width — nothing
-          here needs to be re-balanced by hand. Widgets are grouped into a
-          lane by how tall they naturally render, so a lane's row height is
-          never dictated by a much shorter or much taller neighbor (the
-          "empty space inside a stretched card" problem) — see ui.tsx's
-          DashboardCard. Every lane and every full-width widget below shares
-          the same gap-4 rhythm as the rest of the page, so spacing reads as
-          one consistent grid rather than a mix of different gaps. */}
-
-      {/* Chart-shaped widgets — donuts and the TAT bars, at a wide-enough
-          minimum (560px) that each chart itself was enlarged to actually
-          fill — see each widget's own chart dimensions — rather than
-          leaving a small chart floating in a lot of empty card margin. */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(560px,1fr))] gap-4">
-        <StageDistribution orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
-        <OrdersStuck orders={w.orders} filters={w.filters} />
-        <ProductRevenue orders={w.orders} filters={w.filters} />
-        <TatThisMonth orders={w.orders} filters={w.filters} />
-      </div>
-
-      {/* Billing Actions Due is meaningfully taller than every other stat
-          tile (3 KPIs + a proportion bar + a footer action) — rather than
-          force it into a row of shorter tiles and leave them stretched with
-          dead space at the bottom, it gets the full width to itself. */}
-      <BillingActionsDue orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
-
-      {/* The remaining stat tiles split into two lanes by how tall they
-          actually render (measured, not guessed): Outstanding Balance /
-          Revenue in Motion / Opened vs Projected are all short single-row
-          tiles, while Clearance Stats / Pipeline Overview run a bit taller. */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
-        <OutstandingBalance orders={w.orders} filters={w.filters} />
-        <RevenueInMotion orders={w.orders} filters={w.filters} />
-        <OpenedVsProjected orders={w.orders} filters={w.filters} />
-      </div>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(380px,1fr))] gap-4">
-        <ClearanceStats orders={w.orders} filters={w.filters} />
-        <PipelineOverview orders={w.orders} filters={w.filters} />
-      </div>
-
-      {/* The two approval queues sit at half width side by side rather than
-          full width each — if either one is ever removed, the other expands
-          to fill the freed width automatically (same auto-fit mechanism). */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(560px,1fr))] gap-4">
-        <ApprovalQueue orders={w.orders} filters={w.filters} dept="Tech" onNavigate={onNavigate} />
-        <ApprovalQueue orders={w.orders} filters={w.filters} dept="Finance" onNavigate={onNavigate} />
-      </div>
-
-      <ManagerRevenue orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
-      <RevenueTrend orders={w.orders} filters={w.filters} />
-      <RejectedNeedsFix orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
-      <AgeAtStage orders={w.orders} filters={w.filters} onNavigate={onNavigate} />
+      {/* Rendered entirely from the Configuration page's selection (see
+          widgetCatalog.ts's buildWidgetSections) — a "grid" section is an
+          auto-fit row that automatically packs however many of its
+          same-tier widgets are currently checked into 1-4 columns and
+          stretches them to fill the width (turning a widget on/off just
+          reflows its row-mates, never leaving a gap); a "solo" section
+          (tables, and the two big charts) always takes the full row to
+          itself. Every section shares the same gap-4 rhythm. */}
+      {sections.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-400">
+          No widgets are turned on. Pick some in Configuration.
+        </div>
+      ) : (
+        sections.map((section, i) =>
+          section.type === "solo" ? (
+            <div key={section.item.key}>{section.item.render(commonProps)}</div>
+          ) : (
+            <div key={`grid-${i}`} className="grid gap-4" style={{ gridTemplateColumns: TIER_GRID_COLUMNS[section.tier] }}>
+              {section.items.map((item) => (
+                <div key={item.key}>{item.render(commonProps)}</div>
+              ))}
+            </div>
+          )
+        )
+      )}
     </div>
   );
 }

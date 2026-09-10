@@ -61,6 +61,18 @@ function OrdersIcon() {
   );
 }
 
+function ConfigurationIcon() {
+  return (
+    <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M8.34 2.5a1 1 0 01.98-.8h1.36a1 1 0 01.98.8l.19.94c.35.12.68.28.99.47l.9-.35a1 1 0 011.16.35l.68 1.05a1 1 0 01-.16 1.24l-.7.68c.03.19.05.38.05.62s-.02.43-.05.62l.7.68a1 1 0 01.16 1.24l-.68 1.05a1 1 0 01-1.16.35l-.9-.35c-.31.19-.64.35-.99.47l-.19.94a1 1 0 01-.98.8H9.32a1 1 0 01-.98-.8l-.19-.94a4.7 4.7 0 01-.99-.47l-.9.35a1 1 0 01-1.16-.35l-.68-1.05a1 1 0 01.16-1.24l.7-.68A4.7 4.7 0 015.9 10c0-.24.02-.43.05-.62l-.7-.68a1 1 0 01-.16-1.24l.68-1.05a1 1 0 011.16-.35l.9.35c.31-.19.64-.35.99-.47l.19-.94zM10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"
+      />
+    </svg>
+  );
+}
+
 export default function Sidebar({
   activeTab,
   activeOrdersSubTab,
@@ -158,6 +170,20 @@ export default function Sidebar({
             </div>
           )}
         </div>
+
+        <button
+          onClick={() => onSelect("configuration")}
+          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            !expanded ? "justify-center" : ""
+          } ${
+            activeTab === "configuration"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-300 hover:bg-slate-800 hover:text-white"
+          }`}
+        >
+          <ConfigurationIcon />
+          {expanded && <span className="whitespace-nowrap">Configuration</span>}
+        </button>
       </nav>
     </aside>
   );

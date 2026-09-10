@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import EmpowerTopBar from "./components/EmpowerTopBar";
 import Sidebar from "./components/Sidebar";
+import Configuration from "./pages/Configuration";
 import Dashboard from "./pages/Dashboard";
 import Report from "./pages/Report";
 import OrderPage from "./pages/orders/OrderPage";
@@ -10,6 +11,7 @@ import CloseBilling from "./pages/orders/CloseBilling";
 import clientsData from "./data/clients.json";
 import { mockOrders } from "./data/mockOrders";
 import { resolveAmendmentOf } from "./utils";
+import { DEFAULT_VISIBLE_WIDGETS, type WidgetKey } from "./pages/dashboard/widgetCatalog";
 import type { Client, MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "./types";
 
 function buildPath(tab: MainTabId, subTab?: ReportSubTabId | OrdersSubTabId, params?: Record<string, string>) {
@@ -27,6 +29,9 @@ function App() {
   const [clients, setClients] = useState<Client[]>(clientsData as Client[]);
   const [createOrderPrefill, setCreateOrderPrefill] = useState<{ clientId: string; product: string } | null>(null);
   const [createOrderKey, setCreateOrderKey] = useState(0);
+  // Which Dashboard widgets are turned on — set from the Configuration page,
+  // consumed by Dashboard.tsx. Session-only, same as everything else above.
+  const [visibleWidgets, setVisibleWidgets] = useState<Set<WidgetKey>>(new Set(DEFAULT_VISIBLE_WIDGETS));
 
   // Sidebar's active-tab/sub-tab highlighting is derived straight from the
   // URL rather than app state — Sidebar itself needs no changes for this.
@@ -73,7 +78,14 @@ function App() {
           <main className="flex-1 overflow-auto p-6">
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard orders={orders} onNavigate={handleSelect} />} />
+              <Route
+                path="/dashboard"
+                element={<Dashboard orders={orders} onNavigate={handleSelect} visibleWidgets={visibleWidgets} />}
+              />
+              <Route
+                path="/configuration"
+                element={<Configuration visibleWidgets={visibleWidgets} onChange={setVisibleWidgets} />}
+              />
               <Route path="/report" element={<Navigate to="/report/billing" replace />} />
               <Route path="/report/:subTab" element={<Report orders={orders} />} />
               <Route path="/orders" element={<Navigate to="/orders/approval" replace />} />
