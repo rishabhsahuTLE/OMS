@@ -19,7 +19,7 @@ export default function ClearanceStats({
 
   return (
     <DashboardCard title="Clearance Stats" size={size}>
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <KPI label="Technical Clearance" value={`${stats.technicalAvg.toFixed(1)}d`} sublabel={`avg over ${stats.technicalN}`} tone="amber" />
         <KPI
           label="Financial Clearance"

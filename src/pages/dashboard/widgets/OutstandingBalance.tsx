@@ -22,7 +22,7 @@ export default function OutstandingBalance({
 
   return (
     <DashboardCard title="Outstanding Balance (To Close)" size={size}>
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium text-slate-500">Total outstanding</p>
           <p className={compact ? "text-lg font-bold text-rose-600" : "text-2xl font-bold text-rose-600"}>{formatINR(total)}</p>

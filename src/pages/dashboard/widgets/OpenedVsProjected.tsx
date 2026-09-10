@@ -30,7 +30,7 @@ export default function OpenedVsProjected({
 
   return (
     <DashboardCard title="Revenue — Opened vs Projected" subtitle={`FY ${fyColumns[0].year}–${fyColumns[11].year}`} size={size}>
-      <div className="flex items-end justify-between">
+      <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-medium text-slate-500">Opened</p>
           <p className="text-xl font-bold text-emerald-600">{formatINR(opened)}</p>

@@ -13,16 +13,18 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export type CardSize = "sm" | "md" | "lg";
 
-const CARD_PADDING: Record<CardSize, string> = {
-  sm: "p-3",
-  md: "p-4",
-  lg: "p-4",
-};
+// A single fixed padding regardless of `size` — `size` still gets threaded
+// through to widgets' own internal KPI/value sizing, but the card shell
+// itself no longer varies, so every card's content starts the same distance
+// from its own edges.
+const CARD_PADDING = "p-4";
 
-// The one card shell every widget renders inside. `size` only changes
-// padding/title weight, not grid placement — grid span is controlled by the
-// wrapper Dashboard.tsx puts around each widget, so the same widget
-// component can be given a different span without knowing about it.
+// The one card shell every widget renders inside. `size` no longer affects
+// the card's own chrome (heading size, padding) — see CARD_PADDING above —
+// it's kept only for widgets that use it for their own internal KPI sizing.
+// Grid span is controlled by the wrapper Dashboard.tsx puts around each
+// widget, so the same widget component can be given a different span
+// without knowing about it.
 //
 // `accent` marks a widget as something that asks the viewer to act (a
 // decision, an edit, a review) rather than just informing them — it gets a
@@ -34,7 +36,6 @@ export function DashboardCard({
   title,
   subtitle,
   action,
-  size = "md",
   accent,
   className = "",
   bodyClassName = "",
@@ -52,14 +53,16 @@ export function DashboardCard({
   const accentBorder = accent ? `border-l-[3px] ${ACCENT_BORDER[accent]}` : "border-l border-slate-200";
   return (
     <div
-      className={`@container flex h-full flex-col rounded-lg border border-y-slate-200 border-r-slate-200 bg-white shadow-sm ${accentBorder} ${CARD_PADDING[size]} ${className}`}
+      className={`@container flex h-full flex-col rounded-lg border border-y-slate-200 border-r-slate-200 bg-white shadow-sm ${accentBorder} ${CARD_PADDING} ${className}`}
     >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h3 className={size === "sm" ? "text-xs font-semibold text-slate-800" : "text-sm font-semibold text-slate-800"}>
-            {title}
-          </h3>
-          {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
+          <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+          {/* Always reserved, even with no subtitle — an invisible
+              placeholder keeps every card's title block the same height, so
+              whatever follows (KPI, bar, chart) starts at the same distance
+              from the top regardless of which cards happen to have one. */}
+          <p className={`mt-0.5 text-xs text-slate-400 ${subtitle ? "" : "invisible"}`}>{subtitle || " "}</p>
         </div>
         {action}
       </div>
@@ -426,6 +429,7 @@ export interface BarSegment {
 
 export function SegmentedBar({ segments }: { segments: BarSegment[] }) {
   const total = segments.reduce((sum, s) => sum + s.value, 0);
+  const pctOf = (s: BarSegment) => (total > 0 ? (s.value / total) * 100 : 0);
   return (
     <div>
       <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
@@ -433,26 +437,38 @@ export function SegmentedBar({ segments }: { segments: BarSegment[] }) {
           <div
             key={s.key}
             className={`h-full ${TONE_BG[s.tone]}`}
-            style={{ width: `${total > 0 ? (s.value / total) * 100 : 0}%` }}
+            style={{ width: `${pctOf(s)}%` }}
           />
         ))}
       </div>
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {segments.map((s) => (
-          <div key={s.key} className="flex items-center gap-2">
-            <span className={`h-2 w-2 shrink-0 rounded-full ${TONE_BG[s.tone]}`} />
-            <span className="min-w-0 flex-1">
-              <span className="block text-xs text-slate-500">{s.label}</span>
-              <span className="block text-sm font-semibold text-slate-800">
-                {s.display}
-                <span className="ml-1 text-xs font-normal text-slate-400">
-                  ({total > 0 ? ((s.value / total) * 100).toFixed(0) : 0}%)
+      {segments.length === 2 ? (
+        // Exactly 2 segments: pin one to the leftmost edge, the other to the
+        // rightmost — the same "leftmost/rightmost" convention KPI's own
+        // align="right" already uses elsewhere in these widgets.
+        <div className="mt-3 flex items-start justify-between gap-4">
+          {segments.map((s) => (
+            <div key={s.key} className="flex items-center gap-2">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${TONE_BG[s.tone]}`} />
+              <span>
+                <span className="block text-xs text-slate-500">{s.label}</span>
+                <span className="block text-sm font-semibold text-slate-800">
+                  {s.display}
+                  <span className="ml-1 text-xs font-normal text-slate-400">({pctOf(s).toFixed(0)}%)</span>
                 </span>
               </span>
-            </span>
-          </div>
-        ))}
-      </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        // 3+ segments: a left-aligned vertical list, one row per segment —
+        // the same dot+label / value+pct row shape LegendList uses for the
+        // donut widgets, so bar and donut legends read as one convention.
+        <div className="mt-3">
+          <LegendList
+            items={segments.map((s) => ({ key: s.key, label: s.label, color: toneHex(s.tone), value: s.display, pct: pctOf(s) }))}
+          />
+        </div>
+      )}
     </div>
   );
 }
