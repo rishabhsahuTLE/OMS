@@ -1,13 +1,6 @@
 import { ResponsiveContainer, Pie, PieChart, Cell, Tooltip } from "recharts";
 import type { MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../../types";
-import {
-  daysBetween,
-  getDisplayStage,
-  getNextActionableStage,
-  isAmendmentPending,
-  todayISO,
-  type ApprovalStageKey,
-} from "../../utils";
+import { daysBetween, getDisplayStage, getNextActionableStage, todayISO, type ApprovalStageKey } from "../../utils";
 import { LegendList, type LegendItem, type Tone } from "./ui";
 
 // Domain calculations shared by the widget components in ./widgets — this
@@ -76,32 +69,33 @@ export const PRODUCT_COLORS: Record<string, string> = {
 export const BU_COLORS = ["#4f46e5", "#0d9488", "#d97706", "#e11d48", "#64748b"];
 
 // ---------------------------------------------------------------------------
-// Stage Distribution — the 5-bucket display taxonomy already used by Manage
-// Orders' own view tabs (OrderApproval.tsx's ViewTab/matchesTab), reused
-// here rather than inventing a second stage vocabulary for the dashboard.
+// Stage Distribution — a 5-bucket taxonomy that maps 1:1 onto
+// utils.ts's getDisplayStage, collapsed the same way Manage Orders'
+// own "Pending" view tab already merges approvalPending/closurePending
+// (OrderApproval.tsx's ViewTab/matchesTab) — toOpen/toAmend are folded in
+// alongside approvalPending since they're all pre-Active waits, and
+// closurePending gets its own "Cancellation Pending" bucket here (rather
+// than being folded into "Pending" too) so an in-flight cancellation reads
+// as its own distinct state on the dashboard's stat row.
 // ---------------------------------------------------------------------------
 
-export type StageBucketKey = "pending" | "amendmentPending" | "active" | "agreementOver" | "cancelled";
+export type StageBucketKey = "pending" | "active" | "agreementOver" | "cancellationPending" | "closed";
 
 export const STAGE_BUCKETS: { key: StageBucketKey; label: string; tone: Tone; stageParam: string }[] = [
   { key: "pending", label: "Pending", tone: "amber", stageParam: "approvalPending" },
-  { key: "amendmentPending", label: "Amendment Pending", tone: "violet", stageParam: "amendmentPending" },
   { key: "active", label: "Active", tone: "emerald", stageParam: "active" },
   { key: "agreementOver", label: "Agreement Over", tone: "indigo", stageParam: "agreementOver" },
-  { key: "cancelled", label: "Cancelled", tone: "rose", stageParam: "closed" },
+  { key: "cancellationPending", label: "Cancellation Pending", tone: "rose", stageParam: "closurePending" },
+  { key: "closed", label: "Closed", tone: "slate", stageParam: "closed" },
 ];
 
-// approvalPending/closurePending/toOpen/toAmend all collapse into "Pending"
-// here (same merge OrderApproval.tsx's own "Pending" tab already does for
-// approvalPending+closurePending — toOpen/toAmend are folded in alongside
-// them since they're pre-Active waits without their own dedicated tab).
 export function stageBucketOf(order: OrderRecord): StageBucketKey {
-  if (isAmendmentPending(order)) return "amendmentPending";
   const stage = getDisplayStage(order);
   if (stage === "active") return "active";
   if (stage === "agreementOver") return "agreementOver";
-  if (stage === "closed") return "cancelled";
-  return "pending";
+  if (stage === "closurePending") return "cancellationPending";
+  if (stage === "closed") return "closed";
+  return "pending"; // approvalPending, toOpen, toAmend
 }
 
 export interface StageBucketStat {

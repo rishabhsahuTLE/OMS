@@ -1,8 +1,7 @@
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { OrderRecord } from "../../../types";
 import { applyStructuralFilters, type DashboardFilters } from "../filters";
-import { buildStageBuckets, formatINR, type NavigateFn, type StageBucketStat } from "../shared";
-import { DashboardCard, EmptyState, LegendList, toneHex, type CardSize, type LegendItem } from "../ui";
+import { buildStageBuckets, formatINR, type NavigateFn } from "../shared";
+import { DashboardCard, EmptyState, toneClass, type CardSize, type Tone } from "../ui";
 
 // Current-state widget: shows where orders sit *right now*, so the global
 // Date filter deliberately does not apply here (see filters.ts's header
@@ -21,64 +20,55 @@ export default function StageDistribution({
 }) {
   const scoped = applyStructuralFilters(orders, filters, { includeManager: true });
   const buckets = buildStageBuckets(scoped);
-  const hasData = buckets.some((b) => b.count > 0);
-  // A zero-count bucket still needs its row in the list below, but handing
-  // it to the Pie leaves an odd empty notch in the ring (paddingAngle still
-  // reserves a gap for a 0-value slice) — so the arc itself only gets the
-  // buckets that actually have something in them.
-  const sliceData = buckets.filter((b) => b.count > 0);
+  const totalCount = scoped.length;
+  const totalRevenue = scoped.reduce((sum, o) => sum + o.amount, 0);
 
-  function handleClick(bucket: StageBucketStat) {
-    onNavigate("orders", "approval", { stage: bucket.stageParam });
+  function handleClick(stageParam: string) {
+    onNavigate("orders", "approval", { stage: stageParam });
   }
-
-  const items: LegendItem[] = buckets.map((b) => ({
-    key: b.key,
-    label: b.label,
-    color: toneHex(b.tone),
-    value: String(b.count),
-    pct: b.pct,
-    onClick: () => handleClick(b),
-  }));
 
   return (
     <DashboardCard title="Stage Distribution" subtitle="Where every order sits right now" size={size}>
-      {!hasData ? (
+      {totalCount === 0 ? (
         <EmptyState />
       ) : (
-        <div className="flex flex-col gap-4 @lg:flex-row @lg:items-center">
-          <div className="mx-auto w-full max-w-[240px] shrink-0">
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie
-                  data={sliceData}
-                  dataKey="count"
-                  nameKey="label"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={52}
-                  outerRadius={84}
-                  paddingAngle={sliceData.length > 1 ? 2 : 0}
-                  onClick={(d) => handleClick(d.payload as StageBucketStat)}
-                  cursor="pointer"
-                >
-                  {sliceData.map((b) => (
-                    <Cell key={b.key} fill={toneHex(b.tone)} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(_v, _n, entry) => {
-                    const b = entry.payload as StageBucketStat;
-                    return [`${b.count} orders, ${formatINR(b.revenue)} (${b.pct.toFixed(0)}%)`, b.label];
-                  }}
-                  contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <LegendList items={items} />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <StatTile label="All Orders" count={totalCount} amount={totalRevenue} highlighted onClick={() => handleClick("all")} />
+          {buckets.map((b) => (
+            <StatTile key={b.key} label={b.label} count={b.count} amount={b.revenue} tone={b.tone} onClick={() => handleClick(b.stageParam)} />
+          ))}
         </div>
       )}
     </DashboardCard>
+  );
+}
+
+function StatTile({
+  label,
+  count,
+  amount,
+  tone,
+  highlighted,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  amount: number;
+  tone?: Tone;
+  highlighted?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-w-0 flex-col items-start rounded-lg border p-4 text-left transition-colors ${
+        highlighted ? "border-indigo-200 bg-indigo-50/60 hover:bg-indigo-50" : "border-slate-200 bg-white hover:bg-slate-50"
+      }`}
+    >
+      <span className="truncate text-xs font-medium text-slate-500">{label}</span>
+      <span className={`mt-1 text-2xl font-bold ${highlighted ? "text-slate-900" : toneClass(tone ?? "slate")}`}>{count}</span>
+      <span className="mt-0.5 truncate text-xs text-slate-400">{formatINR(amount)}</span>
+    </button>
   );
 }

@@ -82,7 +82,7 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   {
     key: "stageDistribution",
     label: "Stage Distribution",
-    tier: "chart",
+    tier: "full",
     render: (p) => <StageDistribution orders={p.orders} filters={p.filters} onNavigate={p.onNavigate} />,
   },
   {
