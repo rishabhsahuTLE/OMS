@@ -236,7 +236,11 @@ export default function Dashboard({ orders, onNavigate, visibleWidgets }: Dashbo
           section.type === "solo" ? (
             <div key={section.item.key}>{section.item.render(commonProps)}</div>
           ) : (
-            <div key={`grid-${i}`} className="grid gap-4" style={{ gridTemplateColumns: TIER_GRID_COLUMNS[section.tier] }}>
+            <div
+              key={`grid-${i}`}
+              className="grid items-stretch gap-4"
+              style={{ gridTemplateColumns: TIER_GRID_COLUMNS[section.tier] }}
+            >
               {section.items.map((item) => (
                 <div key={item.key}>{item.render(commonProps)}</div>
               ))}

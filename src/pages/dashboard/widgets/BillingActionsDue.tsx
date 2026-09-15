@@ -2,7 +2,7 @@ import type { OrderRecord } from "../../../types";
 import { getDisplayStage } from "../../../utils";
 import { applyStructuralFilters, type DashboardFilters } from "../filters";
 import { formatINR, type NavigateFn } from "../shared";
-import { Button, DashboardCard, KPI, SegmentedBar, type CardSize } from "../ui";
+import { Button, DashboardCard, toneClass, type CardSize, type Tone } from "../ui";
 
 // Current-state operational widget — no Date filter (see filters.ts), BU +
 // Product apply, Client Manager doesn't (billing workload isn't scoped to a
@@ -11,7 +11,10 @@ import { Button, DashboardCard, KPI, SegmentedBar, type CardSize } from "../ui";
 // The three buckets are given distinct meaning rather than three identical
 // numbers: To Open is routine/expected (neutral), To Amend needs a decision
 // (amber), To Close is money sitting unclosed (rose) — the one furthest
-// along and most worth acting on first.
+// along and most worth acting on first. Stacked rows rather than a 3-column
+// KPI grid — this card now shares a row with the two donut widgets (see
+// widgetCatalog.tsx's "chart" tier), so it needs to read well in one narrow
+// column instead of the full-width row it used to have to itself.
 export default function BillingActionsDue({
   orders,
   filters,
@@ -28,35 +31,36 @@ export default function BillingActionsDue({
   const toAmend = scoped.filter((o) => getDisplayStage(o) === "toAmend");
   const toClose = scoped.filter((o) => o.lifecycleStatus === "cancelled" && o.billingStatus === "open");
   const amount = [...toOpen, ...toAmend, ...toClose].reduce((sum, o) => sum + o.amount, 0);
-  const total = toOpen.length + toAmend.length + toClose.length;
 
   return (
-    <DashboardCard title="Billing Actions Due" subtitle="Orders waiting on a billing action" size={size} accent="indigo">
-      <div className="grid grid-cols-3 gap-3">
-        <KPI label="To Open" value={String(toOpen.length)} tone="slate" size="lg" />
-        <KPI label="To Amend" value={String(toAmend.length)} tone="amber" size="lg" />
-        <KPI label="To Close" value={String(toClose.length)} tone="rose" size="lg" />
+    <DashboardCard
+      title="Billing Actions Due"
+      subtitle="Orders waiting on a billing action"
+      size={size}
+      accent="indigo"
+      bodyClassName="flex flex-col"
+    >
+      <div className="flex flex-col gap-2">
+        <ActionRow label="To Open" count={toOpen.length} tone="slate" />
+        <ActionRow label="To Amend" count={toAmend.length} tone="amber" />
+        <ActionRow label="To Close" count={toClose.length} tone="rose" />
       </div>
 
-      {total > 0 && (
-        <div className="mt-4">
-          <SegmentedBar
-            legend={false}
-            segments={[
-              { key: "open", label: "To Open", value: toOpen.length, tone: "slate", display: String(toOpen.length) },
-              { key: "amend", label: "To Amend", value: toAmend.length, tone: "amber", display: String(toAmend.length) },
-              { key: "close", label: "To Close", value: toClose.length, tone: "rose", display: String(toClose.length) },
-            ]}
-          />
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
         <p className="min-w-0 text-xs text-slate-400">{formatINR(amount)} contracted value pending action</p>
         <span className="shrink-0">
           <Button onClick={() => onNavigate("orders", "closeBilling")}>Close Billing</Button>
         </span>
       </div>
     </DashboardCard>
+  );
+}
+
+function ActionRow({ label, count, tone }: { label: string; count: number; tone: Tone }) {
+  return (
+    <div className="flex items-center justify-between gap-2 py-1">
+      <span className="text-sm font-medium text-slate-500">{label}</span>
+      <span className={`text-lg font-bold ${toneClass(tone)}`}>{count}</span>
+    </div>
   );
 }

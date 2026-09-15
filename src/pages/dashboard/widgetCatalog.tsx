@@ -100,7 +100,7 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   {
     key: "billingActionsDue",
     label: "Billing Actions Due",
-    tier: "full",
+    tier: "chart",
     render: (p) => <BillingActionsDue orders={p.orders} filters={p.filters} onNavigate={p.onNavigate} />,
   },
   {

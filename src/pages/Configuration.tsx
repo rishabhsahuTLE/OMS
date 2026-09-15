@@ -18,8 +18,8 @@ const TIER_LABELS: Record<WidgetTier, string> = {
 
 // Display order for the group headings themselves — independent of
 // WIDGET_CATALOG's own (layout) order, since e.g. the two stat-tile tiers
-// should read as one group here even though Billing Actions Due (tier
-// "full") sits between them on the dashboard.
+// should read as one group here even though other tiers sit between them
+// on the dashboard.
 const TIER_GROUP_ORDER: WidgetTier[] = ["chart", "queue", "statSmall", "statMedium", "full"];
 
 function toggle(set: Set<WidgetKey>, key: WidgetKey): Set<WidgetKey> {
