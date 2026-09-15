@@ -1,7 +1,7 @@
 import { ResponsiveContainer, Pie, PieChart, Cell, Tooltip } from "recharts";
 import type { MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../../types";
 import { daysBetween, getDisplayStage, getNextActionableStage, todayISO, type ApprovalStageKey } from "../../utils";
-import { LegendList, type LegendItem, type Tone } from "./ui";
+import type { Tone } from "./ui";
 
 // Domain calculations shared by the widget components in ./widgets — this
 // file knows about orders/stages/roles; ./ui.tsx deliberately doesn't. Every
@@ -175,38 +175,27 @@ export function buildStuckData(orders: OrderRecord[]): StuckSlice[] {
 export function StuckOrdersPie({ data }: { data: StuckSlice[] }) {
   // A LegendList, not recharts' own <Legend>, is what keeps this in the same
   // Technical -> Financial -> Cancellation-Technical -> Cancellation-Financial
-  // chronological order as `data` (recharts' auto-derived legend payload
-  // doesn't reliably preserve source order), and matches the uniform
-  // dot+label / value+pct row shape Stage Distribution and Product-wise
-  // Revenue also use.
-  const items: LegendItem[] = data.map((d) => ({
-    key: d.key,
-    label: d.label,
-    color: d.color,
-    value: formatINR(d.revenue),
-    pct: d.pct,
-  }));
+  // Donut only, no legend rows below it — the category names/values surface
+  // via the hover Tooltip instead, so this card reads as a single chart
+  // rather than a chart-plus-table.
   return (
-    <div className="flex flex-col gap-4 @lg:flex-row @lg:items-center">
-      <div className="mx-auto w-full max-w-[240px] shrink-0">
-        <ResponsiveContainer width="100%" height={240}>
-          <PieChart>
-            <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={50} outerRadius={82} paddingAngle={2}>
-              {data.map((d) => (
-                <Cell key={d.key} fill={d.color} />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(v, _name, entry) => {
-                const payload = entry.payload as { label: string; count: number; pct: number };
-                return [`${formatINR(Number(v))} (${payload.count} orders, ${payload.pct.toFixed(0)}%)`, payload.label];
-              }}
-              contentStyle={{ fontSize: 12, borderRadius: 8 }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-      <LegendList items={items} />
+    <div className="mx-auto w-full max-w-[260px]">
+      <ResponsiveContainer width="100%" height={260}>
+        <PieChart>
+          <Pie data={data} dataKey="revenue" nameKey="label" cx="50%" cy="50%" innerRadius={54} outerRadius={92} paddingAngle={2}>
+            {data.map((d) => (
+              <Cell key={d.key} fill={d.color} />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(v, _name, entry) => {
+              const payload = entry.payload as { label: string; count: number; pct: number };
+              return [`${formatINR(Number(v))} (${payload.count} orders, ${payload.pct.toFixed(0)}%)`, payload.label];
+            }}
+            contentStyle={{ fontSize: 12, borderRadius: 8 }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
     </div>
   );
 }
