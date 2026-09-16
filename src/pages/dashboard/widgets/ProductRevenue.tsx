@@ -1,11 +1,12 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { OrderRecord } from "../../../types";
 import { PRODUCT_NAMES } from "../../../products";
-import { applyStructuralFilters, type DashboardFilters } from "../filters";
+import { applyStructuralFilters, inDateRange, type DashboardFilters } from "../filters";
 import { formatINR, PRODUCT_COLORS } from "../shared";
 import { DashboardCard, EmptyState, type CardSize } from "../ui";
 
-// Active orders only, current state — no Date filter.
+// "Created during period" reading of Date: of the non-cancelled orders
+// created in the selected window, revenue split by product.
 export default function ProductRevenue({
   orders,
   filters,
@@ -15,7 +16,9 @@ export default function ProductRevenue({
   filters: DashboardFilters;
   size?: CardSize;
 }) {
-  const scoped = applyStructuralFilters(orders, filters).filter((o) => o.lifecycleStatus !== "cancelled");
+  const scoped = applyStructuralFilters(orders, filters)
+    .filter((o) => o.lifecycleStatus !== "cancelled")
+    .filter((o) => inDateRange(o.createdOn, filters.dateRange));
   const totalRevenue = scoped.reduce((sum, o) => sum + o.amount, 0);
   const metrics = PRODUCT_NAMES.map((product) => {
     const rows = scoped.filter((o) => o.product === product);

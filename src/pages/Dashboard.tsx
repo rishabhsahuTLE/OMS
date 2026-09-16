@@ -88,78 +88,84 @@ export default function Dashboard({ orders, onNavigate, visibleWidgets }: Dashbo
       {/* Global filter bar — one bar for the whole dashboard, not one per
           widget. Each widget then decides for itself which of these are
           analytically meaningful (see filters.ts and each widget's own
-          notes) rather than every filter blindly applying everywhere. */}
-      <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm md:flex">
-        <select
-          value={filters.datePreset}
-          onChange={(e) => setDatePreset(e.target.value as DatePreset | "all")}
-          className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-        >
-          <option value="all">All Time</option>
-          {DATE_PRESET_OPTIONS.map((o) => (
-            <option key={o.key} value={o.key}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        {filters.datePreset === "custom" && (
-          <DateRangePicker
-            value={filters.dateRange}
-            onChange={(r: DateRange) => setFilters((f) => ({ ...f, dateRange: r }))}
-            autoOpen
+          notes) rather than every filter blindly applying everywhere.
+          Sticky (not the title/heading above it) so it stays reachable
+          while scrolling through a long widget list — bg-slate-100 matches
+          the page background (App.tsx) so widget cards scrolling underneath
+          don't visibly bleed through the padded space around the bar. */}
+      <div className="sticky top-0 z-20 -mx-6 bg-slate-100 px-6 pb-3">
+        <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm md:flex">
+          <select
+            value={filters.datePreset}
+            onChange={(e) => setDatePreset(e.target.value as DatePreset | "all")}
+            className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 shadow-sm hover:border-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          >
+            <option value="all">All Time</option>
+            {DATE_PRESET_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {filters.datePreset === "custom" && (
+            <DateRangePicker
+              value={filters.dateRange}
+              onChange={(r: DateRange) => setFilters((f) => ({ ...f, dateRange: r }))}
+              autoOpen
+            />
+          )}
+
+          <div className="h-5 w-px bg-slate-200" />
+
+          <MultiSelectFilter
+            label="Business Units"
+            options={[...BUSINESS_UNITS]}
+            selected={filters.businessUnits}
+            onToggle={(v) => setFilters((f) => ({ ...f, businessUnits: toggleInSet(f.businessUnits, v) }))}
+            onClear={() => setFilters((f) => ({ ...f, businessUnits: new Set() }))}
+            widthClassName="w-44"
           />
-        )}
+          <MultiSelectFilter
+            label="Products"
+            options={PRODUCT_NAMES}
+            selected={filters.products}
+            onToggle={(v) => setFilters((f) => ({ ...f, products: toggleInSet(f.products, v) }))}
+            onClear={() => setFilters((f) => ({ ...f, products: new Set() }))}
+            widthClassName="w-40"
+          />
+          <MultiSelectFilter
+            label="Managers"
+            options={managerOptions}
+            selected={filters.managers}
+            onToggle={(v) => setFilters((f) => ({ ...f, managers: toggleInSet(f.managers, v) }))}
+            onClear={() => setFilters((f) => ({ ...f, managers: new Set() }))}
+            widthClassName="w-48"
+          />
 
-        <div className="h-5 w-px bg-slate-200" />
-
-        <MultiSelectFilter
-          label="Business Units"
-          options={[...BUSINESS_UNITS]}
-          selected={filters.businessUnits}
-          onToggle={(v) => setFilters((f) => ({ ...f, businessUnits: toggleInSet(f.businessUnits, v) }))}
-          onClear={() => setFilters((f) => ({ ...f, businessUnits: new Set() }))}
-          widthClassName="w-44"
-        />
-        <MultiSelectFilter
-          label="Products"
-          options={PRODUCT_NAMES}
-          selected={filters.products}
-          onToggle={(v) => setFilters((f) => ({ ...f, products: toggleInSet(f.products, v) }))}
-          onClear={() => setFilters((f) => ({ ...f, products: new Set() }))}
-          widthClassName="w-40"
-        />
-        <MultiSelectFilter
-          label="Managers"
-          options={managerOptions}
-          selected={filters.managers}
-          onToggle={(v) => setFilters((f) => ({ ...f, managers: toggleInSet(f.managers, v) }))}
-          onClear={() => setFilters((f) => ({ ...f, managers: new Set() }))}
-          widthClassName="w-48"
-        />
-
-        <div className="ml-auto flex items-center gap-2">
-          {activeCount > 0 && <span className="text-xs font-medium text-indigo-600">{activeCount} active</span>}
-          <button type="button" onClick={clearAll} className="text-xs font-medium text-slate-500 hover:text-slate-700">
-            Clear All
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            {activeCount > 0 && <span className="text-xs font-medium text-indigo-600">{activeCount} active</span>}
+            <button type="button" onClick={clearAll} className="text-xs font-medium text-slate-500 hover:text-slate-700">
+              Clear All
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Mobile/tablet: a single Filters button opens the same filter set in
-          a drawer instead of a cramped inline row. */}
-      <div className="flex items-center justify-between md:hidden">
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(true)}
-          className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-        >
-          Filters {activeCount > 0 && <span className="rounded-full bg-indigo-600 px-1.5 text-xs text-white">{activeCount}</span>}
-        </button>
-        {activeCount > 0 && (
-          <button type="button" onClick={clearAll} className="text-xs font-medium text-slate-500 hover:text-slate-700">
-            Clear All
+        {/* Mobile/tablet: a single Filters button opens the same filter set
+            in a drawer instead of a cramped inline row. */}
+        <div className="flex items-center justify-between md:hidden">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            Filters {activeCount > 0 && <span className="rounded-full bg-indigo-600 px-1.5 text-xs text-white">{activeCount}</span>}
           </button>
-        )}
+          {activeCount > 0 && (
+            <button type="button" onClick={clearAll} className="text-xs font-medium text-slate-500 hover:text-slate-700">
+              Clear All
+            </button>
+          )}
+        </div>
       </div>
 
       <FilterDrawer

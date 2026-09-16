@@ -1,11 +1,13 @@
 import type { OrderRecord } from "../../../types";
 import { billsInColumn, buildFiscalYearColumns, isBillingOpenInColumn } from "../../../utils";
-import { applyStructuralFilters, type DashboardFilters } from "../filters";
+import { applyStructuralFilters, inDateRange, type DashboardFilters } from "../filters";
 import { formatINR } from "../shared";
 import { DashboardCard, type CardSize } from "../ui";
 
-// Fiscal-year (April–March) projection — the chart's own scope already IS
-// the year, so the global Date filter isn't applied on top (see filters.ts).
+// "Created during period" reading of Date: only orders created in the
+// selected window count toward the projection below — the projection
+// itself still always runs against the real current fiscal year (the
+// chart's own, separate, time axis — see the subtitle).
 export default function OpenedVsProjected({
   orders,
   filters,
@@ -15,7 +17,9 @@ export default function OpenedVsProjected({
   filters: DashboardFilters;
   size?: CardSize;
 }) {
-  const scoped = applyStructuralFilters(orders, filters).filter((o) => o.lifecycleStatus !== "cancelled");
+  const scoped = applyStructuralFilters(orders, filters)
+    .filter((o) => o.lifecycleStatus !== "cancelled")
+    .filter((o) => inDateRange(o.createdOn, filters.dateRange));
   const fyColumns = buildFiscalYearColumns(new Date());
   let projected = 0;
   let opened = 0;

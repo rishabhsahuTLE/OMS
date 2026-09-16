@@ -1,12 +1,10 @@
 import type { OrderRecord } from "../../../types";
-import { applyStructuralFilters, type DashboardFilters } from "../filters";
+import { applyStructuralFilters, inDateRange, type DashboardFilters } from "../filters";
 import { buildStageBuckets, formatINR, type NavigateFn } from "../shared";
 import { DashboardCard, EmptyState, toneClass, type CardSize, type Tone } from "../ui";
 
-// Current-state widget: shows where orders sit *right now*, so the global
-// Date filter deliberately does not apply here (see filters.ts's header
-// comment on why Date isn't blindly applied everywhere) — only the
-// structural filters (BU/Product/Manager) narrow the picture.
+// "Created during period" reading of Date: of the orders created in the
+// selected window, where do they sit right now.
 export default function StageDistribution({
   orders,
   filters,
@@ -18,7 +16,9 @@ export default function StageDistribution({
   onNavigate: NavigateFn;
   size?: CardSize;
 }) {
-  const scoped = applyStructuralFilters(orders, filters, { includeManager: true });
+  const scoped = applyStructuralFilters(orders, filters, { includeManager: true }).filter((o) =>
+    inDateRange(o.createdOn, filters.dateRange)
+  );
   const buckets = buildStageBuckets(scoped);
   const totalCount = scoped.length;
   const totalRevenue = scoped.reduce((sum, o) => sum + o.amount, 0);

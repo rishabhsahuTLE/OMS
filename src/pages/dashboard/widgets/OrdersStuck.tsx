@@ -1,10 +1,10 @@
 import type { OrderRecord } from "../../../types";
-import { applyStructuralFilters, type DashboardFilters } from "../filters";
+import { applyStructuralFilters, inDateRange, type DashboardFilters } from "../filters";
 import { buildStuckData, StuckOrdersPie } from "../shared";
 import { DashboardCard, type CardSize } from "../ui";
 
-// Current-state widget (revenue stuck right now) — no Date filter, but BU/
-// Product/Manager all narrow it.
+// "Created during period" reading of Date: of the orders created in the
+// selected window, which are stuck (still pending) right now.
 export default function OrdersStuck({
   orders,
   filters,
@@ -14,7 +14,9 @@ export default function OrdersStuck({
   filters: DashboardFilters;
   size?: CardSize;
 }) {
-  const scoped = applyStructuralFilters(orders, filters, { includeManager: true });
+  const scoped = applyStructuralFilters(orders, filters, { includeManager: true }).filter((o) =>
+    inDateRange(o.createdOn, filters.dateRange)
+  );
   const stuck = buildStuckData(scoped);
   const usesMock = stuck.some((d) => d.mock);
 

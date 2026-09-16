@@ -1,10 +1,10 @@
 import type { OrderRecord } from "../../../types";
-import { applyStructuralFilters, type DashboardFilters } from "../filters";
+import { applyStructuralFilters, inDateRange, type DashboardFilters } from "../filters";
 import { buildRevenueMotion, formatINR } from "../shared";
 import { DashboardCard, SegmentedBar, type CardSize } from "../ui";
 
-// Current-state snapshot ("how much revenue is stable vs. in transition
-// right now") — no Date filter.
+// "Created during period" reading of Date: of the orders created in the
+// selected window, how much revenue is stable vs. in transition right now.
 export default function RevenueInMotion({
   orders,
   filters,
@@ -14,7 +14,7 @@ export default function RevenueInMotion({
   filters: DashboardFilters;
   size?: CardSize;
 }) {
-  const scoped = applyStructuralFilters(orders, filters);
+  const scoped = applyStructuralFilters(orders, filters).filter((o) => inDateRange(o.createdOn, filters.dateRange));
   const motion = buildRevenueMotion(scoped);
 
   return (

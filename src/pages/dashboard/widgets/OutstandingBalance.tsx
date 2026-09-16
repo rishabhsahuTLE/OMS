@@ -1,9 +1,10 @@
 import type { OrderRecord } from "../../../types";
-import { applyStructuralFilters, type DashboardFilters } from "../filters";
+import { applyStructuralFilters, inDateRange, type DashboardFilters } from "../filters";
 import { formatINR } from "../shared";
 import { DashboardCard, KPI, type CardSize } from "../ui";
 
-// Current-state widget (unresolved exposure right now) — no Date filter.
+// "Created during period" reading of Date: of the orders created in the
+// selected window, how much outstanding balance is still unclosed.
 export default function OutstandingBalance({
   orders,
   filters,
@@ -15,7 +16,7 @@ export default function OutstandingBalance({
   compact?: boolean;
   size?: CardSize;
 }) {
-  const scoped = applyStructuralFilters(orders, filters);
+  const scoped = applyStructuralFilters(orders, filters).filter((o) => inDateRange(o.createdOn, filters.dateRange));
   const rows = scoped.filter((o) => o.cancellationDetails && o.billingStatus !== "closed");
   const total = rows.reduce((sum, o) => sum + (o.cancellationDetails?.outstandingBalance ?? 0), 0);
   const avgPerOrder = rows.length > 0 ? total / rows.length : 0;
