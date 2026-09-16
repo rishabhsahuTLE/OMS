@@ -7,13 +7,12 @@ import type { DateRange } from "../../components/DateRangePicker";
 // file under ./widgets. Nothing here blindly applies every filter to every
 // widget; that decision is deliberately made at the call site, not here.
 
-export type DatePreset = "1m" | "3m" | "6m" | "1y" | "custom";
+export type DatePreset = "fy2024" | "fy2025" | "fy2026" | "custom";
 
 export const DATE_PRESET_OPTIONS: { key: DatePreset; label: string }[] = [
-  { key: "1m", label: "1 Month" },
-  { key: "3m", label: "3 Months" },
-  { key: "6m", label: "6 Months" },
-  { key: "1y", label: "1 Year" },
+  { key: "fy2024", label: "FY 2024-25" },
+  { key: "fy2025", label: "FY 2025-26" },
+  { key: "fy2026", label: "FY 2026-27" },
   { key: "custom", label: "Custom" },
 ];
 
@@ -36,15 +35,17 @@ export const DEFAULT_FILTERS: DashboardFilters = {
   managers: new Set(),
 };
 
+// April-March, matching the app's fiscal-year convention (see
+// buildFiscalYearColumns in utils.ts and Billing.tsx's own fiscal columns).
+const FY_RANGES: Record<Exclude<DatePreset, "custom">, DateRange> = {
+  fy2024: { start: new Date(2024, 3, 1), end: new Date(2025, 2, 31) },
+  fy2025: { start: new Date(2025, 3, 1), end: new Date(2026, 2, 31) },
+  fy2026: { start: new Date(2026, 3, 1), end: new Date(2027, 2, 31) },
+};
+
 export function computePresetRange(preset: DatePreset | "all"): DateRange {
   if (preset === "all" || preset === "custom") return { start: null, end: null };
-  const end = new Date();
-  const start = new Date(end);
-  if (preset === "1m") start.setMonth(start.getMonth() - 1);
-  else if (preset === "3m") start.setMonth(start.getMonth() - 3);
-  else if (preset === "6m") start.setMonth(start.getMonth() - 6);
-  else if (preset === "1y") start.setFullYear(start.getFullYear() - 1);
-  return { start, end };
+  return FY_RANGES[preset];
 }
 
 function parseISO(d: string): Date {

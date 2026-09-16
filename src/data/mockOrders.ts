@@ -18,11 +18,25 @@ function pad(n: number) {
   return n.toString().padStart(2, "0");
 }
 
+// Fixed reference date: 2026-07-21 — every mock date is a day offset from
+// this constant (never Date.now()), so seed data doesn't shift day to day.
+const REFERENCE_DATE = new Date(2026, 6, 21);
+
 function makeDate(offsetDays: number) {
-  const d = new Date(2026, 6, 21); // fixed reference: 2026-07-21
+  const d = new Date(REFERENCE_DATE);
   d.setDate(d.getDate() + offsetDays);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+// Spreads order creation dates across three real fiscal years (FY2024-25
+// through FY2026-27) instead of one narrow band, so the Dashboard's FY
+// preset filters actually show different data per FY. SPREAD_START_DATE
+// sits a couple weeks inside FY2024-25 (not right on the Apr 1 boundary) so
+// the oldest orders land unambiguously in that fiscal year.
+const SPREAD_START_DATE = new Date(2024, 3, 15);
+const SPREAD_END_BUFFER_DAYS = 30;
+const TOTAL_SPREAD_DAYS =
+  Math.round((REFERENCE_DATE.getTime() - SPREAD_START_DATE.getTime()) / 86_400_000) - SPREAD_END_BUFFER_DAYS;
 
 const APPROVERS = ["Harsh Vardhan", "Rinku Agarwal", "Priya Sharma"];
 
@@ -103,6 +117,10 @@ function makeCancellationDetails(seed: number, amount: number, effectFromOffset:
 
 export const mockOrders: OrderRecord[] = [];
 
+// Precomputed (not hardcoded) so the spread below stays correct as
+// clients.json grows — mirrors orderCountFor()'s own per-client count.
+const totalOrders = clients.reduce((sum, _client, i) => sum + orderCountFor(i), 0);
+
 let orderIndex = 0;
 let globalSeq = 128;
 let fullyConfirmedCount = 0;
@@ -115,7 +133,11 @@ clients.forEach((client, cliIdx) => {
     const product = PRODUCTS[(cliIdx + k) % PRODUCTS.length];
     const clientManager = client.clientManager;
     const bu = client.bu;
-    const signOffset = -((orderIndex * 7) % 400) - 30;
+    // Linear spread across FY2024-25 -> FY2026-27: orderIndex 0 (earliest
+    // clients) lands nearest the reference date, the last order lands at
+    // SPREAD_START_DATE — see TOTAL_SPREAD_DAYS above.
+    const spreadFrac = totalOrders > 1 ? orderIndex / (totalOrders - 1) : 0;
+    const signOffset = -Math.round(spreadFrac * TOTAL_SPREAD_DAYS) - SPREAD_END_BUFFER_DAYS;
     const createdOffset = signOffset + 3;
     const techState = technicalPattern[orderIndex % technicalPattern.length];
     const techOffset = createdOffset + 10;

@@ -103,7 +103,11 @@ export default function Dashboard({ orders, onNavigate, visibleWidgets }: Dashbo
           ))}
         </select>
         {filters.datePreset === "custom" && (
-          <DateRangePicker value={filters.dateRange} onChange={(r: DateRange) => setFilters((f) => ({ ...f, dateRange: r }))} />
+          <DateRangePicker
+            value={filters.dateRange}
+            onChange={(r: DateRange) => setFilters((f) => ({ ...f, dateRange: r }))}
+            autoOpen
+          />
         )}
 
         <div className="h-5 w-px bg-slate-200" />
@@ -192,7 +196,11 @@ export default function Dashboard({ orders, onNavigate, visibleWidgets }: Dashbo
               </button>
             ))}
             {filters.datePreset === "custom" && (
-              <DateRangePicker value={filters.dateRange} onChange={(r: DateRange) => setFilters((f) => ({ ...f, dateRange: r }))} />
+              <DateRangePicker
+                value={filters.dateRange}
+                onChange={(r: DateRange) => setFilters((f) => ({ ...f, dateRange: r }))}
+                autoOpen
+              />
             )}
           </div>
         )}

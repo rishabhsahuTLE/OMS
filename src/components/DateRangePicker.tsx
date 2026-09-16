@@ -8,6 +8,12 @@ export interface DateRange {
 interface DateRangePickerProps {
   value: DateRange;
   onChange: (range: DateRange) => void;
+  // Opens the calendar popover as soon as this component mounts — for a
+  // consumer that only mounts it once the user has picked "Custom" from a
+  // preset dropdown, so that selection doesn't need a second click to
+  // actually see the calendar. Only affects the initial `open` state, not
+  // later re-renders.
+  autoOpen?: boolean;
 }
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -54,10 +60,10 @@ function buildMonthGrid(year: number, month: number) {
   return cells;
 }
 
-export default function DateRangePicker({ value, onChange }: DateRangePickerProps) {
-  const [open, setOpen] = useState(false);
+export default function DateRangePicker({ value, onChange, autoOpen = false }: DateRangePickerProps) {
+  const [open, setOpen] = useState(autoOpen);
   const [hoverDate, setHoverDate] = useState<Date | null>(null);
-  const [viewDate, setViewDate] = useState(() => value.start ?? new Date(2026, 6, 21));
+  const [viewDate, setViewDate] = useState(() => value.start ?? new Date());
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -110,6 +116,10 @@ export default function DateRangePicker({ value, onChange }: DateRangePickerProp
     setViewDate((d) => new Date(d.getFullYear(), d.getMonth() + offset, 1));
   }
 
+  function goToYear(offset: number) {
+    setViewDate((d) => new Date(d.getFullYear() + offset, d.getMonth(), 1));
+  }
+
   const label =
     value.start && value.end
       ? `${formatShort(value.start)} – ${formatShort(value.end)}`
@@ -149,23 +159,41 @@ export default function DateRangePicker({ value, onChange }: DateRangePickerProp
       {open && (
         <div className="absolute right-0 z-20 mt-2 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
           <div className="mb-2 flex items-center justify-between">
-            <button
-              onClick={() => goToMonth(-1)}
-              className="rounded p-1 text-slate-500 hover:bg-slate-100"
-              aria-label="Previous month"
-            >
-              ‹
-            </button>
+            <div className="flex items-center">
+              <button
+                onClick={() => goToYear(-1)}
+                className="rounded p-1 text-slate-500 hover:bg-slate-100"
+                aria-label="Previous year"
+              >
+                ‹‹
+              </button>
+              <button
+                onClick={() => goToMonth(-1)}
+                className="rounded p-1 text-slate-500 hover:bg-slate-100"
+                aria-label="Previous month"
+              >
+                ‹
+              </button>
+            </div>
             <span className="text-sm font-medium text-slate-800">
               {MONTH_NAMES[viewDate.getMonth()]} {viewDate.getFullYear()}
             </span>
-            <button
-              onClick={() => goToMonth(1)}
-              className="rounded p-1 text-slate-500 hover:bg-slate-100"
-              aria-label="Next month"
-            >
-              ›
-            </button>
+            <div className="flex items-center">
+              <button
+                onClick={() => goToMonth(1)}
+                className="rounded p-1 text-slate-500 hover:bg-slate-100"
+                aria-label="Next month"
+              >
+                ›
+              </button>
+              <button
+                onClick={() => goToYear(1)}
+                className="rounded p-1 text-slate-500 hover:bg-slate-100"
+                aria-label="Next year"
+              >
+                ››
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-7 gap-y-1 text-center text-xs text-slate-400">
