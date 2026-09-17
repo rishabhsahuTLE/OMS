@@ -286,21 +286,29 @@ export function buildClearanceComparison(
 interface TatPair {
   end: string;
   days: number;
+  orderId: string;
 }
 
 const TAT_PAIR_BUILDERS: Record<ApprovalStageKey, (orders: OrderRecord[]) => TatPair[]> = {
   technical: (orders) =>
-    orders.filter((o) => o.technical.date).map((o) => ({ end: o.technical.date as string, days: daysBetween(o.createdOn, o.technical.date as string) })),
+    orders
+      .filter((o) => o.technical.date)
+      .map((o) => ({ end: o.technical.date as string, days: daysBetween(o.createdOn, o.technical.date as string), orderId: o.id })),
   financial: (orders) =>
     orders
       .filter((o) => o.technical.date && o.financial.date)
-      .map((o) => ({ end: o.financial.date as string, days: daysBetween(o.technical.date as string, o.financial.date as string) })),
+      .map((o) => ({
+        end: o.financial.date as string,
+        days: daysBetween(o.technical.date as string, o.financial.date as string),
+        orderId: o.id,
+      })),
   cancellationTechnical: (orders) =>
     orders
       .filter((o) => o.cancellationDetails && o.cancellationTechnical.date)
       .map((o) => ({
         end: o.cancellationTechnical.date as string,
         days: daysBetween(o.cancellationDetails!.effectFromDate, o.cancellationTechnical.date as string),
+        orderId: o.id,
       })),
   cancellationFinancial: (orders) =>
     orders
@@ -308,6 +316,7 @@ const TAT_PAIR_BUILDERS: Record<ApprovalStageKey, (orders: OrderRecord[]) => Tat
       .map((o) => ({
         end: o.cancellationFinancial.date as string,
         days: daysBetween(o.cancellationTechnical.date as string, o.cancellationFinancial.date as string),
+        orderId: o.id,
       })),
 };
 
@@ -376,11 +385,15 @@ export function buildTatStats(orders: OrderRecord[], period: TatPeriod = "month"
 }
 
 // ---------------------------------------------------------------------------
-// Turnaround Time — the 3 headline stats (avg/median full clearance time,
-// orders cleared) alongside buildTatStats' per-stage breakdown above. A
-// "cleared" order is one where both Technical and Financial are confirmed;
-// its clearance time is the full createdOn -> financial.date span, same
-// "decided during period" reading of the period toggle as buildTatStats.
+// Turnaround Time — the 3 headline stats (avg/median/orders cleared) pool
+// the exact same decisions buildTatStats' 4 by-stage rows are built from
+// (every Technical/Financial/Cancellation-Technical/Cancellation-Financial
+// decision in the period, one raw day-count per decision) — a plain mean and
+// median over that one flat list, not an average of the 4 stage averages
+// and *not* a separate "full order lifecycle" span. That's what guarantees
+// AVG CLEARANCE always falls between the fastest and slowest stage shown
+// below it, so the dashed threshold line is directly comparable to every
+// bar instead of some unrelated, larger number.
 // ---------------------------------------------------------------------------
 
 export interface TurnaroundSummary {
@@ -392,16 +405,17 @@ export interface TurnaroundSummary {
 
 export function buildTurnaroundSummary(orders: OrderRecord[], period: TatPeriod): TurnaroundSummary {
   const today = todayISO();
-  const cleared = orders.filter(
-    (o) => o.technical.status === "confirmed" && o.financial.status === "confirmed" && o.financial.date
-  );
-  const inPeriod = period === "all" ? cleared : cleared.filter((o) => periodMatches(o.financial.date as string, period, today));
-  const pool = inPeriod.length > 0 ? inPeriod : cleared;
-  const days = pool.map((o) => daysBetween(o.createdOn, o.financial.date as string)).sort((a, b) => a - b);
+  const allPairs: TatPair[] = (Object.keys(TAT_PAIR_BUILDERS) as ApprovalStageKey[]).flatMap((key) => TAT_PAIR_BUILDERS[key](orders));
+  const periodPairs = period === "all" ? allPairs : allPairs.filter((p) => periodMatches(p.end, period, today));
+  const pool = periodPairs.length > 0 ? periodPairs : allPairs;
+
+  const days = pool.map((p) => p.days).sort((a, b) => a - b);
   const avgClearance = days.length > 0 ? days.reduce((sum, d) => sum + d, 0) / days.length : 0;
   const mid = Math.floor(days.length / 2);
   const median = days.length === 0 ? 0 : days.length % 2 === 1 ? days[mid] : (days[mid - 1] + days[mid]) / 2;
-  return { avgClearance, median, ordersCleared: pool.length, usingFallback: inPeriod.length === 0 && cleared.length > 0 };
+  const ordersCleared = new Set(pool.map((p) => p.orderId)).size;
+
+  return { avgClearance, median, ordersCleared, usingFallback: periodPairs.length === 0 && allPairs.length > 0 };
 }
 
 // ---------------------------------------------------------------------------

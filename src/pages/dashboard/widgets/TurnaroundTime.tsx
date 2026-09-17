@@ -1,20 +1,14 @@
 import { useState } from "react";
 import type { OrderRecord } from "../../../types";
 import { applyStructuralFilters, type DashboardFilters } from "../filters";
-import { buildTatStats, buildTurnaroundSummary, type TatPeriod } from "../shared";
-import { DashboardCard, toneHex, type CardSize } from "../ui";
+import { buildTatStats, buildTurnaroundSummary, STAGE_COLOR, type TatPeriod } from "../shared";
+import { DashboardCard, type CardSize } from "../ui";
 
 const PERIOD_OPTIONS: { key: TatPeriod; label: string }[] = [
   { key: "month", label: "This month" },
   { key: "quarter", label: "Quarter" },
   { key: "all", label: "All time" },
 ];
-
-// A single alert colour for any bar past the average-clearance threshold —
-// deliberately one colour, not one per stage, so "past the line" reads as
-// one consistent signal rather than a second categorical palette.
-const BASE_COLOR = toneHex("indigo");
-const ALERT_COLOR = toneHex("rose");
 
 export default function TurnaroundTime({
   orders,
@@ -80,7 +74,7 @@ export default function TurnaroundTime({
           shifting every row over by one column. */}
       <div className="mt-3 grid gap-y-3" style={{ gridTemplateColumns: "128px 1fr 52px" }}>
         {stats.map((s, i) => {
-          const alert = s.avgDays > summary.avgClearance;
+          const pastAvg = s.avgDays > summary.avgClearance;
           const pct = Math.min(100, (s.avgDays / maxValue) * 100);
           const row = i + 1;
           return (
@@ -89,15 +83,12 @@ export default function TurnaroundTime({
                 {s.label}
               </span>
               <span className="flex items-center" style={{ gridColumn: 2, gridRow: row }}>
-                <span className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                  <span
-                    className="block h-full rounded-full"
-                    style={{ width: `${pct}%`, backgroundColor: alert ? ALERT_COLOR : BASE_COLOR }}
-                  />
+                <span className="h-3 w-full overflow-hidden rounded-sm bg-slate-100">
+                  <span className="block h-full rounded-sm" style={{ width: `${pct}%`, backgroundColor: STAGE_COLOR[s.key] }} />
                 </span>
               </span>
               <span
-                className={`flex items-center justify-end text-sm ${alert ? "font-bold text-rose-600" : "text-slate-500"}`}
+                className={`flex items-center justify-end text-sm ${pastAvg ? "font-bold text-slate-900" : "text-slate-500"}`}
                 style={{ gridColumn: 3, gridRow: row }}
               >
                 {s.avgDays.toFixed(1)}d
