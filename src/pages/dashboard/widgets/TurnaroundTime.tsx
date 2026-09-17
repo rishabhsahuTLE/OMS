@@ -86,8 +86,8 @@ export default function TurnaroundTime({
                 {s.label}
               </span>
               <span className="flex items-center" style={{ gridColumn: 2, gridRow: row }}>
-                <span className="h-3 w-full overflow-hidden bg-slate-100">
-                  <span className="block h-full" style={{ width: `${pct}%`, backgroundColor: STAGE_COLOR[s.key] }} />
+                <span className="h-5 w-full overflow-hidden rounded-sm bg-slate-100">
+                  <span className="block h-full rounded-sm" style={{ width: `${pct}%`, backgroundColor: STAGE_COLOR[s.key] }} />
                 </span>
               </span>
               <span
