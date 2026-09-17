@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { SortDirection, SortState } from "../../utils";
 import { D2 } from "./tokens";
 
@@ -7,6 +8,77 @@ import { D2 } from "./tokens";
 // values from tokens.ts, not the main Dashboard's indigo/slate Tailwind
 // tokens) — kept separate from ./dashboard/ui.tsx on purpose, since that
 // file's whole point is the *other* dashboard's own look.
+
+// ---------------------------------------------------------------------------
+// Hover tooltip — shared by every chart-like element below (Bar, the
+// Revenue in Motion segments, the SVG line chart's points, the SVG donut's
+// slices). None of these are recharts (Dashboard 2 is hand-rolled SVG/div to
+// pixel-match oms-dashboard-reference.html), so none of them get a tooltip
+// for free the way Dashboard 1's recharts-based widgets do — this one small
+// hook + presentational pair is reused everywhere instead of each chart
+// inventing its own.
+// ---------------------------------------------------------------------------
+
+export interface TooltipState {
+  x: number;
+  y: number;
+  label: string;
+  value: string;
+}
+
+export function useChartTooltip() {
+  const [tip, setTip] = useState<TooltipState | null>(null);
+  function show(e: MouseEvent, label: string, value: string) {
+    setTip({ x: e.clientX, y: e.clientY, label, value });
+  }
+  function move(e: MouseEvent) {
+    setTip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : t));
+  }
+  function hide() {
+    setTip(null);
+  }
+  return { tip, show, move, hide };
+}
+
+// A position:fixed div that follows the cursor — styled to read as the same
+// "chart tooltip" idiom as Dashboard 1's recharts Tooltip
+// (contentStyle={{ fontSize: 12, borderRadius: 8 }}) for cross-dashboard
+// consistency even though the implementation is hand-rolled here.
+//
+// Portaled to document.body rather than rendered in place: every chart that
+// uses this sits inside a Section/Panel, and Section/Panel both get a
+// `translate` applied on :hover (see below) for the lift effect — any
+// non-"none" `translate`/`transform` on an ancestor establishes a new
+// containing block for `position: fixed` descendants (CSS spec), which
+// would silently re-anchor this tooltip to that ancestor's box instead of
+// the viewport the instant its parent Panel is also hovered (which it
+// always is, since hover bubbles). Portaling sidesteps that entirely.
+export function ChartTooltip({ tip }: { tip: TooltipState | null }) {
+  if (!tip) return null;
+  return createPortal(
+    <div
+      style={{
+        position: "fixed",
+        left: tip.x + 14,
+        top: tip.y + 14,
+        zIndex: 50,
+        pointerEvents: "none",
+        background: "#fff",
+        border: `1px solid ${D2.border}`,
+        borderRadius: 8,
+        boxShadow: "0 8px 20px rgba(21,36,43,0.18)",
+        padding: "7px 10px",
+        fontSize: 12,
+        color: D2.text,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <div style={{ color: D2.muted, marginBottom: 2 }}>{tip.label}</div>
+      <div style={{ fontWeight: 700 }}>{tip.value}</div>
+    </div>,
+    document.body
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Section — the big colored-left-border card each of the 5 groups renders
@@ -29,7 +101,7 @@ export function Section({
   return (
     <div
       style={{ background: "#fff", border: `1px solid ${D2.border}`, borderRadius: 10, padding: 16 }}
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-3 transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(21,36,43,0.10)]"
     >
       <div
         style={{ borderLeft: `4px solid ${accent}` }}
@@ -69,7 +141,7 @@ export function Panel({ children, className = "" }: { children: ReactNode; class
   return (
     <div
       style={{ background: D2.panelBg, border: `1px solid ${D2.panelBorder}`, borderRadius: 6, padding: "18px 20px" }}
-      className={`flex flex-col gap-3.5 ${className}`}
+      className={`flex flex-col gap-3.5 transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(21,36,43,0.09)] ${className}`}
     >
       {children}
     </div>
@@ -113,6 +185,7 @@ export function StatTile({
         padding: "15px 17px",
         textAlign: "left",
       }}
+      className="transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-[0_8px_18px_rgba(21,36,43,0.09)]"
     >
       <div style={{ fontSize: 14, color: D2.mutedStrong, marginBottom: 7 }}>{label}</div>
       <div style={{ fontSize: 27, fontWeight: 700, lineHeight: 1, color: D2.text, fontVariantNumeric: "tabular-nums" }}>{value}</div>
@@ -299,10 +372,41 @@ export function WaitingPill({ days }: { days: number }) {
 // Projected, Manager forecast share).
 // ---------------------------------------------------------------------------
 
-export function Bar({ pct, color, height = 20 }: { pct: number; color: string; height?: number }) {
+export function Bar({
+  pct,
+  color,
+  height = 20,
+  tooltipLabel,
+  tooltipValue,
+}: {
+  pct: number;
+  color: string;
+  height?: number;
+  // Omit both to keep a Bar non-interactive (e.g. inside an already-hovered
+  // row that has its own tooltip elsewhere) — passing both wires up hover.
+  tooltipLabel?: string;
+  tooltipValue?: string;
+}) {
+  const { tip, show, move, hide } = useChartTooltip();
+  const interactive = tooltipLabel !== undefined && tooltipValue !== undefined;
   return (
-    <div style={{ height, background: "#f0f3f5", borderRadius: 3, overflow: "hidden" }}>
-      <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, height: "100%", background: color, borderRadius: 3 }} />
+    <div
+      style={{ height, background: "#f0f3f5", borderRadius: 3, overflow: "hidden" }}
+      onMouseEnter={interactive ? (e) => show(e, tooltipLabel, tooltipValue) : undefined}
+      onMouseMove={interactive ? move : undefined}
+      onMouseLeave={interactive ? hide : undefined}
+    >
+      <div
+        style={{
+          width: `${Math.min(100, Math.max(0, pct))}%`,
+          height: "100%",
+          background: color,
+          borderRadius: 3,
+          transition: "opacity 120ms ease-out",
+          opacity: interactive && tip ? 0.82 : 1,
+        }}
+      />
+      {interactive && <ChartTooltip tip={tip} />}
     </div>
   );
 }

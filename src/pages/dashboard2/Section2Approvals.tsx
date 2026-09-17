@@ -97,7 +97,7 @@ function PendingByStagePanel({ orders }: { orders: OrderRecord[] }) {
         {data.map((d) => (
           <div key={d.key} style={{ display: "grid", gridTemplateColumns: "minmax(0,150px) minmax(0,1fr) 104px 44px", gap: 12 }} className="items-center">
             <div style={{ fontSize: 14, color: D2.mutedStrong }}>{STUCK_LABEL[d.key]}</div>
-            <Bar pct={d.pct} color={d.color} />
+            <Bar pct={d.pct} color={d.color} tooltipLabel={STUCK_LABEL[d.key]} tooltipValue={`${formatINR(d.revenue)} (${d.pct.toFixed(0)}%)`} />
             <div style={{ fontSize: 14, textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{formatINR(d.revenue)}</div>
             <div style={{ fontSize: 13, textAlign: "right", color: D2.muted, fontVariantNumeric: "tabular-nums" }}>{d.pct.toFixed(0)}%</div>
           </div>
@@ -147,7 +147,12 @@ function TurnaroundPanel({ orders }: { orders: OrderRecord[] }) {
                 {TAT_LABEL[s.key]}
               </span>
               <span style={{ gridColumn: 2, gridRow: row }} className="flex items-center">
-                <Bar pct={pct} color={color} />
+                <Bar
+                  pct={pct}
+                  color={color}
+                  tooltipLabel={TAT_LABEL[s.key]}
+                  tooltipValue={`${s.avgDays.toFixed(1)}d avg${pastAvg ? " — above the overall average" : ""}`}
+                />
               </span>
               <span
                 style={{

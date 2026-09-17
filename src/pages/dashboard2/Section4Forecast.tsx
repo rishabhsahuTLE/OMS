@@ -4,7 +4,19 @@ import { PRODUCT_NAMES } from "../../products";
 import { billsInColumn, buildFiscalYearColumns, toggleSortState, type SortState } from "../../utils";
 import { buildManagerForecast, formatINR, type ForecastQuarter, type ManagerForecastRow, type NavigateFn } from "../dashboard/shared";
 import { D2 } from "./tokens";
-import { Avatar, Bar, EmptyRow, HeaderStat, Panel, PanelHeading, PillTabs, Section, SortableHeader } from "./ui";
+import {
+  Avatar,
+  Bar,
+  ChartTooltip,
+  EmptyRow,
+  HeaderStat,
+  Panel,
+  PanelHeading,
+  PillTabs,
+  Section,
+  SortableHeader,
+  useChartTooltip,
+} from "./ui";
 
 const BU_LEGEND_ORDER = ["Enterprise CEP", "Premiere Inst", "Univ-Ops", "IMPACT", "ENTERPRISE"].filter((bu) =>
   (BUSINESS_UNITS as readonly string[]).includes(bu)
@@ -45,6 +57,9 @@ function RevenueTrendPanel({ orders }: { orders: OrderRecord[] }) {
   const yFor = (v: number) => 236 - (v / maxValue) * (236 - 14);
   const pointsFor = (values: number[]) => values.map((v, i) => `${xFor(i)},${yFor(v).toFixed(1)}`).join(" ");
 
+  const { tip, show, move, hide } = useChartTooltip();
+  const [hoverPoint, setHoverPoint] = useState<{ bu: string; i: number } | null>(null);
+
   return (
     <Panel>
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -67,9 +82,44 @@ function RevenueTrendPanel({ orders }: { orders: OrderRecord[] }) {
               <line key={y} x1={0} y1={y} x2={720} y2={y} stroke={y === 236 ? D2.border : D2.rowDivider} strokeWidth={1} />
             ))}
             {series.map((s) => (
-              <polyline key={s.bu} fill="none" stroke={s.color} strokeWidth={2.5} points={pointsFor(s.values)} />
+              <polyline
+                key={s.bu}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={2.5}
+                opacity={hoverPoint && hoverPoint.bu !== s.bu ? 0.35 : 1}
+                style={{ transition: "opacity 120ms ease-out" }}
+                points={pointsFor(s.values)}
+              />
             ))}
+            {series.map((s) =>
+              s.values.map((v, i) => {
+                const active = hoverPoint?.bu === s.bu && hoverPoint.i === i;
+                return (
+                  <circle
+                    key={`${s.bu}-${i}`}
+                    cx={xFor(i)}
+                    cy={yFor(v)}
+                    r={active ? 4.5 : 8}
+                    fill={active ? s.color : "transparent"}
+                    stroke={active ? "#fff" : "none"}
+                    strokeWidth={active ? 1.5 : 0}
+                    style={{ cursor: "pointer" }}
+                    onMouseEnter={(e) => {
+                      setHoverPoint({ bu: s.bu, i });
+                      show(e, `${s.bu} · ${fyColumns[i].label}`, formatINR(v));
+                    }}
+                    onMouseMove={move}
+                    onMouseLeave={() => {
+                      setHoverPoint(null);
+                      hide();
+                    }}
+                  />
+                );
+              })
+            )}
           </svg>
+          <ChartTooltip tip={tip} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(12,minmax(0,1fr))", fontSize: 11, color: D2.faint, textAlign: "center", marginTop: 4 }}>
             {fyColumns.map((c) => (
               <div key={`${c.year}-${c.month0}`}>{c.label}</div>
@@ -95,6 +145,9 @@ function ProductRevenuePanel({ orders }: { orders: OrderRecord[] }) {
     return { ...m, dashoffset };
   });
 
+  const { tip, show, move, hide } = useChartTooltip();
+  const [hoverSlice, setHoverSlice] = useState<string | null>(null);
+
   return (
     <Panel>
       <PanelHeading title="Product-wise Revenue" subtitle="Share of contracted value" />
@@ -104,20 +157,34 @@ function ProductRevenuePanel({ orders }: { orders: OrderRecord[] }) {
         <>
           <div className="flex justify-center" style={{ padding: "6px 0" }}>
             <svg width="180" height="180" viewBox="0 0 42 42">
-              {slices.map((s) => (
-                <circle
-                  key={s.product}
-                  cx="21"
-                  cy="21"
-                  r="15.9"
-                  fill="transparent"
-                  stroke={s.color}
-                  strokeWidth="7"
-                  strokeDasharray={`${s.pct} ${100 - s.pct}`}
-                  strokeDashoffset={s.dashoffset}
-                />
-              ))}
+              {slices.map((s) => {
+                const active = hoverSlice === s.product;
+                return (
+                  <circle
+                    key={s.product}
+                    cx="21"
+                    cy="21"
+                    r="15.9"
+                    fill="transparent"
+                    stroke={s.color}
+                    strokeWidth={active ? 8.5 : 7}
+                    strokeDasharray={`${s.pct} ${100 - s.pct}`}
+                    strokeDashoffset={s.dashoffset}
+                    style={{ cursor: "pointer", transition: "stroke-width 120ms ease-out", opacity: hoverSlice && !active ? 0.55 : 1 }}
+                    onMouseEnter={(e) => {
+                      setHoverSlice(s.product);
+                      show(e, s.product, `${formatINR(s.revenue)} (${s.pct.toFixed(0)}%)`);
+                    }}
+                    onMouseMove={move}
+                    onMouseLeave={() => {
+                      setHoverSlice(null);
+                      hide();
+                    }}
+                  />
+                );
+              })}
             </svg>
+            <ChartTooltip tip={tip} />
           </div>
           <div className="flex flex-col gap-2.5">
             {slices.map((s) => (
@@ -221,7 +288,13 @@ function ManagerRow({ row, last, onClick }: { row: ManagerForecastRow; last: boo
       <div style={{ fontSize: 15, textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{formatINR(row.forecast)}</div>
       <div className="flex items-center gap-2.5">
         <div style={{ flex: 1 }}>
-          <Bar pct={row.share} color={D2.brand} height={8} />
+          <Bar
+            pct={row.share}
+            color={D2.brand}
+            height={8}
+            tooltipLabel={row.manager}
+            tooltipValue={`${formatINR(row.forecast)} · ${row.orders} order${row.orders === 1 ? "" : "s"} (${row.share.toFixed(0)}%)`}
+          />
         </div>
         <div style={{ fontSize: 13, fontVariantNumeric: "tabular-nums", color: D2.mutedStrong, width: 34, textAlign: "right" }}>
           {row.share.toFixed(0)}%

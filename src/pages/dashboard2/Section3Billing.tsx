@@ -2,7 +2,7 @@ import type { OrderRecord } from "../../types";
 import { billsInColumn, buildFiscalYearColumns, getDisplayStage, isBillingOpenInColumn } from "../../utils";
 import { buildRevenueMotion, formatINR, type NavigateFn } from "../dashboard/shared";
 import { D2 } from "./tokens";
-import { Bar, HeaderStat, Panel, PanelHeading, Section } from "./ui";
+import { Bar, ChartTooltip, HeaderStat, Panel, PanelHeading, Section, useChartTooltip } from "./ui";
 
 export default function Section3Billing({ orders, onNavigate }: { orders: OrderRecord[]; onNavigate: NavigateFn }) {
   const motion = buildRevenueMotion(orders);
@@ -31,13 +31,24 @@ function RevenueInMotionPanel({ motion }: { motion: { active: number; amendmentI
     { label: "Amendment In-flight", value: motion.amendmentInFlight, color: "#4a8fb0" },
     { label: "Cancellation In-flight", value: motion.cancellationInFlight, color: D2.red },
   ];
+  const { tip, show, move, hide } = useChartTooltip();
   return (
     <Panel>
       <PanelHeading title="Revenue in Motion" subtitle="Stable vs. currently in transition" />
       <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", gap: 2 }}>
-        {segments.map((s) => (
-          <div key={s.label} style={{ flex: total > 0 ? s.value : 1, background: s.color }} />
-        ))}
+        {segments.map((s) => {
+          const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
+          return (
+            <div
+              key={s.label}
+              style={{ flex: total > 0 ? s.value : 1, background: s.color, transition: "opacity 120ms ease-out", opacity: tip?.label === s.label ? 0.82 : 1 }}
+              onMouseEnter={(e) => show(e, s.label, `${formatINR(s.value)} (${pct}%)`)}
+              onMouseMove={move}
+              onMouseLeave={hide}
+            />
+          );
+        })}
+        <ChartTooltip tip={tip} />
       </div>
       <div className="flex flex-col gap-2.5">
         {segments.map((s) => (
@@ -127,7 +138,13 @@ function OpenedVsProjectedPanel({ orders }: { orders: OrderRecord[] }) {
         </div>
       </div>
       <div>
-        <Bar pct={pct} color={D2.green} height={10} />
+        <Bar
+          pct={pct}
+          color={D2.green}
+          height={10}
+          tooltipLabel="Opened vs Projected"
+          tooltipValue={`${formatINR(opened)} of ${formatINR(projected)} (${pct.toFixed(1)}%)`}
+        />
         <div style={{ fontSize: 13, color: D2.muted, textAlign: "right", marginTop: 7 }}>{pct.toFixed(1)}% opened</div>
       </div>
     </Panel>
