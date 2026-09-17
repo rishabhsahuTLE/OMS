@@ -4,6 +4,7 @@ import EmpowerTopBar from "./components/EmpowerTopBar";
 import Sidebar from "./components/Sidebar";
 import Configuration from "./pages/Configuration";
 import Dashboard from "./pages/Dashboard";
+import Dashboard2 from "./pages/Dashboard2";
 import Report from "./pages/Report";
 import OrderPage from "./pages/orders/OrderPage";
 import OrderApproval from "./pages/orders/OrderApproval";
@@ -82,6 +83,7 @@ function App() {
                 path="/dashboard"
                 element={<Dashboard orders={orders} onNavigate={handleSelect} visibleWidgets={visibleWidgets} />}
               />
+              <Route path="/dashboard2" element={<Dashboard2 orders={orders} onNavigate={handleSelect} />} />
               <Route
                 path="/configuration"
                 element={<Configuration visibleWidgets={visibleWidgets} onChange={setVisibleWidgets} />}

@@ -1,0 +1,296 @@
+import { useState } from "react";
+import type { OrderRecord } from "../../types";
+import { getDisplayStage, getNextActionableStage, type ApprovalStageKey } from "../../utils";
+import {
+  buildApprovalQueue,
+  buildStuckData,
+  buildTatStats,
+  buildTurnaroundSummary,
+  formatINR,
+  type NavigateFn,
+  type RoleDept,
+  type TatPeriod,
+} from "../dashboard/shared";
+import { D2 } from "./tokens";
+import { Bar, EmptyRow, HeaderStat, Panel, PanelHeading, PillTabs, Section, WaitingPill } from "./ui";
+
+const SHORT_STAGE: Record<ApprovalStageKey, string> = {
+  technical: "Tech",
+  financial: "Fin",
+  cancellationTechnical: "TC",
+  cancellationFinancial: "FC",
+};
+
+const STUCK_LABEL: Record<ApprovalStageKey, string> = {
+  technical: "Technical",
+  financial: "Financial",
+  cancellationFinancial: "Cancellation — Financial",
+  cancellationTechnical: "Cancellation — Technical",
+};
+
+const TAT_LABEL: Record<ApprovalStageKey, string> = {
+  technical: "Technical",
+  financial: "Financial",
+  cancellationTechnical: "Cancellation — Tech",
+  cancellationFinancial: "Cancellation — Fin",
+};
+
+const TAT_PERIOD_OPTIONS: { key: TatPeriod; label: string }[] = [
+  { key: "month", label: "This month" },
+  { key: "quarter", label: "Quarter" },
+  { key: "all", label: "FY" },
+];
+
+export default function Section2Approvals({ orders, onNavigate }: { orders: OrderRecord[]; onNavigate: NavigateFn }) {
+  const pending = orders.filter((o) => {
+    const stage = getDisplayStage(o);
+    return stage === "approvalPending";
+  });
+  const valueHeld = pending.reduce((sum, o) => sum + o.amount, 0);
+
+  const techQueue = buildApprovalQueue(orders, "Tech");
+  const finQueue = buildApprovalQueue(orders, "Finance");
+  const oldest = Math.max(0, ...techQueue.map((q) => q.ageDays), ...finQueue.map((q) => q.ageDays));
+
+  return (
+    <Section
+      accent={D2.red}
+      title="Approvals pending"
+      subtitle={`${pending.length} orders awaiting a technical or financial decision`}
+      right={
+        <div className="flex items-baseline gap-5">
+          <HeaderStat label="Value held" value={formatINR(valueHeld)} />
+          <HeaderStat label="Oldest" value={`${oldest}d`} color={D2.red} />
+        </div>
+      }
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }} className="items-start">
+        <PendingByStagePanel orders={orders} />
+        <TurnaroundPanel orders={orders} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }} className="items-start">
+        <ApprovalQueuePanel
+          title="Technical Approval Queue"
+          subtitle="Technical / Cancellation-Technical decisions pending"
+          dept="Tech"
+          orders={orders}
+          onNavigate={onNavigate}
+        />
+        <ApprovalQueuePanel
+          title="Financial Approval Queue"
+          subtitle="Financial / Cancellation-Financial decisions pending"
+          dept="Finance"
+          orders={orders}
+          onNavigate={onNavigate}
+        />
+      </div>
+    </Section>
+  );
+}
+
+function PendingByStagePanel({ orders }: { orders: OrderRecord[] }) {
+  const data = [...buildStuckData(orders)].sort((a, b) => b.revenue - a.revenue);
+  return (
+    <Panel>
+      <PanelHeading title="Pending Revenue by Approval Stage" subtitle="Which approval each pending order is sitting in, by revenue" />
+      <div className="flex flex-col gap-2.5">
+        {data.map((d) => (
+          <div key={d.key} style={{ display: "grid", gridTemplateColumns: "minmax(0,150px) minmax(0,1fr) 104px 44px", gap: 12 }} className="items-center">
+            <div style={{ fontSize: 14, color: D2.mutedStrong }}>{STUCK_LABEL[d.key]}</div>
+            <Bar pct={d.pct} color={d.color} />
+            <div style={{ fontSize: 14, textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{formatINR(d.revenue)}</div>
+            <div style={{ fontSize: 13, textAlign: "right", color: D2.muted, fontVariantNumeric: "tabular-nums" }}>{d.pct.toFixed(0)}%</div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function TurnaroundPanel({ orders }: { orders: OrderRecord[] }) {
+  const [period, setPeriod] = useState<TatPeriod>("month");
+  const summary = buildTurnaroundSummary(orders, period);
+  const stats = buildTatStats(orders, period);
+  const domainMax = Math.max(1, summary.avgClearance * 2);
+  const avgPct = 50;
+
+  return (
+    <Panel>
+      <div className="flex flex-wrap items-start justify-between gap-3.5">
+        <div style={{ fontSize: 16, fontWeight: 600 }}>Turnaround time</div>
+        <PillTabs options={TAT_PERIOD_OPTIONS} value={period} onChange={setPeriod} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", border: `1px solid ${D2.panelBorder}`, borderRadius: 5, background: D2.panelBg }}>
+        <TatStat label="Avg clearance" value={`${summary.avgClearance.toFixed(1)}`} unit="d" border />
+        <TatStat label="Median" value={`${summary.median.toFixed(1)}`} unit="d" border />
+        <TatStat label="Cleared" value={String(summary.ordersCleared)} />
+      </div>
+
+      <div className="flex items-baseline justify-between">
+        <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>By stage</div>
+        <div className="flex items-center gap-1.5" style={{ fontSize: 12, color: D2.muted }}>
+          <span style={{ display: "inline-block", width: 20, borderTop: `2px dashed ${D2.faint}` }} />
+          Avg {summary.avgClearance.toFixed(1)}d
+        </div>
+      </div>
+
+      <div className="grid gap-y-2" style={{ gridTemplateColumns: "150px minmax(0,1fr) 46px" }}>
+        {stats.map((s, i) => {
+          const pastAvg = s.avgDays > summary.avgClearance;
+          const pct = Math.min(100, (s.avgDays / domainMax) * 100);
+          const row = i + 1;
+          const color = pastAvg ? D2.red : D2.stage[s.key];
+          return (
+            <div key={s.key} className="contents">
+              <span style={{ fontSize: 14, color: D2.mutedStrong, gridColumn: 1, gridRow: row }} className="flex items-center">
+                {TAT_LABEL[s.key]}
+              </span>
+              <span style={{ gridColumn: 2, gridRow: row }} className="flex items-center">
+                <Bar pct={pct} color={color} />
+              </span>
+              <span
+                style={{
+                  fontSize: 14,
+                  textAlign: "right",
+                  fontVariantNumeric: "tabular-nums",
+                  fontWeight: pastAvg ? 600 : 400,
+                  color: pastAvg ? D2.text : D2.mutedStrong,
+                  gridColumn: 3,
+                  gridRow: row,
+                }}
+                className="flex items-center justify-end"
+              >
+                {s.avgDays.toFixed(1)}d
+              </span>
+            </div>
+          );
+        })}
+        <div className="relative" style={{ gridColumn: 2, gridRow: `1 / ${stats.length + 1}` }}>
+          <span
+            className="pointer-events-none absolute inset-y-0"
+            style={{ left: `${avgPct}%`, borderLeft: `2px dashed ${D2.faint}` }}
+          />
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function TatStat({ label, value, unit, border }: { label: string; value: string; unit?: string; border?: boolean }) {
+  return (
+    <div style={{ padding: "11px 14px", borderRight: border ? `1px solid ${D2.panelBorder}` : undefined }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: D2.muted, fontWeight: 600, marginBottom: 4 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+        {value}
+        {unit && <span style={{ fontSize: 13, color: D2.muted }}>{unit}</span>}
+      </div>
+    </div>
+  );
+}
+
+function ApprovalQueuePanel({
+  title,
+  subtitle,
+  dept,
+  orders,
+  onNavigate,
+}: {
+  title: string;
+  subtitle: string;
+  dept: RoleDept;
+  orders: OrderRecord[];
+  onNavigate: NavigateFn;
+}) {
+  const [sort, setSort] = useState<"oldest" | "newest">("oldest");
+  const items = buildApprovalQueue(orders, dept).sort((a, b) => (sort === "oldest" ? b.ageDays - a.ageDays : a.ageDays - b.ageDays));
+  const shown = items.slice(0, 5);
+  const totalHeld = items.reduce((sum, i) => sum + i.amount, 0);
+
+  return (
+    <Panel>
+      <div className="flex flex-wrap items-start justify-between gap-3.5">
+        <PanelHeading title={title} subtitle={subtitle} />
+        <PillTabs
+          options={[
+            { key: "oldest", label: "Oldest" },
+            { key: "newest", label: "Newest" },
+          ]}
+          value={sort}
+          onChange={setSort}
+        />
+      </div>
+
+      <div
+        style={{ display: "grid", gridTemplateColumns: "minmax(0,1.8fr) minmax(0,1fr) 96px 62px", gap: 12, borderBottom: `2px solid ${D2.border}`, paddingBottom: 8 }}
+      >
+        <div style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>Order / Client</div>
+        <div style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>Product / Stage</div>
+        <div style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: D2.muted, fontWeight: 600, textAlign: "right" }}>
+          Order Value
+        </div>
+        <div style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: D2.muted, fontWeight: 600, textAlign: "right" }}>
+          Waiting
+        </div>
+      </div>
+
+      {shown.length === 0 ? (
+        <EmptyRow message={`Nothing waiting in the ${dept} queue right now.`} />
+      ) : (
+        <div className="flex flex-col">
+          {shown.map((item, idx) => {
+            const stageKey = getNextActionableStage(item.order)?.key ?? "technical";
+            return (
+              <button
+                key={item.order.id}
+                type="button"
+                onClick={() => onNavigate("orders", "amendCancel", { stage: getDisplayStage(item.order), q: item.order.orderNo })}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0,1.8fr) minmax(0,1fr) 96px 62px",
+                  gap: 12,
+                  alignItems: "center",
+                  padding: "11px 0",
+                  borderBottom: idx === shown.length - 1 ? "none" : `1px solid ${D2.rowDivider}`,
+                  textAlign: "left",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap" }}>{item.order.orderNo}</div>
+                  <div style={{ fontSize: 13, color: D2.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {item.order.client}
+                  </div>
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: D2.mutedStrong, whiteSpace: "nowrap" }}>{item.order.product}</div>
+                  <div style={{ fontSize: 12, color: D2.faint, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {SHORT_STAGE[stageKey]} approval
+                  </div>
+                </div>
+                <div style={{ fontSize: 14, textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{formatINR(item.amount)}</div>
+                <div style={{ textAlign: "right" }}>
+                  <WaitingPill days={item.ageDays} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-3" style={{ paddingTop: 4 }}>
+        <div style={{ fontSize: 13, color: D2.muted }}>
+          Showing {shown.length} of {items.length} · {formatINR(totalHeld)} held
+        </div>
+        <button
+          type="button"
+          onClick={() => onNavigate("orders", "amendCancel")}
+          style={{ fontSize: 13, fontWeight: 600, color: D2.link }}
+        >
+          View all {items.length} →
+        </button>
+      </div>
+    </Panel>
+  );
+}

@@ -45,6 +45,14 @@ function DashboardIcon() {
   );
 }
 
+function Dashboard2Icon() {
+  return (
+    <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <path d="M3 15V9m5 6V5m5 10v-4m5 4V7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function ReportIcon() {
   return (
     <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -117,6 +125,20 @@ export default function Sidebar({
         >
           <DashboardIcon />
           {expanded && <span className="whitespace-nowrap">Dashboard</span>}
+        </button>
+
+        <button
+          onClick={() => onSelect("dashboard2")}
+          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            !expanded ? "justify-center" : ""
+          } ${
+            activeTab === "dashboard2"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-300 hover:bg-slate-800 hover:text-white"
+          }`}
+        >
+          <Dashboard2Icon />
+          {expanded && <span className="whitespace-nowrap">Dashboard 2</span>}
         </button>
 
         <button
