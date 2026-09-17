@@ -1,6 +1,14 @@
 import { ResponsiveContainer, Pie, PieChart, Cell, Tooltip } from "recharts";
 import type { MainTabId, OrderRecord, OrdersSubTabId, ReportSubTabId } from "../../types";
-import { daysBetween, getDisplayStage, getNextActionableStage, todayISO, type ApprovalStageKey } from "../../utils";
+import {
+  billsInColumn,
+  buildFiscalYearColumns,
+  daysBetween,
+  getDisplayStage,
+  getNextActionableStage,
+  todayISO,
+  type ApprovalStageKey,
+} from "../../utils";
 import type { Tone } from "./ui";
 
 // Domain calculations shared by the widget components in ./widgets — this
@@ -305,8 +313,8 @@ const TAT_PAIR_BUILDERS: Record<ApprovalStageKey, (orders: OrderRecord[]) => Tat
 
 // Mock data is generated from a fixed reference date (see mockOrders.ts), so
 // a stage can easily have zero decisions landing in the real current
-// calendar month — this falls back to that stage's all-time average, and
-// (if there's no history at all) to an illustrative figure, flagged via
+// calendar month/quarter — this falls back to that stage's all-time average,
+// and (if there's no history at all) to an illustrative figure, flagged via
 // `usingFallback`.
 const TAT_MOCK_FALLBACK: Record<ApprovalStageKey, number> = {
   technical: 3.2,
@@ -315,9 +323,27 @@ const TAT_MOCK_FALLBACK: Record<ApprovalStageKey, number> = {
   cancellationFinancial: 3.6,
 };
 
-function monthKeyOf(iso: string): number {
+// The Turnaround Time widget's own in-card period toggle (This month /
+// Quarter / All time) — independent of the dashboard's global Date filter,
+// same as e.g. Billing.tsx's fiscal columns always running off the real
+// current date rather than a filterable range.
+export type TatPeriod = "month" | "quarter" | "all";
+
+// Standard Indian fiscal year quarters (Apr-Jun, Jul-Sep, Oct-Dec, Jan-Mar),
+// collapsed into one comparable integer so two ISO dates can be checked for
+// "same fiscal quarter" with a single equality check.
+function fiscalQuarterIndex(iso: string): number {
   const [y, m] = iso.split("-").map(Number);
-  return y * 12 + (m - 1);
+  const month0 = m - 1;
+  const fyStartYear = month0 >= 3 ? y : y - 1;
+  const q = Math.floor(((month0 + 9) % 12) / 3);
+  return fyStartYear * 4 + q;
+}
+
+function periodMatches(iso: string, period: TatPeriod, referenceIso: string): boolean {
+  if (period === "all") return true;
+  if (period === "month") return iso.slice(0, 7) === referenceIso.slice(0, 7);
+  return fiscalQuarterIndex(iso) === fiscalQuarterIndex(referenceIso);
 }
 
 function avgDays(rows: TatPair[]): number | null {
@@ -332,22 +358,50 @@ export interface TatStat {
   usingFallback: boolean;
 }
 
-export function buildTatStats(orders: OrderRecord[]): TatStat[] {
-  const now = new Date();
-  const thisMonthKey = now.getFullYear() * 12 + now.getMonth();
+export function buildTatStats(orders: OrderRecord[], period: TatPeriod = "month"): TatStat[] {
+  const today = todayISO();
   return (Object.keys(TAT_PAIR_BUILDERS) as ApprovalStageKey[]).map((key) => {
     const pairs = TAT_PAIR_BUILDERS[key](orders);
-    const thisMonthPairs = pairs.filter((p) => monthKeyOf(p.end) === thisMonthKey);
-    const thisAvg = avgDays(thisMonthPairs);
+    const periodPairs = period === "all" ? pairs : pairs.filter((p) => periodMatches(p.end, period, today));
+    const periodAvg = avgDays(periodPairs);
     const allAvg = avgDays(pairs);
     return {
       key,
       label: STAGE_LABEL[key],
-      avgDays: thisAvg ?? allAvg ?? TAT_MOCK_FALLBACK[key],
-      sampleCount: thisMonthPairs.length > 0 ? thisMonthPairs.length : pairs.length,
-      usingFallback: thisAvg == null,
+      avgDays: periodAvg ?? allAvg ?? TAT_MOCK_FALLBACK[key],
+      sampleCount: periodPairs.length > 0 ? periodPairs.length : pairs.length,
+      usingFallback: periodAvg == null,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Turnaround Time — the 3 headline stats (avg/median full clearance time,
+// orders cleared) alongside buildTatStats' per-stage breakdown above. A
+// "cleared" order is one where both Technical and Financial are confirmed;
+// its clearance time is the full createdOn -> financial.date span, same
+// "decided during period" reading of the period toggle as buildTatStats.
+// ---------------------------------------------------------------------------
+
+export interface TurnaroundSummary {
+  avgClearance: number;
+  median: number;
+  ordersCleared: number;
+  usingFallback: boolean;
+}
+
+export function buildTurnaroundSummary(orders: OrderRecord[], period: TatPeriod): TurnaroundSummary {
+  const today = todayISO();
+  const cleared = orders.filter(
+    (o) => o.technical.status === "confirmed" && o.financial.status === "confirmed" && o.financial.date
+  );
+  const inPeriod = period === "all" ? cleared : cleared.filter((o) => periodMatches(o.financial.date as string, period, today));
+  const pool = inPeriod.length > 0 ? inPeriod : cleared;
+  const days = pool.map((o) => daysBetween(o.createdOn, o.financial.date as string)).sort((a, b) => a - b);
+  const avgClearance = days.length > 0 ? days.reduce((sum, d) => sum + d, 0) / days.length : 0;
+  const mid = Math.floor(days.length / 2);
+  const median = days.length === 0 ? 0 : days.length % 2 === 1 ? days[mid] : (days[mid - 1] + days[mid]) / 2;
+  return { avgClearance, median, ordersCleared: pool.length, usingFallback: inPeriod.length === 0 && cleared.length > 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -463,22 +517,43 @@ export function buildRevenueMotion(orders: OrderRecord[]): RevenueMotionStats {
 }
 
 // ---------------------------------------------------------------------------
-// My Pipeline (BD only)
+// Manager Forecast — projected (contracted) revenue from open orders, one
+// row per manager. "All" is every open order's full amount; Q3/Q4 narrow to
+// orders that actually bill an occurrence in that fiscal quarter (this
+// fiscal year's Oct-Dec / Jan-Mar), via the same billsInColumn() Billing.tsx
+// itself uses — an order counts once at its full contracted amount if it
+// bills in *any* month of that quarter, not per-month.
 // ---------------------------------------------------------------------------
 
-export interface PipelineStats {
-  active: number;
-  pending: number;
-  total: number;
+export type ForecastQuarter = "all" | "q3" | "q4";
+
+export interface ManagerForecastRow {
+  manager: string;
+  orders: number;
+  forecast: number;
+  share: number;
 }
 
-export function buildPipelineStats(orders: OrderRecord[]): PipelineStats {
-  let pending = 0;
-  let active = 0;
-  orders.forEach((o) => {
-    const stage = getDisplayStage(o);
-    if (stage === "active" || stage === "agreementOver") active += o.amount;
-    else if (stage !== "closed") pending += o.amount;
+export function buildManagerForecast(orders: OrderRecord[], quarter: ForecastQuarter): { rows: ManagerForecastRow[]; total: number } {
+  const open = orders.filter((o) => o.lifecycleStatus !== "cancelled");
+  const fyColumns = buildFiscalYearColumns(new Date());
+  const quarterCols = quarter === "q3" ? fyColumns.slice(6, 9) : quarter === "q4" ? fyColumns.slice(9, 12) : null;
+  const scoped = quarterCols ? open.filter((o) => quarterCols.some((c) => billsInColumn(o, c))) : open;
+
+  const byManager = new Map<string, { orders: number; forecast: number }>();
+  scoped.forEach((o) => {
+    const cur = byManager.get(o.clientManager) ?? { orders: 0, forecast: 0 };
+    cur.orders += 1;
+    cur.forecast += o.amount;
+    byManager.set(o.clientManager, cur);
   });
-  return { pending, active, total: pending + active };
+
+  const total = scoped.reduce((sum, o) => sum + o.amount, 0);
+  const rows: ManagerForecastRow[] = Array.from(byManager.entries()).map(([manager, v]) => ({
+    manager,
+    orders: v.orders,
+    forecast: v.forecast,
+    share: total > 0 ? (v.forecast / total) * 100 : 0,
+  }));
+  return { rows, total };
 }

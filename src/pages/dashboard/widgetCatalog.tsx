@@ -9,14 +9,12 @@ import ClearanceStats from "./widgets/ClearanceStats";
 import ManagerRevenue from "./widgets/ManagerRevenue";
 import OpenedVsProjected from "./widgets/OpenedVsProjected";
 import OrdersStuck from "./widgets/OrdersStuck";
-import OutstandingBalance from "./widgets/OutstandingBalance";
-import PipelineOverview from "./widgets/PipelineOverview";
 import ProductRevenue from "./widgets/ProductRevenue";
 import RejectedNeedsFix from "./widgets/RejectedNeedsFix";
 import RevenueInMotion from "./widgets/RevenueInMotion";
 import RevenueTrend from "./widgets/RevenueTrend";
 import StageDistribution from "./widgets/StageDistribution";
-import TatThisMonth from "./widgets/TatThisMonth";
+import TurnaroundTime from "./widgets/TurnaroundTime";
 
 // The single source of truth for "what widgets exist" — the Configuration
 // page renders its checklist from this list, and Dashboard.tsx renders the
@@ -28,13 +26,11 @@ export type WidgetKey =
   | "stageDistribution"
   | "ordersStuck"
   | "productRevenue"
-  | "tat"
+  | "turnaroundTime"
   | "billingActionsDue"
-  | "outstandingBalance"
   | "revenueInMotion"
   | "openedVsProjected"
   | "clearanceStats"
-  | "pipelineOverview"
   | "approvalQueueTech"
   | "approvalQueueFinance"
   | "managerRevenue"
@@ -104,16 +100,10 @@ export const WIDGET_CATALOG: WidgetDef[] = [
     render: (p) => <BillingActionsDue orders={p.orders} filters={p.filters} onNavigate={p.onNavigate} />,
   },
   {
-    key: "tat",
-    label: "TAT — This Month",
+    key: "turnaroundTime",
+    label: "Turnaround Time",
     tier: "full",
-    render: (p) => <TatThisMonth orders={p.orders} filters={p.filters} />,
-  },
-  {
-    key: "outstandingBalance",
-    label: "Outstanding Balance (To Close)",
-    tier: "statSmall",
-    render: (p) => <OutstandingBalance orders={p.orders} filters={p.filters} />,
+    render: (p) => <TurnaroundTime orders={p.orders} filters={p.filters} />,
   },
   {
     key: "revenueInMotion",
@@ -134,12 +124,6 @@ export const WIDGET_CATALOG: WidgetDef[] = [
     render: (p) => <ClearanceStats orders={p.orders} filters={p.filters} />,
   },
   {
-    key: "pipelineOverview",
-    label: "Pipeline Overview",
-    tier: "statMedium",
-    render: (p) => <PipelineOverview orders={p.orders} filters={p.filters} />,
-  },
-  {
     key: "approvalQueueTech",
     label: "Technical Approval Queue",
     tier: "queue",
@@ -153,7 +137,7 @@ export const WIDGET_CATALOG: WidgetDef[] = [
   },
   {
     key: "managerRevenue",
-    label: "Manager-wise Revenue",
+    label: "Manager Forecast",
     tier: "full",
     render: (p) => <ManagerRevenue orders={p.orders} filters={p.filters} onNavigate={p.onNavigate} />,
   },
