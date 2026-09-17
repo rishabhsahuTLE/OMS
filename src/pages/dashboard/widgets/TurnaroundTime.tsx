@@ -25,10 +25,13 @@ export default function TurnaroundTime({
   const stats = buildTatStats(scoped, period);
   const usingFallback = summary.usingFallback || stats.some((s) => s.usingFallback);
 
-  // Same scale for the by-stage bars and the avg-clearance threshold line,
-  // so the dashed marker's position is directly comparable to every bar.
-  const maxValue = Math.max(1, summary.avgClearance, ...stats.map((s) => s.avgDays));
-  const avgPct = Math.min(100, (summary.avgClearance / maxValue) * 100);
+  // The domain is pinned at 2x the average, not the longest bar, so the
+  // dashed avg-clearance line always sits at a fixed 50% — dead centre —
+  // regardless of what the data happens to be; a stage bar longer than
+  // twice the average just clips at the right edge instead of pushing the
+  // line (and every other bar) off-centre.
+  const domainMax = Math.max(1, summary.avgClearance * 2);
+  const avgPct = 50;
 
   return (
     <DashboardCard
@@ -75,7 +78,7 @@ export default function TurnaroundTime({
       <div className="mt-3 grid gap-y-3" style={{ gridTemplateColumns: "128px 1fr 52px" }}>
         {stats.map((s, i) => {
           const pastAvg = s.avgDays > summary.avgClearance;
-          const pct = Math.min(100, (s.avgDays / maxValue) * 100);
+          const pct = Math.min(100, (s.avgDays / domainMax) * 100);
           const row = i + 1;
           return (
             <div key={s.key} className="contents">
@@ -83,8 +86,8 @@ export default function TurnaroundTime({
                 {s.label}
               </span>
               <span className="flex items-center" style={{ gridColumn: 2, gridRow: row }}>
-                <span className="h-3 w-full overflow-hidden rounded-sm bg-slate-100">
-                  <span className="block h-full rounded-sm" style={{ width: `${pct}%`, backgroundColor: STAGE_COLOR[s.key] }} />
+                <span className="h-3 w-full overflow-hidden bg-slate-100">
+                  <span className="block h-full" style={{ width: `${pct}%`, backgroundColor: STAGE_COLOR[s.key] }} />
                 </span>
               </span>
               <span
