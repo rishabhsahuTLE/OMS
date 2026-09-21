@@ -41,7 +41,7 @@ const TAT_PERIOD_OPTIONS: { key: TatPeriod; label: string }[] = [
   { key: "all", label: "FY" },
 ];
 
-export default function Section2Approvals({ orders, onNavigate }: { orders: OrderRecord[]; onNavigate: NavigateFn }) {
+export default function Section3Approvals({ orders, onNavigate }: { orders: OrderRecord[]; onNavigate: NavigateFn }) {
   const pending = orders.filter((o) => {
     const stage = getDisplayStage(o);
     return stage === "approvalPending";
@@ -55,7 +55,7 @@ export default function Section2Approvals({ orders, onNavigate }: { orders: Orde
   return (
     <Section
       accent={D2.red}
-      title="Approvals pending"
+      title="Approvals"
       subtitle={`${pending.length} orders awaiting a technical or financial decision`}
       right={
         <div className="flex items-baseline gap-5">
@@ -92,7 +92,10 @@ function PendingByStagePanel({ orders }: { orders: OrderRecord[] }) {
   const data = [...buildStuckData(orders)].sort((a, b) => b.revenue - a.revenue);
   return (
     <Panel>
-      <PanelHeading title="Pending Revenue by Approval Stage" subtitle="Which approval each pending order is sitting in, by revenue" />
+      <PanelHeading
+        title="Approvals at Pending Stage Distribution (by Revenue)"
+        subtitle="Which approval each pending order is sitting in, by revenue"
+      />
       <div className="flex flex-col gap-2.5">
         {data.map((d) => (
           <div key={d.key} style={{ display: "grid", gridTemplateColumns: "minmax(0,150px) minmax(0,1fr) 104px 44px", gap: 12 }} className="items-center">

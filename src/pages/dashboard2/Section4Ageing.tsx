@@ -21,7 +21,7 @@ function shortStageLabel(r: StageAgeInfo): string {
 type SortKey = "order" | "client" | "stage" | "value" | "age";
 const COLUMNS = "150px minmax(0,1fr) minmax(0,190px) 130px 110px";
 
-export default function Section5Ageing({ orders, onNavigate }: { orders: OrderRecord[]; onNavigate: NavigateFn }) {
+export default function Section4Ageing({ orders, onNavigate }: { orders: OrderRecord[]; onNavigate: NavigateFn }) {
   const [sort, setSort] = useState<SortState<SortKey>>({ key: "age", direction: "desc" });
   const rows = useMemo(() => buildAgeRows(orders), [orders]);
   const oldest = Math.max(0, ...rows.map((r) => r.ageDays));

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { BUSINESS_UNITS, type OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
-import { billsInColumn, buildFiscalYearColumns, toggleSortState, type SortState } from "../../utils";
-import { buildManagerForecast, formatINR, type ForecastQuarter, type ManagerForecastRow, type NavigateFn } from "../dashboard/shared";
+import { billsInColumn, buildFiscalYearColumns, getDisplayStage, isBillingOpenInColumn, toggleSortState, type SortState } from "../../utils";
+import { buildManagerForecast, buildRevenueMotion, formatINR, type ForecastQuarter, type ManagerForecastRow, type NavigateFn } from "../dashboard/shared";
 import { D2 } from "./tokens";
 import {
   Avatar,
@@ -22,23 +22,162 @@ const BU_LEGEND_ORDER = ["Enterprise CEP", "Premiere Inst", "Univ-Ops", "IMPACT"
   (BUSINESS_UNITS as readonly string[]).includes(bu)
 );
 
-export default function Section4Forecast({ orders, onNavigate }: { orders: OrderRecord[]; onNavigate: NavigateFn }) {
+export default function Section2OrderAndBilling({ orders, onNavigate }: { orders: OrderRecord[]; onNavigate: NavigateFn }) {
+  const motion = buildRevenueMotion(orders);
+  const revenueInMotion = motion.active + motion.amendmentInFlight + motion.cancellationInFlight;
   const open = orders.filter((o) => o.lifecycleStatus !== "cancelled");
   const totalForecast = open.reduce((sum, o) => sum + o.amount, 0);
 
   return (
     <Section
-      accent={D2.link}
-      title="Revenue and forecast"
-      subtitle="Projected revenue by manager, product and business unit"
-      right={<HeaderStat label="Total forecast" value={formatINR(totalForecast)} />}
+      accent={D2.green}
+      title="Order and Billing"
+      subtitle="Live contracts, billing actions and revenue forecast by manager, product and business unit"
+      right={
+        <div className="flex items-baseline gap-5">
+          <HeaderStat label="Revenue in motion" value={formatINR(revenueInMotion)} />
+          <HeaderStat label="Total forecast" value={formatINR(totalForecast)} />
+        </div>
+      }
     >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 }} className="items-start">
+        <RevenueInMotionPanel motion={motion} />
+        <BillingActionsPanel orders={orders} onNavigate={onNavigate} />
+        <OpenedVsProjectedPanel orders={orders} />
+      </div>
       <RevenueTrendPanel orders={open} />
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,2fr)", gap: 12 }} className="items-start">
         <ProductRevenuePanel orders={open} />
         <ManagerForecastPanel orders={orders} onNavigate={onNavigate} />
       </div>
     </Section>
+  );
+}
+
+function RevenueInMotionPanel({ motion }: { motion: { active: number; amendmentInFlight: number; cancellationInFlight: number } }) {
+  const total = motion.active + motion.amendmentInFlight + motion.cancellationInFlight;
+  const segments = [
+    { label: "Active Revenue", value: motion.active, color: D2.green },
+    { label: "Amendment In-flight", value: motion.amendmentInFlight, color: "#4a8fb0" },
+    { label: "Cancellation In-flight", value: motion.cancellationInFlight, color: D2.red },
+  ];
+  const { tip, show, move, hide } = useChartTooltip();
+  return (
+    <Panel>
+      <PanelHeading title="Revenue in Motion" subtitle="Stable vs. currently in transition" />
+      <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", gap: 2 }}>
+        {segments.map((s) => {
+          const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
+          return (
+            <div
+              key={s.label}
+              style={{ flex: total > 0 ? s.value : 1, background: s.color, transition: "opacity 120ms ease-out", opacity: tip?.label === s.label ? 0.82 : 1 }}
+              onMouseEnter={(e) => show(e, s.label, `${formatINR(s.value)} (${pct}%)`)}
+              onMouseMove={move}
+              onMouseLeave={hide}
+            />
+          );
+        })}
+        <ChartTooltip tip={tip} />
+      </div>
+      <div className="flex flex-col gap-2.5">
+        {segments.map((s) => (
+          <div key={s.label} style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr) 118px", gap: 10 }} className="items-center">
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: s.color }} />
+            <div style={{ fontSize: 14, color: D2.mutedStrong }}>{s.label}</div>
+            <div style={{ fontSize: 14, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+              <span style={{ fontWeight: 600 }}>{formatINR(s.value)}</span>{" "}
+              <span style={{ color: D2.muted, fontSize: 13 }}>{total > 0 ? Math.round((s.value / total) * 100) : 0}%</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function BillingActionsPanel({ orders, onNavigate }: { orders: OrderRecord[]; onNavigate: NavigateFn }) {
+  const toOpen = orders.filter((o) => getDisplayStage(o) === "toOpen");
+  const toAmend = orders.filter((o) => getDisplayStage(o) === "toAmend");
+  const toClose = orders.filter((o) => o.lifecycleStatus === "cancelled" && o.billingStatus === "open");
+  const amount = [...toOpen, ...toAmend, ...toClose].reduce((sum, o) => sum + o.amount, 0);
+  const rows = [
+    { label: "To Open", count: toOpen.length },
+    { label: "To Amend", count: toAmend.length },
+    { label: "To Close", count: toClose.length },
+  ];
+
+  return (
+    <Panel className="justify-between">
+      <div className="flex flex-col gap-3.5">
+        <PanelHeading title="Billing Actions Due" subtitle="Orders waiting on a billing action" />
+        <div className="flex flex-col">
+          {rows.map((r, i) => (
+            <div
+              key={r.label}
+              className="flex items-center justify-between gap-3"
+              style={{ padding: "10px 0", borderBottom: i === rows.length - 1 ? "none" : `1px solid ${D2.rowDivider}` }}
+            >
+              <div style={{ fontSize: 14, color: D2.mutedStrong }}>{r.label}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{r.count}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-auto flex flex-col gap-2.5">
+        <div style={{ fontSize: 13, color: D2.muted }}>{formatINR(amount)} contracted value pending action</div>
+        <button
+          type="button"
+          onClick={() => onNavigate("orders", "closeBilling")}
+          style={{ fontSize: 13, fontWeight: 600, color: "#fff", background: D2.brand, borderRadius: 5, padding: "9px 14px" }}
+        >
+          Close Billing
+        </button>
+      </div>
+    </Panel>
+  );
+}
+
+function OpenedVsProjectedPanel({ orders }: { orders: OrderRecord[] }) {
+  const scoped = orders.filter((o) => o.lifecycleStatus !== "cancelled");
+  const fyColumns = buildFiscalYearColumns(new Date());
+  let projected = 0;
+  let opened = 0;
+  fyColumns.forEach((col) => {
+    scoped.forEach((o) => {
+      if (!billsInColumn(o, col)) return;
+      projected += o.amount;
+      if (isBillingOpenInColumn(o, col)) opened += o.amount;
+    });
+  });
+  const pct = projected > 0 ? Math.min(100, (opened / projected) * 100) : 0;
+
+  return (
+    <Panel>
+      <PanelHeading title="Revenue — Opened vs Projected" subtitle={`FY ${fyColumns[0].year}–${fyColumns[11].year}`} />
+      <div className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>Opened</div>
+          <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{formatINR(opened)}</div>
+        </div>
+        <div className="flex items-baseline justify-between gap-3">
+          <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>
+            Projected (full FY)
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{formatINR(projected)}</div>
+        </div>
+      </div>
+      <div>
+        <Bar
+          pct={pct}
+          color={D2.green}
+          height={10}
+          tooltipLabel="Opened vs Projected"
+          tooltipValue={`${formatINR(opened)} of ${formatINR(projected)} (${pct.toFixed(1)}%)`}
+        />
+        <div style={{ fontSize: 13, color: D2.muted, textAlign: "right", marginTop: 7 }}>{pct.toFixed(1)}% opened</div>
+      </div>
+    </Panel>
   );
 }
 

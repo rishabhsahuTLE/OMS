@@ -4,10 +4,9 @@ import { PRODUCT_NAMES } from "../products";
 import { todayISO } from "../utils";
 import DateRangePicker, { type DateRange } from "../components/DateRangePicker";
 import Section1StageDistribution from "./dashboard2/Section1StageDistribution";
-import Section2Approvals from "./dashboard2/Section2Approvals";
-import Section3Billing from "./dashboard2/Section3Billing";
-import Section4Forecast from "./dashboard2/Section4Forecast";
-import Section5Ageing from "./dashboard2/Section5Ageing";
+import Section2OrderAndBilling from "./dashboard2/Section2OrderAndBilling";
+import Section3Approvals from "./dashboard2/Section3Approvals";
+import Section4Ageing from "./dashboard2/Section4Ageing";
 import { D2, D2_FONT } from "./dashboard2/tokens";
 import {
   applyStructuralFilters,
@@ -131,10 +130,9 @@ export default function Dashboard2({ orders, onNavigate }: { orders: OrderRecord
 
       <div className="flex flex-col" style={{ gap: 34, paddingTop: 14 }}>
         <Section1StageDistribution orders={scoped} onNavigate={onNavigate} />
-        <Section2Approvals orders={scoped} onNavigate={onNavigate} />
-        <Section3Billing orders={scoped} onNavigate={onNavigate} />
-        <Section4Forecast orders={scoped} onNavigate={onNavigate} />
-        <Section5Ageing orders={scoped} onNavigate={onNavigate} />
+        <Section2OrderAndBilling orders={scoped} onNavigate={onNavigate} />
+        <Section3Approvals orders={scoped} onNavigate={onNavigate} />
+        <Section4Ageing orders={scoped} onNavigate={onNavigate} />
       </div>
     </div>
   );
