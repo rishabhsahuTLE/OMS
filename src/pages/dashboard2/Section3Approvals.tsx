@@ -150,12 +150,14 @@ function TurnaroundPanel({ orders }: { orders: OrderRecord[] }) {
                 {TAT_LABEL[s.key]}
               </span>
               <span style={{ gridColumn: 2, gridRow: row }} className="flex items-center">
-                <Bar
-                  pct={pct}
-                  color={color}
-                  tooltipLabel={TAT_LABEL[s.key]}
-                  tooltipValue={`${s.avgDays.toFixed(1)}d avg${pastAvg ? " — above the overall average" : ""}`}
-                />
+                <div style={{ flex: 1 }}>
+                  <Bar
+                    pct={pct}
+                    color={color}
+                    tooltipLabel={TAT_LABEL[s.key]}
+                    tooltipValue={`${s.avgDays.toFixed(1)}d avg${pastAvg ? " — above the overall average" : ""}`}
+                  />
+                </div>
               </span>
               <span
                 style={{

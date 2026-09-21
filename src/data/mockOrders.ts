@@ -326,3 +326,34 @@ if (activeOrdersForAmendment[0]) {
 if (activeOrdersForAmendment[1]) {
   mockOrders.push(makeAmendmentSuccessor(activeOrdersForAmendment[1], 2, "toAmend"));
 }
+
+// --- Recent already-open order for the default Dashboard 2 FY view --------
+// Runs after the amendment pair above so it can't shift which order becomes
+// activeOrdersForAmendment[0]/[1]. Dashboard 2's default filter is FY2026-27
+// (createdOn between 2026-04-01 and 2027-03-31, matching REFERENCE_DATE's own
+// fiscal year), but every order the main loop created within that window
+// happens to land in bucket 0 (Tech+Fin confirmed, awaiting Finance to open
+// billing) — so "Revenue — Opened vs Projected" would always show
+// Opened = ₹0 under that default filter. Promote the earliest such order to
+// already-open billing (mirroring bucket 1's own field assignments above) so
+// the panel has a real, in-window opened order to sum.
+function addDays(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+const recentReadyForBilling = mockOrders.find(
+  (o) =>
+    o.createdOn >= "2026-04-01" &&
+    o.createdOn <= "2027-03-31" &&
+    o.technical.status === "confirmed" &&
+    o.financial.status === "confirmed" &&
+    o.lifecycleStatus === "inactive"
+);
+if (recentReadyForBilling && recentReadyForBilling.financial.date) {
+  recentReadyForBilling.lifecycleStatus = "active";
+  recentReadyForBilling.billingStatus = "open";
+  recentReadyForBilling.billingOpenedOn = addDays(recentReadyForBilling.financial.date, 3);
+}
