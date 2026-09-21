@@ -369,17 +369,35 @@ export interface TatStat {
 
 export function buildTatStats(orders: OrderRecord[], period: TatPeriod = "month"): TatStat[] {
   const today = todayISO();
-  return (Object.keys(TAT_PAIR_BUILDERS) as ApprovalStageKey[]).map((key) => {
-    const pairs = TAT_PAIR_BUILDERS[key](orders);
+  const byStage = (Object.keys(TAT_PAIR_BUILDERS) as ApprovalStageKey[]).map((key) => ({
+    key,
+    pairs: TAT_PAIR_BUILDERS[key](orders),
+  }));
+  // Gated at the whole cross-stage pool, same as buildTurnaroundSummary's own
+  // fallback gate — so the average line and every bar are always built from
+  // the same population. Falling back per stage independently (the old
+  // behaviour) let one stage silently substitute an unrelated all-time
+  // figure while the average stayed period-only, breaking the invariant
+  // below that the average always falls between the fastest/slowest bar.
+  const allPairs = byStage.flatMap((s) => s.pairs);
+  const periodPairsAll = period === "all" ? allPairs : allPairs.filter((p) => periodMatches(p.end, period, today));
+  const poolEmpty = periodPairsAll.length === 0;
+
+  return byStage.map(({ key, pairs }) => {
     const periodPairs = period === "all" ? pairs : pairs.filter((p) => periodMatches(p.end, period, today));
-    const periodAvg = avgDays(periodPairs);
-    const allAvg = avgDays(pairs);
+    // Pool has period data somewhere: use this stage's period pairs even if
+    // that's empty for this one stage (an honest "no decisions this period"
+    // reads as 0, not a mismatched all-time number). Pool is entirely empty:
+    // fall back to this stage's own all-time pairs, then the illustrative
+    // constant if there's no history at all.
+    const usablePairs = poolEmpty ? pairs : periodPairs;
+    const avg = avgDays(usablePairs);
     return {
       key,
       label: STAGE_LABEL[key],
-      avgDays: periodAvg ?? allAvg ?? TAT_MOCK_FALLBACK[key],
-      sampleCount: periodPairs.length > 0 ? periodPairs.length : pairs.length,
-      usingFallback: periodAvg == null,
+      avgDays: avg ?? (poolEmpty ? TAT_MOCK_FALLBACK[key] : 0),
+      sampleCount: usablePairs.length,
+      usingFallback: poolEmpty || avg == null,
     };
   });
 }

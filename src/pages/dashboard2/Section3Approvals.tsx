@@ -59,8 +59,17 @@ export default function Section3Approvals({ orders, onNavigate }: { orders: Orde
       subtitle={`${pending.length} orders awaiting a technical or financial decision`}
       right={
         <div className="flex items-baseline gap-5">
-          <HeaderStat label="Value held" value={formatINR(valueHeld)} />
-          <HeaderStat label="Oldest" value={`${oldest}d`} color={D2.red} />
+          <HeaderStat
+            label="Value held"
+            value={formatINR(valueHeld)}
+            tip="Total contracted value of orders still awaiting a Technical or Financial approval decision."
+          />
+          <HeaderStat
+            label="Oldest"
+            value={`${oldest}d`}
+            color={D2.red}
+            tip="The longest any order has been waiting in the Technical or Financial approval queue, in days."
+          />
         </div>
       }
     >

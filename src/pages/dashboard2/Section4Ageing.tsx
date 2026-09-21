@@ -54,7 +54,14 @@ export default function Section4Ageing({ orders, onNavigate }: { orders: OrderRe
       accent={D2.faint}
       title="Order ageing"
       subtitle="How long each open order has sat in its current stage"
-      right={<HeaderStat label="Oldest" value={`${oldest}d`} color={D2.red} />}
+      right={
+        <HeaderStat
+          label="Oldest"
+          value={`${oldest}d`}
+          color={D2.red}
+          tip="The longest any open order has sat in its current stage, in days."
+        />
+      }
     >
       <Panel>
         <PanelHeading title="Age at Stage — Order-wise" subtitle="Click any column heading to sort" />

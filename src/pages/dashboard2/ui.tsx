@@ -122,14 +122,54 @@ export function Section({
 
 // The small "LABEL  value" pairing used in several Section headers (Value
 // held / Oldest / Revenue in motion / Total forecast / Oldest).
-export function HeaderStat({ label, value, color }: { label: string; value: ReactNode; color?: string }) {
+export function HeaderStat({ label, value, color, tip }: { label: string; value: ReactNode; color?: string; tip?: string }) {
   return (
     <div className="flex items-baseline gap-2">
-      <div style={{ fontSize: 13, color: D2.muted, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-        {label}
+      <div className="flex items-center gap-1">
+        <div style={{ fontSize: 13, color: D2.muted, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+          {label}
+        </div>
+        {tip && <InfoTip text={tip} />}
       </div>
       <div style={{ fontSize: 18, fontWeight: 700, color: color ?? D2.text, fontVariantNumeric: "tabular-nums" }}>{value}</div>
     </div>
+  );
+}
+
+// Small (i) icon + explanatory bubble for a label that isn't self-explanatory
+// on its own — hover shows it via CSS group-hover, click toggles an
+// independent boolean (kept separate so a real click's own hover-in doesn't
+// immediately re-close what hovering opened), same UX convention as
+// Billing.tsx's own InfoTooltip, restyled with D2 tokens to match this
+// dashboard's look instead of that one's Tailwind slate classes.
+export function InfoTip({ text }: { text: string }) {
+  const [clicked, setClicked] = useState(false);
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setClicked((v) => !v)}
+        className="flex h-3.5 w-3.5 items-center justify-center rounded-full"
+        style={{ color: D2.faint }}
+        aria-label="Info"
+      >
+        <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+          <path
+            fillRule="evenodd"
+            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+      <span
+        className={`absolute left-1/2 top-full z-30 mt-1.5 w-48 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-center shadow-lg group-hover:block ${
+          clicked ? "block" : "hidden"
+        }`}
+        style={{ background: D2.text, color: "#fff", fontSize: 12, fontWeight: 400, textTransform: "none", letterSpacing: "normal" }}
+      >
+        {text}
+      </span>
+    </span>
   );
 }
 

@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
-import { BUSINESS_UNITS, type OrderRecord } from "../../types";
+import type { OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
 import { billsInColumn, buildFiscalYearColumns, getDisplayStage, isBillingOpenInColumn, toggleSortState, type SortState } from "../../utils";
+import { type DashboardFilters } from "../dashboard/filters";
 import { buildManagerForecast, buildRevenueMotion, formatINR, type ForecastQuarter, type ManagerForecastRow, type NavigateFn } from "../dashboard/shared";
+import RevenueTrend from "../dashboard/widgets/RevenueTrend";
 import { D2 } from "./tokens";
 import {
   Avatar,
@@ -18,11 +20,17 @@ import {
   useChartTooltip,
 } from "./ui";
 
-const BU_LEGEND_ORDER = ["Enterprise CEP", "Premiere Inst", "Univ-Ops", "IMPACT", "ENTERPRISE"].filter((bu) =>
-  (BUSINESS_UNITS as readonly string[]).includes(bu)
-);
-
-export default function Section2OrderAndBilling({ orders, onNavigate }: { orders: OrderRecord[]; onNavigate: NavigateFn }) {
+export default function Section2OrderAndBilling({
+  orders,
+  rawOrders,
+  filters,
+  onNavigate,
+}: {
+  orders: OrderRecord[];
+  rawOrders: OrderRecord[];
+  filters: DashboardFilters;
+  onNavigate: NavigateFn;
+}) {
   const motion = buildRevenueMotion(orders);
   const revenueInMotion = motion.active + motion.amendmentInFlight + motion.cancellationInFlight;
   const open = orders.filter((o) => o.lifecycleStatus !== "cancelled");
@@ -35,8 +43,16 @@ export default function Section2OrderAndBilling({ orders, onNavigate }: { orders
       subtitle="Live contracts, billing actions and revenue forecast by manager, product and business unit"
       right={
         <div className="flex items-baseline gap-5">
-          <HeaderStat label="Revenue in motion" value={formatINR(revenueInMotion)} />
-          <HeaderStat label="Total forecast" value={formatINR(totalForecast)} />
+          <HeaderStat
+            label="Revenue in motion"
+            value={formatINR(revenueInMotion)}
+            tip="Contracted value of orders that are active, mid-amendment, or mid-cancellation — excludes orders not yet activated and cancelled orders."
+          />
+          <HeaderStat
+            label="Total forecast"
+            value={formatINR(totalForecast)}
+            tip="Total contracted value of every order that isn't cancelled, including ones still awaiting approval."
+          />
         </div>
       }
     >
@@ -45,7 +61,7 @@ export default function Section2OrderAndBilling({ orders, onNavigate }: { orders
         <BillingActionsPanel orders={orders} onNavigate={onNavigate} />
         <OpenedVsProjectedPanel orders={orders} />
       </div>
-      <RevenueTrendPanel orders={open} />
+      <RevenueTrend orders={rawOrders} filters={filters} size="lg" />
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,2fr)", gap: 12 }} className="items-start">
         <ProductRevenuePanel orders={open} />
         <ManagerForecastPanel orders={orders} onNavigate={onNavigate} />
@@ -177,95 +193,6 @@ function OpenedVsProjectedPanel({ orders }: { orders: OrderRecord[] }) {
         />
         <div style={{ fontSize: 13, color: D2.muted, textAlign: "right", marginTop: 7 }}>{pct.toFixed(1)}% opened</div>
       </div>
-    </Panel>
-  );
-}
-
-function RevenueTrendPanel({ orders }: { orders: OrderRecord[] }) {
-  const fyColumns = buildFiscalYearColumns(new Date());
-  const activeBUs = BU_LEGEND_ORDER.filter((bu) => orders.some((o) => o.bu === bu));
-
-  const series = activeBUs.map((bu) => ({
-    bu,
-    color: D2.bu[bu] ?? D2.faint,
-    values: fyColumns.map((col) => orders.filter((o) => o.bu === bu && billsInColumn(o, col)).reduce((sum, o) => sum + o.amount, 0)),
-  }));
-  const maxValue = Math.max(1, ...series.flatMap((s) => s.values));
-
-  const xFor = (i: number) => 10 + i * 60;
-  const yFor = (v: number) => 236 - (v / maxValue) * (236 - 14);
-  const pointsFor = (values: number[]) => values.map((v, i) => `${xFor(i)},${yFor(v).toFixed(1)}`).join(" ");
-
-  const { tip, show, move, hide } = useChartTooltip();
-  const [hoverPoint, setHoverPoint] = useState<{ bu: string; i: number } | null>(null);
-
-  return (
-    <Panel>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <PanelHeading title="Revenue Trend by Business Unit" subtitle={`FY ${fyColumns[0].year}–${fyColumns[11].year}, monthly`} />
-        <div className="flex flex-wrap gap-3.5">
-          {series.map((s) => (
-            <div key={s.bu} className="flex items-center gap-1.5" style={{ fontSize: 12, color: D2.mutedStrong }}>
-              <span style={{ width: 14, height: 2, background: s.color, display: "inline-block" }} />
-              {s.bu}
-            </div>
-          ))}
-        </div>
-      </div>
-      {series.length === 0 ? (
-        <EmptyRow />
-      ) : (
-        <div>
-          <svg viewBox="0 0 720 260" preserveAspectRatio="none" style={{ width: "100%", height: 260, display: "block" }}>
-            {[14, 76, 138, 200, 236].map((y) => (
-              <line key={y} x1={0} y1={y} x2={720} y2={y} stroke={y === 236 ? D2.border : D2.rowDivider} strokeWidth={1} />
-            ))}
-            {series.map((s) => (
-              <polyline
-                key={s.bu}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={2.5}
-                opacity={hoverPoint && hoverPoint.bu !== s.bu ? 0.35 : 1}
-                style={{ transition: "opacity 120ms ease-out" }}
-                points={pointsFor(s.values)}
-              />
-            ))}
-            {series.map((s) =>
-              s.values.map((v, i) => {
-                const active = hoverPoint?.bu === s.bu && hoverPoint.i === i;
-                return (
-                  <circle
-                    key={`${s.bu}-${i}`}
-                    cx={xFor(i)}
-                    cy={yFor(v)}
-                    r={active ? 4.5 : 8}
-                    fill={active ? s.color : "transparent"}
-                    stroke={active ? "#fff" : "none"}
-                    strokeWidth={active ? 1.5 : 0}
-                    style={{ cursor: "pointer" }}
-                    onMouseEnter={(e) => {
-                      setHoverPoint({ bu: s.bu, i });
-                      show(e, `${s.bu} · ${fyColumns[i].label}`, formatINR(v));
-                    }}
-                    onMouseMove={move}
-                    onMouseLeave={() => {
-                      setHoverPoint(null);
-                      hide();
-                    }}
-                  />
-                );
-              })
-            )}
-          </svg>
-          <ChartTooltip tip={tip} />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(12,minmax(0,1fr))", fontSize: 11, color: D2.faint, textAlign: "center", marginTop: 4 }}>
-            {fyColumns.map((c) => (
-              <div key={`${c.year}-${c.month0}`}>{c.label}</div>
-            ))}
-          </div>
-        </div>
-      )}
     </Panel>
   );
 }

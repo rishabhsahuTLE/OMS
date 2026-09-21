@@ -130,7 +130,7 @@ export default function Dashboard2({ orders, onNavigate }: { orders: OrderRecord
 
       <div className="flex flex-col" style={{ gap: 34, paddingTop: 14 }}>
         <Section1StageDistribution orders={scoped} onNavigate={onNavigate} />
-        <Section2OrderAndBilling orders={scoped} onNavigate={onNavigate} />
+        <Section2OrderAndBilling orders={scoped} rawOrders={orders} filters={filters} onNavigate={onNavigate} />
         <Section3Approvals orders={scoped} onNavigate={onNavigate} />
         <Section4Ageing orders={scoped} onNavigate={onNavigate} />
       </div>
