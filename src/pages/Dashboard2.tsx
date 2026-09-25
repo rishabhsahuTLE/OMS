@@ -61,7 +61,12 @@ export default function Dashboard2({ orders, onNavigate }: { orders: OrderRecord
   return (
     <div style={{ fontFamily: D2_FONT, color: D2.text, background: D2.pageBg }} className="-m-6 min-h-full pb-20">
       <div
-        style={{ position: "sticky", top: 0, zIndex: 20, background: D2.panelBg, borderBottom: `1px solid ${D2.panelBorder}` }}
+        // top:-24 (not 0) compensates for <main>'s own 24px p-6 padding: the
+        // sticky containing block is that padding edge, not the true top the
+        // outer -m-6 visually moves this bar to, so top:0 alone left a 24px
+        // gap once scrolling actually started (page content visible through
+        // it) even though the bar looked flush at rest.
+        style={{ position: "sticky", top: -24, zIndex: 20, background: D2.panelBg, borderBottom: `1px solid ${D2.panelBorder}` }}
         className="px-6 py-4"
       >
         <div className="flex flex-wrap items-start justify-between gap-5">

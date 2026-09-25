@@ -357,3 +357,80 @@ if (recentReadyForBilling && recentReadyForBilling.financial.date) {
   recentReadyForBilling.billingStatus = "open";
   recentReadyForBilling.billingOpenedOn = addDays(recentReadyForBilling.financial.date, 3);
 }
+
+// --- Two extra Financial-approval-pending orders ---------------------------
+// The main loop's technicalPattern/financialPattern cycling only ever lands
+// 9 orders in the pending Financial queue (vs. 17 in pending Technical) —
+// too few to demo Dashboard 2's Financial Approval Queue pagination
+// meaningfully. Hand-authored here (same approach as makeAmendmentSuccessor/
+// recentReadyForBilling above) rather than by editing financialPattern
+// itself, since that array's confirmed/pending mix also drives
+// fullyConfirmedCount and everything downstream of it (Active/Cancelled/
+// ToOpen bucket counts, Billing projections) — a two-order, fully isolated
+// addition can't ripple into any of that.
+function makeExtraFinancePendingOrder(
+  client: Client,
+  product: (typeof PRODUCTS)[number],
+  orderNo: string,
+  seed: number,
+  signOffset: number,
+  amount: number
+): OrderRecord {
+  const dateOfSign = makeDate(signOffset);
+  const createdOn = makeDate(signOffset + 3);
+  const techOffset = signOffset + 13;
+  return {
+    id: `ord-fin-extra-${seed}`,
+    orderNo,
+    product: product.name,
+    clientId: client.id,
+    client: client.name,
+    bu: client.bu,
+    clientManager: client.clientManager,
+    dateOfSign,
+    createdOn,
+    technical: withMeta({ status: "confirmed", date: makeDate(techOffset) }, seed),
+    financial: { status: "pending", date: null },
+    lifecycleStatus: "inactive",
+    cancellationTechnical: { status: "pending", date: null },
+    cancellationFinancial: { status: "pending", date: null },
+    billingCycle: billingCycles[seed % billingCycles.length],
+    amount,
+    amended: false,
+    billingStatus: "notOpened",
+    billingOpenedOn: null,
+    billingClosedOn: null,
+    details: {
+      clientManager: client.clientManager,
+      billingAddress: client.billingAddress,
+      billingState: client.billingState,
+      billingCity: client.billingCity,
+      deliveryAddress: client.deliveryAddress,
+      deliveryState: client.deliveryState,
+      deliveryCity: client.deliveryCity,
+      gstNo: client.gstNo,
+      spocs: client.spocs,
+      product: product.name,
+      dateOfSign,
+      plan: seed % 2 === 0 ? "Prepaid" : "Postpaid",
+      oneTime: null,
+      gstProcess: "",
+      selectGst: client.gstNo || "NA",
+      ...product.mockDetails(seed),
+      firstBillingMonth: createdOn.slice(0, 7),
+      billingCycle: billingCycles[seed % billingCycles.length],
+      agreement: AGREEMENT_MONTHS_CYCLE[seed % AGREEMENT_MONTHS_CYCLE.length],
+      advance: null,
+      tds: null,
+      netAmount: amount,
+      creditPeriod: null,
+      documents: [],
+      remarks: "",
+    },
+  };
+}
+
+mockOrders.push(
+  makeExtraFinancePendingOrder(clients[0], PRODUCTS[0], "OD-P0000138", 1, -15, 245000),
+  makeExtraFinancePendingOrder(clients[1], PRODUCTS[4], "OD-P0000139", 2, -40, 318500)
+);

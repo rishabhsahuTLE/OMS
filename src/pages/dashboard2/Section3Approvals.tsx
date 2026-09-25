@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import type { OrderRecord } from "../../types";
-import { getDisplayStage, getNextActionableStage, type ApprovalStageKey } from "../../utils";
+import { getDisplayStage, getNextActionableStage, usePagination, type ApprovalStageKey } from "../../utils";
 import {
   buildApprovalQueue,
   buildStuckData,
@@ -125,10 +125,10 @@ function OrdersStuckAtApprovalPanel({ orders }: { orders: OrderRecord[] }) {
   const totalCount = data.reduce((sum, d) => sum + d.count, 0);
 
   const GAP_DEG = 2;
-  const CX = 100;
-  const CY = 100;
-  const OUTER_R = 90;
-  const INNER_R = 42;
+  const CX = 130;
+  const CY = 130;
+  const OUTER_R = 115;
+  const INNER_R = 52;
 
   let cursor = 0;
   const wedges = data.map((d) => {
@@ -144,14 +144,14 @@ function OrdersStuckAtApprovalPanel({ orders }: { orders: OrderRecord[] }) {
   const [hoverKey, setHoverKey] = useState<ApprovalStageKey | null>(null);
 
   return (
-    <Panel>
+    <Panel style={{ minHeight: 450 }}>
       <PanelHeading title="Orders Stuck at Approval" subtitle="Which approval each pending order is sitting in" />
       {totalCount === 0 ? (
         <EmptyRow />
       ) : (
-        <div className="flex flex-1 items-center gap-5">
-          <div className="relative shrink-0" style={{ width: 200, height: 200 }}>
-            <svg width="100%" height="100%" viewBox="0 0 200 200">
+        <div className="flex flex-1 items-center gap-8">
+          <div className="relative shrink-0" style={{ width: 260, height: 260 }}>
+            <svg width="100%" height="100%" viewBox="0 0 260 260">
               {wedges.map(
                 (w) =>
                   w.path && (
@@ -181,7 +181,7 @@ function OrdersStuckAtApprovalPanel({ orders }: { orders: OrderRecord[] }) {
                       y={w.labelY}
                       textAnchor="middle"
                       dominantBaseline="middle"
-                      style={{ fill: "#fff", fontSize: 14, fontWeight: 700, pointerEvents: "none" }}
+                      style={{ fill: "#fff", fontSize: 16, fontWeight: 700, pointerEvents: "none" }}
                     >
                       {w.count}
                     </text>
@@ -190,11 +190,13 @@ function OrdersStuckAtApprovalPanel({ orders }: { orders: OrderRecord[] }) {
             </svg>
             <ChartTooltip tip={tip} />
           </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-4">
             {data.map((d) => (
-              <div key={d.key} className="flex items-center gap-2">
-                <div style={{ width: 9, height: 9, borderRadius: "50%", background: d.color, flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: D2.mutedStrong }}>{STUCK_LABEL[d.key]}</span>
+              <div key={d.key} className="flex items-center gap-2.5">
+                <div style={{ width: 11, height: 11, borderRadius: "50%", background: d.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 14, color: D2.mutedStrong }}>
+                  {STUCK_LABEL[d.key]} <span style={{ color: D2.faint }}>— {d.count} order{d.count === 1 ? "" : "s"}</span>
+                </span>
               </div>
             ))}
           </div>
@@ -212,7 +214,7 @@ function TurnaroundPanel({ orders }: { orders: OrderRecord[] }) {
   const avgPct = 50;
 
   return (
-    <Panel>
+    <Panel style={{ minHeight: 450 }}>
       <div className="flex flex-wrap items-start justify-between gap-3.5">
         <div style={{ fontSize: 16, fontWeight: 600 }}>Turnaround time</div>
         <PillTabs options={TAT_PERIOD_OPTIONS} value={period} onChange={setPeriod} />
@@ -224,57 +226,60 @@ function TurnaroundPanel({ orders }: { orders: OrderRecord[] }) {
         <TatStat label="Cleared" value={String(summary.ordersCleared)} />
       </div>
 
-      <div className="flex items-baseline justify-between">
-        <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>By stage</div>
-        <div className="flex items-center gap-1.5" style={{ fontSize: 12, color: D2.muted }}>
-          <span style={{ display: "inline-block", width: 20, borderTop: `2px dashed ${D2.faint}` }} />
-          Avg {summary.avgClearance.toFixed(1)}d
+      <div className="flex flex-1 flex-col justify-center gap-5">
+        <div className="flex items-baseline justify-between">
+          <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>By stage</div>
+          <div className="flex items-center gap-1.5" style={{ fontSize: 12, color: D2.muted }}>
+            <span style={{ display: "inline-block", width: 20, borderTop: `2px dashed ${D2.faint}` }} />
+            Avg {summary.avgClearance.toFixed(1)}d
+          </div>
         </div>
-      </div>
 
-      <div className="grid gap-y-2" style={{ gridTemplateColumns: "150px minmax(0,1fr) 46px" }}>
-        {stats.map((s, i) => {
-          const pastAvg = s.avgDays > summary.avgClearance;
-          const pct = Math.min(100, (s.avgDays / domainMax) * 100);
-          const row = i + 1;
-          const color = pastAvg ? D2.red : D2.stage[s.key];
-          return (
-            <div key={s.key} className="contents">
-              <span style={{ fontSize: 14, color: D2.mutedStrong, gridColumn: 1, gridRow: row }} className="flex items-center">
-                {TAT_LABEL[s.key]}
-              </span>
-              <span style={{ gridColumn: 2, gridRow: row }} className="flex items-center">
-                <div style={{ flex: 1 }}>
-                  <Bar
-                    pct={pct}
-                    color={color}
-                    tooltipLabel={TAT_LABEL[s.key]}
-                    tooltipValue={`${s.avgDays.toFixed(1)}d avg${pastAvg ? " — above the overall average" : ""}`}
-                  />
-                </div>
-              </span>
-              <span
-                style={{
-                  fontSize: 14,
-                  textAlign: "right",
-                  fontVariantNumeric: "tabular-nums",
-                  fontWeight: pastAvg ? 600 : 400,
-                  color: pastAvg ? D2.text : D2.mutedStrong,
-                  gridColumn: 3,
-                  gridRow: row,
-                }}
-                className="flex items-center justify-end"
-              >
-                {s.avgDays.toFixed(1)}d
-              </span>
-            </div>
-          );
-        })}
-        <div className="relative" style={{ gridColumn: 2, gridRow: `1 / ${stats.length + 1}` }}>
-          <span
-            className="pointer-events-none absolute inset-y-0"
-            style={{ left: `${avgPct}%`, borderLeft: `2px dashed ${D2.faint}` }}
-          />
+        <div className="grid gap-y-5" style={{ gridTemplateColumns: "150px minmax(0,1fr) 46px" }}>
+          {stats.map((s, i) => {
+            const pastAvg = s.avgDays > summary.avgClearance;
+            const pct = Math.min(100, (s.avgDays / domainMax) * 100);
+            const row = i + 1;
+            const color = pastAvg ? D2.red : D2.stage[s.key];
+            return (
+              <div key={s.key} className="contents">
+                <span style={{ fontSize: 14, color: D2.mutedStrong, gridColumn: 1, gridRow: row }} className="flex items-center">
+                  {TAT_LABEL[s.key]}
+                </span>
+                <span style={{ gridColumn: 2, gridRow: row }} className="flex items-center">
+                  <div style={{ flex: 1 }}>
+                    <Bar
+                      pct={pct}
+                      color={color}
+                      height={34}
+                      tooltipLabel={TAT_LABEL[s.key]}
+                      tooltipValue={`${s.avgDays.toFixed(1)}d avg${pastAvg ? " — above the overall average" : ""}`}
+                    />
+                  </div>
+                </span>
+                <span
+                  style={{
+                    fontSize: 14,
+                    textAlign: "right",
+                    fontVariantNumeric: "tabular-nums",
+                    fontWeight: pastAvg ? 600 : 400,
+                    color: pastAvg ? D2.text : D2.mutedStrong,
+                    gridColumn: 3,
+                    gridRow: row,
+                  }}
+                  className="flex items-center justify-end"
+                >
+                  {s.avgDays.toFixed(1)}d
+                </span>
+              </div>
+            );
+          })}
+          <div className="relative" style={{ gridColumn: 2, gridRow: `1 / ${stats.length + 1}` }}>
+            <span
+              className="pointer-events-none absolute inset-y-0"
+              style={{ left: `${avgPct}%`, borderLeft: `2px dashed ${D2.faint}` }}
+            />
+          </div>
         </div>
       </div>
     </Panel>
@@ -310,13 +315,13 @@ function ApprovalQueuePanel({
 }) {
   const [sort, setSort] = useState<"oldest" | "newest">("oldest");
   const items = buildApprovalQueue(orders, dept).sort((a, b) => (sort === "oldest" ? b.ageDays - a.ageDays : a.ageDays - b.ageDays));
-  const shown = items.slice(0, 5);
+  const { page, setPage, totalPages, pageRows: shown } = usePagination(items, 5);
   const totalHeld = items.reduce((sum, i) => sum + i.amount, 0);
 
   return (
-    <Panel>
+    <Panel style={{ minHeight: 540 }}>
       <div className="flex flex-wrap items-start justify-between gap-3.5">
-        <PanelHeading title={title} subtitle={subtitle} />
+        <PanelHeading title={title} subtitle={`${subtitle} · ${formatINR(totalHeld)} held across ${items.length} orders`} />
         <PillTabs
           options={[
             { key: "oldest", label: "Oldest" },
@@ -383,10 +388,8 @@ function ApprovalQueuePanel({
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3" style={{ paddingTop: 4 }}>
-        <div style={{ fontSize: 13, color: D2.muted }}>
-          Showing {shown.length} of {items.length} · {formatINR(totalHeld)} held
-        </div>
+      <div className="mt-auto flex items-center justify-between gap-3" style={{ paddingTop: 4 }}>
+        <QueuePager page={page} totalPages={totalPages} onPageChange={setPage} />
         <button
           type="button"
           onClick={() => onNavigate("orders", "amendCancel")}
@@ -396,5 +399,80 @@ function ApprovalQueuePanel({
         </button>
       </div>
     </Panel>
+  );
+}
+
+// A small D2-styled pager, following the same page-button-windowing idea as
+// the app's shared PaginationFooter.tsx (src/components/PaginationFooter.tsx)
+// — reimplemented locally with D2 tokens rather than importing that
+// component directly, since it's Tailwind/indigo-styled to match the other
+// list pages, not Dashboard 2's own hand-rolled token-driven look.
+function pageButtons(current: number, total: number): (number | "ellipsis")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const keep = new Set<number>([1, 2, total - 1, total, current - 1, current, current + 1]);
+  const sorted = Array.from(keep)
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b);
+  const result: (number | "ellipsis")[] = [];
+  let prev = 0;
+  for (const p of sorted) {
+    if (prev && p - prev > 1) result.push("ellipsis");
+    result.push(p);
+    prev = p;
+  }
+  return result;
+}
+
+function QueuePager({ page, totalPages, onPageChange }: { page: number; totalPages: number; onPageChange: (page: number) => void }) {
+  if (totalPages <= 1) return <div />;
+  const btnBase: CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 26,
+    height: 26,
+    borderRadius: 5,
+    fontSize: 12,
+    fontWeight: 600,
+  };
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => onPageChange(page - 1)}
+        disabled={page <= 1}
+        style={{ ...btnBase, border: `1px solid ${D2.panelBorder}`, color: D2.mutedStrong, opacity: page <= 1 ? 0.4 : 1 }}
+      >
+        ‹
+      </button>
+      {pageButtons(page, totalPages).map((p, i) =>
+        p === "ellipsis" ? (
+          <span key={`e-${i}`} style={{ fontSize: 12, color: D2.faint, padding: "0 2px" }}>
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onPageChange(p)}
+            style={
+              p === page
+                ? { ...btnBase, background: D2.brand, color: "#fff" }
+                : { ...btnBase, border: `1px solid ${D2.panelBorder}`, color: D2.mutedStrong }
+            }
+          >
+            {p}
+          </button>
+        )
+      )}
+      <button
+        type="button"
+        onClick={() => onPageChange(page + 1)}
+        disabled={page >= totalPages}
+        style={{ ...btnBase, border: `1px solid ${D2.panelBorder}`, color: D2.mutedStrong, opacity: page >= totalPages ? 0.4 : 1 }}
+      >
+        ›
+      </button>
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { SortDirection, SortState } from "../../utils";
 import { D2 } from "./tokens";
@@ -177,10 +177,18 @@ export function InfoTip({ text }: { text: string }) {
 // Panel — the fafbfc-bordered sub-card every metric/table sits inside.
 // ---------------------------------------------------------------------------
 
-export function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Panel({
+  children,
+  className = "",
+  style,
+}: {
+  children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
     <div
-      style={{ background: D2.panelBg, border: `1px solid ${D2.panelBorder}`, borderRadius: 6, padding: "18px 20px" }}
+      style={{ background: D2.panelBg, border: `1px solid ${D2.panelBorder}`, borderRadius: 6, padding: "18px 20px", ...style }}
       className={`flex flex-col gap-3.5 transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(21,36,43,0.09)] ${className}`}
     >
       {children}
