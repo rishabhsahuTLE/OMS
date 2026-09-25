@@ -358,29 +358,30 @@ if (recentReadyForBilling && recentReadyForBilling.financial.date) {
   recentReadyForBilling.billingOpenedOn = addDays(recentReadyForBilling.financial.date, 3);
 }
 
-// --- Two extra Financial-approval-pending orders ---------------------------
+// --- Extra Approval-Queue-pending orders ------------------------------------
 // The main loop's technicalPattern/financialPattern cycling only ever lands
-// 9 orders in the pending Financial queue (vs. 17 in pending Technical) —
-// too few to demo Dashboard 2's Financial Approval Queue pagination
-// meaningfully. Hand-authored here (same approach as makeAmendmentSuccessor/
-// recentReadyForBilling above) rather than by editing financialPattern
-// itself, since that array's confirmed/pending mix also drives
-// fullyConfirmedCount and everything downstream of it (Active/Cancelled/
-// ToOpen bucket counts, Billing projections) — a two-order, fully isolated
-// addition can't ripple into any of that.
-function makeExtraFinancePendingOrder(
+// 17 orders in the pending Technical queue and 9 in pending Financial — too
+// few (Financial especially) to demo Dashboard 2's Approval Queue pagination
+// meaningfully at a real target size (Technical 20, Financial 15). Hand-
+// authored here (same approach as makeAmendmentSuccessor/recentReadyForBilling
+// above) rather than by editing technicalPattern/financialPattern themselves,
+// since that array's confirmed/pending mix also drives fullyConfirmedCount and
+// everything downstream of it (Active/Cancelled/ToOpen bucket counts, Billing
+// projections) — isolated post-loop additions can't ripple into any of that.
+function makeExtraPendingOrder(
   client: Client,
   product: (typeof PRODUCTS)[number],
   orderNo: string,
   seed: number,
   signOffset: number,
-  amount: number
+  amount: number,
+  dept: "Tech" | "Finance"
 ): OrderRecord {
   const dateOfSign = makeDate(signOffset);
   const createdOn = makeDate(signOffset + 3);
   const techOffset = signOffset + 13;
   return {
-    id: `ord-fin-extra-${seed}`,
+    id: `ord-extra-${dept.toLowerCase()}-${seed}`,
     orderNo,
     product: product.name,
     clientId: client.id,
@@ -389,7 +390,7 @@ function makeExtraFinancePendingOrder(
     clientManager: client.clientManager,
     dateOfSign,
     createdOn,
-    technical: withMeta({ status: "confirmed", date: makeDate(techOffset) }, seed),
+    technical: dept === "Finance" ? withMeta({ status: "confirmed", date: makeDate(techOffset) }, seed) : { status: "pending", date: null },
     financial: { status: "pending", date: null },
     lifecycleStatus: "inactive",
     cancellationTechnical: { status: "pending", date: null },
@@ -431,6 +432,15 @@ function makeExtraFinancePendingOrder(
 }
 
 mockOrders.push(
-  makeExtraFinancePendingOrder(clients[0], PRODUCTS[0], "OD-P0000138", 1, -15, 245000),
-  makeExtraFinancePendingOrder(clients[1], PRODUCTS[4], "OD-P0000139", 2, -40, 318500)
+  // Financial queue: 9 existing + these 6 = 15.
+  makeExtraPendingOrder(clients[0], PRODUCTS[0], "OD-P0000138", 1, -15, 245000, "Finance"),
+  makeExtraPendingOrder(clients[1], PRODUCTS[4], "OD-P0000139", 2, -40, 318500, "Finance"),
+  makeExtraPendingOrder(clients[2], PRODUCTS[1], "OD-P0000140", 3, -60, 176000, "Finance"),
+  makeExtraPendingOrder(clients[3], PRODUCTS[2], "OD-P0000141", 4, -85, 292500, "Finance"),
+  makeExtraPendingOrder(clients[4], PRODUCTS[3], "OD-P0000142", 5, -105, 158000, "Finance"),
+  makeExtraPendingOrder(clients[5], PRODUCTS[5], "OD-P0000143", 6, -130, 267000, "Finance"),
+  // Technical queue: 17 existing + these 3 = 20.
+  makeExtraPendingOrder(clients[6], PRODUCTS[0], "OD-P0000144", 7, -20, 198500, "Tech"),
+  makeExtraPendingOrder(clients[7], PRODUCTS[4], "OD-P0000145", 8, -50, 234000, "Tech"),
+  makeExtraPendingOrder(clients[8], PRODUCTS[2], "OD-P0000146", 9, -75, 275500, "Tech")
 );
