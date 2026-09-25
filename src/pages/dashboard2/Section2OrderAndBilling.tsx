@@ -263,7 +263,7 @@ function ProductRevenuePanel({ orders }: { orders: OrderRecord[] }) {
 }
 
 type SortKey = "manager" | "orders" | "forecast";
-const ROW_COLUMNS = "minmax(0,1.2fr) 86px 140px minmax(0,1fr)";
+const ROW_COLUMNS = "minmax(0,1.1fr) 54px 54px 62px 120px minmax(0,1fr)";
 
 function ManagerForecastPanel({ orders, onNavigate }: { orders: OrderRecord[]; onNavigate: NavigateFn }) {
   const [quarter, setQuarter] = useState<ForecastQuarter>("all");
@@ -309,6 +309,12 @@ function ManagerForecastPanel({ orders, onNavigate }: { orders: OrderRecord[]; o
           >
             <SortableHeader label="Manager" sortKey="manager" sort={sort} onSort={handleSort} />
             <SortableHeader label="Orders" sortKey="orders" sort={sort} onSort={handleSort} align="right" />
+            <div style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: D2.muted, fontWeight: 600, textAlign: "right" }}>
+              Active
+            </div>
+            <div style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: D2.muted, fontWeight: 600, textAlign: "right" }}>
+              Pending
+            </div>
             <SortableHeader label="Forecast" sortKey="forecast" sort={sort} onSort={handleSort} align="right" />
             <div style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>
               Share of total
@@ -343,6 +349,18 @@ function ManagerRow({ row, last, onClick }: { row: ManagerForecastRow; last: boo
         <div style={{ fontSize: 15, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.manager}</div>
       </div>
       <div style={{ fontSize: 15, textAlign: "right", fontVariantNumeric: "tabular-nums", color: D2.mutedStrong }}>{row.orders}</div>
+      <div style={{ fontSize: 15, textAlign: "right", fontVariantNumeric: "tabular-nums", color: D2.mutedStrong }}>{row.activeOrders}</div>
+      <div
+        style={{
+          fontSize: 15,
+          textAlign: "right",
+          fontVariantNumeric: "tabular-nums",
+          color: row.pendingOrders > 0 ? D2.red : D2.mutedStrong,
+          fontWeight: row.pendingOrders > 0 ? 600 : 400,
+        }}
+      >
+        {row.pendingOrders}
+      </div>
       <div style={{ fontSize: 15, textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{formatINR(row.forecast)}</div>
       <div className="flex items-center gap-2.5">
         <div style={{ flex: 1 }}>

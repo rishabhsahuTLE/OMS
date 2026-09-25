@@ -576,20 +576,29 @@ export type ForecastQuarter = "all" | "q3" | "q4";
 export interface ManagerForecastRow {
   manager: string;
   orders: number;
+  activeOrders: number;
+  pendingOrders: number;
   forecast: number;
   share: number;
 }
 
+// pendingOrders counts orders still stuck at any of the 4 approval stages
+// (Technical/Financial/Cancellation-Technical/Cancellation-Financial) — same
+// "has an actionable stage" definition getNextActionableStage/buildStuckData
+// use elsewhere, not just the pre-activation "approvalPending" display stage,
+// so an order awaiting TC/FC during cancellation counts here too.
 export function buildManagerForecast(orders: OrderRecord[], quarter: ForecastQuarter): { rows: ManagerForecastRow[]; total: number } {
   const open = orders.filter((o) => o.lifecycleStatus !== "cancelled");
   const fyColumns = buildFiscalYearColumns(new Date());
   const quarterCols = quarter === "q3" ? fyColumns.slice(6, 9) : quarter === "q4" ? fyColumns.slice(9, 12) : null;
   const scoped = quarterCols ? open.filter((o) => quarterCols.some((c) => billsInColumn(o, c))) : open;
 
-  const byManager = new Map<string, { orders: number; forecast: number }>();
+  const byManager = new Map<string, { orders: number; activeOrders: number; pendingOrders: number; forecast: number }>();
   scoped.forEach((o) => {
-    const cur = byManager.get(o.clientManager) ?? { orders: 0, forecast: 0 };
+    const cur = byManager.get(o.clientManager) ?? { orders: 0, activeOrders: 0, pendingOrders: 0, forecast: 0 };
     cur.orders += 1;
+    if (o.lifecycleStatus === "active") cur.activeOrders += 1;
+    if (getNextActionableStage(o) !== null) cur.pendingOrders += 1;
     cur.forecast += o.amount;
     byManager.set(o.clientManager, cur);
   });
@@ -598,6 +607,8 @@ export function buildManagerForecast(orders: OrderRecord[], quarter: ForecastQua
   const rows: ManagerForecastRow[] = Array.from(byManager.entries()).map(([manager, v]) => ({
     manager,
     orders: v.orders,
+    activeOrders: v.activeOrders,
+    pendingOrders: v.pendingOrders,
     forecast: v.forecast,
     share: total > 0 ? (v.forecast / total) * 100 : 0,
   }));
