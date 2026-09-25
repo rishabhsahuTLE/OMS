@@ -62,7 +62,7 @@ export default function Dashboard2({ orders, onNavigate }: { orders: OrderRecord
     <div style={{ fontFamily: D2_FONT, color: D2.text, background: D2.pageBg }} className="-m-6 min-h-full pb-20">
       <div
         style={{ position: "sticky", top: 0, zIndex: 20, background: D2.panelBg, borderBottom: `1px solid ${D2.panelBorder}` }}
-        className="px-6 pt-5 pb-4"
+        className="px-6 py-4"
       >
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>

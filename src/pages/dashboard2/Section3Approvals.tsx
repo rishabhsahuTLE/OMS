@@ -12,7 +12,30 @@ import {
   type TatPeriod,
 } from "../dashboard/shared";
 import { D2 } from "./tokens";
-import { Bar, EmptyRow, HeaderStat, Panel, PanelHeading, PillTabs, Section, WaitingPill } from "./ui";
+import { Bar, ChartTooltip, EmptyRow, HeaderStat, Panel, PanelHeading, PillTabs, Section, useChartTooltip, WaitingPill } from "./ui";
+
+// Standard SVG donut-wedge trigonometry: angle 0 is the top (12 o'clock),
+// increasing clockwise — shared by any wedge that needs its own in-slice
+// label, which a plain stroke-dasharray ring can't position.
+function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function donutWedgePath(cx: number, cy: number, innerR: number, outerR: number, startAngle: number, endAngle: number) {
+  const outerStart = polarToCartesian(cx, cy, outerR, startAngle);
+  const outerEnd = polarToCartesian(cx, cy, outerR, endAngle);
+  const innerStart = polarToCartesian(cx, cy, innerR, startAngle);
+  const innerEnd = polarToCartesian(cx, cy, innerR, endAngle);
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  return [
+    `M ${outerStart.x} ${outerStart.y}`,
+    `A ${outerR} ${outerR} 0 ${largeArc} 1 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A ${innerR} ${innerR} 0 ${largeArc} 0 ${innerStart.x} ${innerStart.y}`,
+    "Z",
+  ].join(" ");
+}
 
 const SHORT_STAGE: Record<ApprovalStageKey, string> = {
   technical: "Tech",
@@ -73,11 +96,11 @@ export default function Section3Approvals({ orders, onNavigate }: { orders: Orde
         </div>
       }
     >
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }} className="items-start">
-        <PendingByStagePanel orders={orders} />
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }} className="items-stretch">
+        <OrdersStuckAtApprovalPanel orders={orders} />
         <TurnaroundPanel orders={orders} />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }} className="items-start">
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }} className="items-stretch">
         <ApprovalQueuePanel
           title="Technical Approval Queue"
           subtitle="Technical / Cancellation-Technical decisions pending"
@@ -97,24 +120,86 @@ export default function Section3Approvals({ orders, onNavigate }: { orders: Orde
   );
 }
 
-function PendingByStagePanel({ orders }: { orders: OrderRecord[] }) {
-  const data = [...buildStuckData(orders)].sort((a, b) => b.revenue - a.revenue);
+function OrdersStuckAtApprovalPanel({ orders }: { orders: OrderRecord[] }) {
+  const data = buildStuckData(orders);
+  const totalCount = data.reduce((sum, d) => sum + d.count, 0);
+
+  const GAP_DEG = 2;
+  const CX = 100;
+  const CY = 100;
+  const OUTER_R = 90;
+  const INNER_R = 42;
+
+  let cursor = 0;
+  const wedges = data.map((d) => {
+    const sweep = totalCount > 0 ? (d.count / totalCount) * 360 : 0;
+    const startAngle = cursor + GAP_DEG / 2;
+    const endAngle = cursor + sweep - GAP_DEG / 2;
+    cursor += sweep;
+    const mid = polarToCartesian(CX, CY, (OUTER_R + INNER_R) / 2, (startAngle + endAngle) / 2);
+    return { ...d, path: sweep > GAP_DEG ? donutWedgePath(CX, CY, INNER_R, OUTER_R, startAngle, endAngle) : null, labelX: mid.x, labelY: mid.y };
+  });
+
+  const { tip, show, move, hide } = useChartTooltip();
+  const [hoverKey, setHoverKey] = useState<ApprovalStageKey | null>(null);
+
   return (
     <Panel>
-      <PanelHeading
-        title="Approvals at Pending Stage Distribution (by Revenue)"
-        subtitle="Which approval each pending order is sitting in, by revenue"
-      />
-      <div className="flex flex-col gap-2.5">
-        {data.map((d) => (
-          <div key={d.key} style={{ display: "grid", gridTemplateColumns: "minmax(0,150px) minmax(0,1fr) 104px 44px", gap: 12 }} className="items-center">
-            <div style={{ fontSize: 14, color: D2.mutedStrong }}>{STUCK_LABEL[d.key]}</div>
-            <Bar pct={d.pct} color={d.color} tooltipLabel={STUCK_LABEL[d.key]} tooltipValue={`${formatINR(d.revenue)} (${d.pct.toFixed(0)}%)`} />
-            <div style={{ fontSize: 14, textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{formatINR(d.revenue)}</div>
-            <div style={{ fontSize: 13, textAlign: "right", color: D2.muted, fontVariantNumeric: "tabular-nums" }}>{d.pct.toFixed(0)}%</div>
+      <PanelHeading title="Orders Stuck at Approval" subtitle="Which approval each pending order is sitting in" />
+      {totalCount === 0 ? (
+        <EmptyRow />
+      ) : (
+        <div className="flex flex-1 items-center gap-5">
+          <div className="relative shrink-0" style={{ width: 200, height: 200 }}>
+            <svg width="100%" height="100%" viewBox="0 0 200 200">
+              {wedges.map(
+                (w) =>
+                  w.path && (
+                    <path
+                      key={w.key}
+                      d={w.path}
+                      fill={w.color}
+                      style={{ cursor: "pointer", transition: "opacity 120ms ease-out", opacity: hoverKey && hoverKey !== w.key ? 0.55 : 1 }}
+                      onMouseEnter={(e) => {
+                        setHoverKey(w.key);
+                        show(e, STUCK_LABEL[w.key], `${w.count} order${w.count === 1 ? "" : "s"} (${formatINR(w.revenue)})`);
+                      }}
+                      onMouseMove={move}
+                      onMouseLeave={() => {
+                        setHoverKey(null);
+                        hide();
+                      }}
+                    />
+                  )
+              )}
+              {wedges.map(
+                (w) =>
+                  w.path && (
+                    <text
+                      key={w.key}
+                      x={w.labelX}
+                      y={w.labelY}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      style={{ fill: "#fff", fontSize: 14, fontWeight: 700, pointerEvents: "none" }}
+                    >
+                      {w.count}
+                    </text>
+                  )
+              )}
+            </svg>
+            <ChartTooltip tip={tip} />
           </div>
-        ))}
-      </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+            {data.map((d) => (
+              <div key={d.key} className="flex items-center gap-2">
+                <div style={{ width: 9, height: 9, borderRadius: "50%", background: d.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: D2.mutedStrong }}>{STUCK_LABEL[d.key]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </Panel>
   );
 }
