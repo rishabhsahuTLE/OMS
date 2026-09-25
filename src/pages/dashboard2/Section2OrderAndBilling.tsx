@@ -1,17 +1,7 @@
 import { useMemo, useState } from "react";
 import type { OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
-import {
-  billsInColumn,
-  buildFiscalYearColumns,
-  daysBetween,
-  formatDDMMYYYY,
-  getDisplayStage,
-  isBillingOpenInColumn,
-  todayISO,
-  toggleSortState,
-  type SortState,
-} from "../../utils";
+import { billsInColumn, buildFiscalYearColumns, getDisplayStage, isBillingOpenInColumn, toggleSortState, type SortState } from "../../utils";
 import { type DashboardFilters } from "../dashboard/filters";
 import {
   buildManagerForecast,
@@ -141,25 +131,23 @@ function OpenedVsProjectedPanel({ orders }: { orders: OrderRecord[] }) {
   });
   const pct = projected > 0 ? Math.min(100, (opened / projected) * 100) : 0;
 
-  // How far into the FY "today" actually is, so the second bar can compare
-  // Opened against a projection scaled down to that same window rather than
-  // the whole year — e.g. 3 months into the FY, only ~25% of the full-year
-  // projection is expected to have opened yet, not 100%.
-  const fyStartISO = `${fyColumns[0].year}-04-01`;
-  const fyEndExclusiveISO = `${fyColumns[11].year}-04-01`;
-  const totalDays = daysBetween(fyStartISO, fyEndExclusiveISO);
-  const todayIso = todayISO();
-  const elapsedDays = Math.min(totalDays, Math.max(0, daysBetween(fyStartISO, todayIso)));
-  const fraction = totalDays > 0 ? elapsedDays / totalDays : 0;
-  const projectedToDate = Math.round(projected * fraction);
-  const pctToDate = projectedToDate > 0 ? Math.min(100, (opened / projectedToDate) * 100) : 0;
+  // Second bar is scoped to just the current calendar month's column, not
+  // the FY-to-date total — a standalone snapshot of this month rather than
+  // a cumulative figure.
+  const currentCol = fyColumns.find((c) => c.isCurrent) ?? fyColumns[fyColumns.length - 1];
+  const monthLabel = `${currentCol.label.charAt(0)}${currentCol.label.slice(1).toLowerCase()} ${currentCol.year}`;
+  let monthProjected = 0;
+  let monthOpened = 0;
+  scoped.forEach((o) => {
+    if (!billsInColumn(o, currentCol)) return;
+    monthProjected += o.amount;
+    if (isBillingOpenInColumn(o, currentCol)) monthOpened += o.amount;
+  });
+  const pctMonth = monthProjected > 0 ? Math.min(100, (monthOpened / monthProjected) * 100) : 0;
 
   return (
     <Panel className="justify-between">
-      <PanelHeading
-        title="Revenue — Opened vs Projected"
-        subtitle={`FY ${fyColumns[0].year}–${fyColumns[11].year} · ${Math.round(fraction * 100)}% of year elapsed`}
-      />
+      <PanelHeading title="Revenue — Opened vs Projected" subtitle={`FY ${fyColumns[0].year}–${fyColumns[11].year}`} />
       <div className="flex flex-1 flex-col justify-center gap-4">
         <div className="flex items-baseline justify-between gap-3">
           <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>Opened</div>
@@ -181,17 +169,19 @@ function OpenedVsProjectedPanel({ orders }: { orders: OrderRecord[] }) {
         </div>
         <div className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between gap-3">
-            <span style={{ fontSize: 13, color: D2.mutedStrong }}>vs Projected (till {formatDDMMYYYY(todayIso)})</span>
-            <span style={{ fontSize: 14, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{formatINR(projectedToDate)}</span>
+            <span style={{ fontSize: 13, color: D2.mutedStrong }}>Opened vs Projected — {monthLabel}</span>
+            <span style={{ fontSize: 14, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+              {formatINR(monthOpened)} <span style={{ color: D2.muted, fontWeight: 400 }}>of</span> {formatINR(monthProjected)}
+            </span>
           </div>
           <Bar
-            pct={pctToDate}
+            pct={pctMonth}
             color={D2.brand}
             height={10}
-            tooltipLabel="Opened vs Projected (till today)"
-            tooltipValue={`${formatINR(opened)} of ${formatINR(projectedToDate)} (${Math.round(pctToDate)}%)`}
+            tooltipLabel={`Opened vs Projected — ${monthLabel}`}
+            tooltipValue={`${formatINR(monthOpened)} of ${formatINR(monthProjected)} (${Math.round(pctMonth)}%)`}
           />
-          <div style={{ fontSize: 12, color: D2.muted, textAlign: "right" }}>{Math.round(pctToDate)}% of projected till today</div>
+          <div style={{ fontSize: 12, color: D2.muted, textAlign: "right" }}>{Math.round(pctMonth)}% opened this month</div>
         </div>
       </div>
     </Panel>
