@@ -57,58 +57,13 @@ export default function Section2OrderAndBilling({
       }
     >
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 }} className="items-start">
-        <RevenueInMotionPanel motion={motion} />
+        <ProductRevenuePanel orders={open} />
         <BillingActionsPanel orders={orders} onNavigate={onNavigate} />
         <OpenedVsProjectedPanel orders={orders} />
       </div>
       <RevenueTrend orders={rawOrders} filters={filters} size="lg" />
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,2fr)", gap: 12 }} className="items-start">
-        <ProductRevenuePanel orders={open} />
-        <ManagerForecastPanel orders={orders} onNavigate={onNavigate} />
-      </div>
+      <ManagerForecastPanel orders={orders} onNavigate={onNavigate} />
     </Section>
-  );
-}
-
-function RevenueInMotionPanel({ motion }: { motion: { active: number; amendmentInFlight: number; cancellationInFlight: number } }) {
-  const total = motion.active + motion.amendmentInFlight + motion.cancellationInFlight;
-  const segments = [
-    { label: "Active Revenue", value: motion.active, color: D2.green },
-    { label: "Amendment In-flight", value: motion.amendmentInFlight, color: "#4a8fb0" },
-    { label: "Cancellation In-flight", value: motion.cancellationInFlight, color: D2.red },
-  ];
-  const { tip, show, move, hide } = useChartTooltip();
-  return (
-    <Panel>
-      <PanelHeading title="Revenue in Motion" subtitle="Stable vs. currently in transition" />
-      <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", gap: 2 }}>
-        {segments.map((s) => {
-          const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
-          return (
-            <div
-              key={s.label}
-              style={{ flex: total > 0 ? s.value : 1, background: s.color, transition: "opacity 120ms ease-out", opacity: tip?.label === s.label ? 0.82 : 1 }}
-              onMouseEnter={(e) => show(e, s.label, `${formatINR(s.value)} (${pct}%)`)}
-              onMouseMove={move}
-              onMouseLeave={hide}
-            />
-          );
-        })}
-        <ChartTooltip tip={tip} />
-      </div>
-      <div className="flex flex-col gap-2.5">
-        {segments.map((s) => (
-          <div key={s.label} style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr) 118px", gap: 10 }} className="items-center">
-            <div style={{ width: 10, height: 10, borderRadius: "50%", background: s.color }} />
-            <div style={{ fontSize: 14, color: D2.mutedStrong }}>{s.label}</div>
-            <div style={{ fontSize: 14, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-              <span style={{ fontWeight: 600 }}>{formatINR(s.value)}</span>{" "}
-              <span style={{ color: D2.muted, fontSize: 13 }}>{total > 0 ? Math.round((s.value / total) * 100) : 0}%</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </Panel>
   );
 }
 
@@ -220,9 +175,9 @@ function ProductRevenuePanel({ orders }: { orders: OrderRecord[] }) {
       {slices.length === 0 ? (
         <EmptyRow />
       ) : (
-        <>
-          <div className="flex justify-center" style={{ padding: "6px 0" }}>
-            <svg width="180" height="180" viewBox="0 0 42 42">
+        <div className="flex items-center gap-4">
+          <div className="flex shrink-0 justify-center" style={{ padding: "6px 0" }}>
+            <svg width="108" height="108" viewBox="0 0 42 42">
               {slices.map((s) => {
                 const active = hoverSlice === s.product;
                 return (
@@ -252,19 +207,23 @@ function ProductRevenuePanel({ orders }: { orders: OrderRecord[] }) {
             </svg>
             <ChartTooltip tip={tip} />
           </div>
-          <div className="flex flex-col gap-2.5">
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
             {slices.map((s) => (
-              <div key={s.product} style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr) 118px", gap: 10 }} className="items-center">
+              <div key={s.product} style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr)", gap: 8 }} className="items-center">
                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: s.color }} />
-                <div style={{ fontSize: 14, color: D2.mutedStrong }}>{s.product}</div>
-                <div style={{ fontSize: 14, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                  <span style={{ fontWeight: 600 }}>{formatINR(s.revenue)}</span>{" "}
-                  <span style={{ color: D2.muted, fontSize: 13 }}>{s.pct.toFixed(0)}%</span>
+                <div className="min-w-0">
+                  <div style={{ fontSize: 14, color: D2.mutedStrong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {s.product}
+                  </div>
+                  <div style={{ fontSize: 14, fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ fontWeight: 600 }}>{formatINR(s.revenue)}</span>{" "}
+                    <span style={{ color: D2.muted, fontSize: 13 }}>{s.pct.toFixed(0)}%</span>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
     </Panel>
   );

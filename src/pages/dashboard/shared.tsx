@@ -90,7 +90,7 @@ export const BU_COLORS = ["#4f46e5", "#0d9488", "#d97706", "#e11d48", "#64748b"]
 export type StageBucketKey = "pending" | "active" | "agreementOver" | "cancellationPending" | "closed";
 
 export const STAGE_BUCKETS: { key: StageBucketKey; label: string; tone: Tone; stageParam: string }[] = [
-  { key: "pending", label: "Pending", tone: "amber", stageParam: "approvalPending" },
+  { key: "pending", label: "Pending (in approval)", tone: "amber", stageParam: "approvalPending" },
   { key: "active", label: "Active", tone: "emerald", stageParam: "active" },
   { key: "agreementOver", label: "Agreement Over", tone: "indigo", stageParam: "agreementOver" },
   { key: "cancellationPending", label: "Cancellation Pending", tone: "rose", stageParam: "closurePending" },

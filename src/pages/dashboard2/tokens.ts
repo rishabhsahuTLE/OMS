@@ -30,6 +30,16 @@ export const D2 = {
     cancellationFinancial: "#c68a2b",
     cancellationTechnical: "#7b5ea7",
   },
+  // Stage Distribution's 5-bucket taxonomy (StageBucketKey) — one color per
+  // bucket, reused wherever that bucket's order count is shown so e.g.
+  // "Active" is always the same color on the page.
+  stageBucket: {
+    pending: "#a76a10",
+    active: "#1f7a5c",
+    agreementOver: "#3c5f7f",
+    cancellationPending: "#c4322d",
+    closed: "#5c7480",
+  } as Record<string, string>,
   bu: {
     "Enterprise CEP": "#2f8f72",
     "Premiere Inst": "#7b5ea7",

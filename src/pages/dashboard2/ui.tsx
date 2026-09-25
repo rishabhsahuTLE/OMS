@@ -206,12 +206,14 @@ export function StatTile({
   value,
   amount,
   highlighted,
+  valueColor,
   onClick,
 }: {
   label: string;
   value: ReactNode;
   amount?: string;
   highlighted?: boolean;
+  valueColor?: string;
   onClick?: () => void;
 }) {
   return (
@@ -228,7 +230,7 @@ export function StatTile({
       className="transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:shadow-[0_8px_18px_rgba(21,36,43,0.09)]"
     >
       <div style={{ fontSize: 14, color: D2.mutedStrong, marginBottom: 7 }}>{label}</div>
-      <div style={{ fontSize: 27, fontWeight: 700, lineHeight: 1, color: D2.text, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+      <div style={{ fontSize: 27, fontWeight: 700, lineHeight: 1, color: valueColor ?? D2.text, fontVariantNumeric: "tabular-nums" }}>{value}</div>
       {amount && <div style={{ fontSize: 13, color: D2.muted, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{amount}</div>}
     </button>
   );
