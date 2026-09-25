@@ -12,7 +12,7 @@ import {
   type TatPeriod,
 } from "../dashboard/shared";
 import { D2 } from "./tokens";
-import { Bar, ChartTooltip, EmptyRow, HeaderStat, Panel, PanelHeading, PillTabs, Section, useChartTooltip, WaitingPill } from "./ui";
+import { Bar, ChartTooltip, EmptyRow, HeaderStat, InfoTip, Panel, PanelHeading, PillTabs, Section, useChartTooltip, WaitingPill } from "./ui";
 
 // Standard SVG donut-wedge trigonometry: angle 0 is the top (12 o'clock),
 // increasing clockwise — shared by any wedge that needs its own in-slice
@@ -225,7 +225,13 @@ function TurnaroundPanel({ orders }: { orders: OrderRecord[] }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", border: `1px solid ${D2.panelBorder}`, borderRadius: 5, background: D2.panelBg }}>
-        <TatStat label="Avg clearance" value={`${summary.avgClearance.toFixed(1)}`} unit="d" border />
+        <TatStat
+          label="Avg clearance"
+          value={`${summary.avgClearance.toFixed(1)}`}
+          unit="d"
+          border
+          tip="Mean turnaround, in days, across every Technical / Financial / Cancellation-Technical / Cancellation-Financial decision made in the selected period, pooled into one list — not an average of the 4 stage bars below. Falls back to all-time if the period has no decisions yet."
+        />
         <TatStat label="Median" value={`${summary.median.toFixed(1)}`} unit="d" border />
         <TatStat label="Cleared" value={String(summary.ordersCleared)} />
       </div>
@@ -290,11 +296,24 @@ function TurnaroundPanel({ orders }: { orders: OrderRecord[] }) {
   );
 }
 
-function TatStat({ label, value, unit, border }: { label: string; value: string; unit?: string; border?: boolean }) {
+function TatStat({
+  label,
+  value,
+  unit,
+  border,
+  tip,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  border?: boolean;
+  tip?: string;
+}) {
   return (
     <div style={{ padding: "11px 14px", borderRight: border ? `1px solid ${D2.panelBorder}` : undefined }}>
-      <div style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: D2.muted, fontWeight: 600, marginBottom: 4 }}>
-        {label}
+      <div className="flex items-center gap-1" style={{ marginBottom: 4 }}>
+        <div style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>{label}</div>
+        {tip && <InfoTip text={tip} />}
       </div>
       <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
         {value}
