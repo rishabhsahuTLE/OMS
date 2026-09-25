@@ -83,6 +83,85 @@ class LmsProduct extends Product {
   }
 }
 
+// Exam, App, UMS and Content don't (yet) have any product-specific form
+// behavior of their own, so they reuse LMS's numUsers/feePerUser shape —
+// same fields, same amount formula, just a different name and mock spread.
+class ExamProduct extends Product {
+  readonly name = "Exam";
+
+  fields(): ProductField[] {
+    return [
+      { key: "numUsers", label: "No. of Users", type: "number", required: true },
+      { key: "feePerUser", label: "Fee per User (₹)", type: "number", required: true },
+    ];
+  }
+
+  productAmount(values: ProductFormValues): number {
+    return toNumber(values.numUsers) * toNumber(values.feePerUser);
+  }
+
+  mockDetails(seed: number): Partial<OrderRecordDetails> {
+    return { numUsers: 40 + seed * 4, feePerUser: 90 };
+  }
+}
+
+class AppProduct extends Product {
+  readonly name = "App";
+
+  fields(): ProductField[] {
+    return [
+      { key: "numUsers", label: "No. of Users", type: "number", required: true },
+      { key: "feePerUser", label: "Fee per User (₹)", type: "number", required: true },
+    ];
+  }
+
+  productAmount(values: ProductFormValues): number {
+    return toNumber(values.numUsers) * toNumber(values.feePerUser);
+  }
+
+  mockDetails(seed: number): Partial<OrderRecordDetails> {
+    return { numUsers: 60 + seed * 6, feePerUser: 75 };
+  }
+}
+
+class UmsProduct extends Product {
+  readonly name = "UMS";
+
+  fields(): ProductField[] {
+    return [
+      { key: "numUsers", label: "No. of Users", type: "number", required: true },
+      { key: "feePerUser", label: "Fee per User (₹)", type: "number", required: true },
+    ];
+  }
+
+  productAmount(values: ProductFormValues): number {
+    return toNumber(values.numUsers) * toNumber(values.feePerUser);
+  }
+
+  mockDetails(seed: number): Partial<OrderRecordDetails> {
+    return { numUsers: 30 + seed * 3, feePerUser: 150 };
+  }
+}
+
+class ContentProduct extends Product {
+  readonly name = "Content";
+
+  fields(): ProductField[] {
+    return [
+      { key: "numUsers", label: "No. of Users", type: "number", required: true },
+      { key: "feePerUser", label: "Fee per User (₹)", type: "number", required: true },
+    ];
+  }
+
+  productAmount(values: ProductFormValues): number {
+    return toNumber(values.numUsers) * toNumber(values.feePerUser);
+  }
+
+  mockDetails(seed: number): Partial<OrderRecordDetails> {
+    return { numUsers: 20 + seed * 2, feePerUser: 200 };
+  }
+}
+
 class QuirioProduct extends Product {
   readonly name = "Quirio";
 
@@ -180,7 +259,14 @@ class QuirioProduct extends Product {
   }
 }
 
-export const PRODUCTS: Product[] = [new LmsProduct(), new QuirioProduct()];
+export const PRODUCTS: Product[] = [
+  new LmsProduct(),
+  new ExamProduct(),
+  new AppProduct(),
+  new UmsProduct(),
+  new QuirioProduct(),
+  new ContentProduct(),
+];
 
 export const PRODUCT_NAMES = PRODUCTS.map((p) => p.name);
 

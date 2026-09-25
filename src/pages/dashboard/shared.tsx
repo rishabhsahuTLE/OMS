@@ -26,6 +26,16 @@ export function formatINR(n: number) {
   return `₹${n.toLocaleString("en-IN")}`;
 }
 
+// Compact Indian-denomination form (₹16.48Cr / ₹42.30L) for spots that need
+// a short headline number rather than the full rupee figure — falls back to
+// formatINR below 1 lakh, where a compact suffix wouldn't save any room.
+export function formatINRCompact(n: number): string {
+  const abs = Math.abs(n);
+  if (abs >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(2)}Cr`;
+  if (abs >= 1_00_000) return `₹${(n / 1_00_000).toFixed(2)}L`;
+  return formatINR(n);
+}
+
 // Which department owns a given approval stage — Approval Queue, Clearance
 // Stats, Rejected — Needs Fix and Age at Stage all use this to scope/order
 // their rows per role.
@@ -71,7 +81,11 @@ export const STAGE_ANCHOR: Record<ApprovalStageKey, (o: OrderRecord) => string> 
 // particular.
 export const PRODUCT_COLORS: Record<string, string> = {
   LMS: "#3e77bc",
+  Exam: "#c23b82",
+  App: "#d99a2b",
+  UMS: "#1f9e96",
   Quirio: "#bc6c52",
+  Content: "#6b8e3d",
 };
 
 export const BU_COLORS = ["#4f46e5", "#0d9488", "#d97706", "#e11d48", "#64748b"];

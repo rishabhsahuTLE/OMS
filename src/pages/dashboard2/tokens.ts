@@ -48,8 +48,12 @@ export const D2 = {
     ENTERPRISE: "#4a8fb0",
   } as Record<string, string>,
   product: {
-    Quirio: "#3c7fbf",
     LMS: "#c0654a",
+    Exam: "#b23a6b",
+    App: "#c98a2b",
+    UMS: "#2f8f8f",
+    Quirio: "#3c7fbf",
+    Content: "#5c8a3a",
   } as Record<string, string>,
   avatar: ["#12414f", "#1a7fae", "#1f7a5c", "#7b5ea7", "#c4322d", "#d98424", "#3c7fbf", "#c0654a"],
 } as const;

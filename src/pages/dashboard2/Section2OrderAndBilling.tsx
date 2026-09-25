@@ -1,9 +1,26 @@
 import { useMemo, useState } from "react";
 import type { OrderRecord } from "../../types";
 import { PRODUCT_NAMES } from "../../products";
-import { billsInColumn, buildFiscalYearColumns, getDisplayStage, isBillingOpenInColumn, toggleSortState, type SortState } from "../../utils";
+import {
+  billsInColumn,
+  buildFiscalYearColumns,
+  daysBetween,
+  getDisplayStage,
+  isBillingOpenInColumn,
+  todayISO,
+  toggleSortState,
+  type SortState,
+} from "../../utils";
 import { type DashboardFilters } from "../dashboard/filters";
-import { buildManagerForecast, buildRevenueMotion, formatINR, type ForecastQuarter, type ManagerForecastRow, type NavigateFn } from "../dashboard/shared";
+import {
+  buildManagerForecast,
+  buildRevenueMotion,
+  formatINR,
+  formatINRCompact,
+  type ForecastQuarter,
+  type ManagerForecastRow,
+  type NavigateFn,
+} from "../dashboard/shared";
 import RevenueTrend from "../dashboard/widgets/RevenueTrend";
 import { D2 } from "./tokens";
 import {
@@ -56,7 +73,7 @@ export default function Section2OrderAndBilling({
         </div>
       }
     >
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 }} className="items-start">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 }} className="items-stretch">
         <ProductRevenuePanel orders={open} />
         <BillingActionsPanel orders={orders} onNavigate={onNavigate} />
         <OpenedVsProjectedPanel orders={orders} />
@@ -123,30 +140,57 @@ function OpenedVsProjectedPanel({ orders }: { orders: OrderRecord[] }) {
   });
   const pct = projected > 0 ? Math.min(100, (opened / projected) * 100) : 0;
 
+  // How far into the FY "today" actually is, so the second bar can compare
+  // Opened against a time-adjusted slice of the full projection rather than
+  // the whole year — e.g. 3 months into the FY, pace expects ~25% opened,
+  // not 100%.
+  const fyStartISO = `${fyColumns[0].year}-04-01`;
+  const fyEndExclusiveISO = `${fyColumns[11].year}-04-01`;
+  const totalDays = daysBetween(fyStartISO, fyEndExclusiveISO);
+  const elapsedDays = Math.min(totalDays, Math.max(0, daysBetween(fyStartISO, todayISO())));
+  const fraction = totalDays > 0 ? elapsedDays / totalDays : 0;
+  const paceProjected = projected * fraction;
+  const pacePct = paceProjected > 0 ? Math.min(100, (opened / paceProjected) * 100) : 0;
+
   return (
-    <Panel>
-      <PanelHeading title="Revenue — Opened vs Projected" subtitle={`FY ${fyColumns[0].year}–${fyColumns[11].year}`} />
-      <div className="flex flex-col gap-3">
+    <Panel className="justify-between">
+      <PanelHeading
+        title="Revenue — Opened vs Pace"
+        subtitle={`FY ${fyColumns[0].year}–${fyColumns[11].year} · ${Math.round(fraction * 100)}% of year elapsed`}
+      />
+      <div className="flex flex-1 flex-col justify-center gap-4">
         <div className="flex items-baseline justify-between gap-3">
           <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>Opened</div>
-          <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{formatINR(opened)}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{formatINR(opened)}</div>
         </div>
-        <div className="flex items-baseline justify-between gap-3">
-          <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: D2.muted, fontWeight: 600 }}>
-            Projected (full FY)
+        <div className="flex flex-col gap-2">
+          <div className="flex items-baseline justify-between gap-3">
+            <span style={{ fontSize: 13, color: D2.mutedStrong }}>vs Full-Year Projection</span>
+            <span style={{ fontSize: 14, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{formatINR(projected)}</span>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{formatINR(projected)}</div>
+          <Bar
+            pct={pct}
+            color={D2.green}
+            height={10}
+            tooltipLabel="Opened vs Full-Year Projection"
+            tooltipValue={`${formatINR(opened)} of ${formatINR(projected)} (${pct.toFixed(1)}%)`}
+          />
+          <div style={{ fontSize: 12, color: D2.muted, textAlign: "right" }}>{pct.toFixed(1)}% of full year</div>
         </div>
-      </div>
-      <div>
-        <Bar
-          pct={pct}
-          color={D2.green}
-          height={10}
-          tooltipLabel="Opened vs Projected"
-          tooltipValue={`${formatINR(opened)} of ${formatINR(projected)} (${pct.toFixed(1)}%)`}
-        />
-        <div style={{ fontSize: 13, color: D2.muted, textAlign: "right", marginTop: 7 }}>{pct.toFixed(1)}% opened</div>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-baseline justify-between gap-3">
+            <span style={{ fontSize: 13, color: D2.mutedStrong }}>vs Pace (time-adjusted)</span>
+            <span style={{ fontSize: 14, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{formatINR(paceProjected)}</span>
+          </div>
+          <Bar
+            pct={pacePct}
+            color={D2.brand}
+            height={10}
+            tooltipLabel="Opened vs Pace"
+            tooltipValue={`${formatINR(opened)} of ${formatINR(paceProjected)} (${pacePct.toFixed(1)}%)`}
+          />
+          <div style={{ fontSize: 12, color: D2.muted, textAlign: "right" }}>{pacePct.toFixed(1)}% on pace</div>
+        </div>
       </div>
     </Panel>
   );
@@ -175,9 +219,17 @@ function ProductRevenuePanel({ orders }: { orders: OrderRecord[] }) {
       {slices.length === 0 ? (
         <EmptyRow />
       ) : (
-        <div className="flex items-center gap-4">
-          <div className="flex shrink-0 justify-center" style={{ padding: "6px 0" }}>
-            <svg width="108" height="108" viewBox="0 0 42 42">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            {slices.map((s) => (
+              <div key={s.product} className="flex items-center gap-1.5">
+                <div style={{ width: 9, height: 9, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: D2.mutedStrong }}>{s.product}</span>
+              </div>
+            ))}
+          </div>
+          <div className="relative flex min-h-0 flex-1 items-center justify-center">
+            <svg width="100%" height="100%" viewBox="0 0 42 42" style={{ maxWidth: 260, maxHeight: 260 }}>
               {slices.map((s) => {
                 const active = hoverSlice === s.product;
                 return (
@@ -188,7 +240,7 @@ function ProductRevenuePanel({ orders }: { orders: OrderRecord[] }) {
                     r="15.9"
                     fill="transparent"
                     stroke={s.color}
-                    strokeWidth={active ? 8.5 : 7}
+                    strokeWidth={active ? 6.5 : 5.5}
                     strokeDasharray={`${s.pct} ${100 - s.pct}`}
                     strokeDashoffset={s.dashoffset}
                     style={{ cursor: "pointer", transition: "stroke-width 120ms ease-out", opacity: hoverSlice && !active ? 0.55 : 1 }}
@@ -205,23 +257,12 @@ function ProductRevenuePanel({ orders }: { orders: OrderRecord[] }) {
                 );
               })}
             </svg>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <span style={{ fontSize: 13, fontWeight: 600, color: D2.link }}>Total</span>
+              <span style={{ fontSize: 22, fontWeight: 700, color: D2.text, lineHeight: 1.3 }}>{formatINRCompact(total)}</span>
+              <span style={{ fontSize: 12, color: D2.muted }}>100%</span>
+            </div>
             <ChartTooltip tip={tip} />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-            {slices.map((s) => (
-              <div key={s.product} style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr)", gap: 8 }} className="items-center">
-                <div style={{ width: 10, height: 10, borderRadius: "50%", background: s.color }} />
-                <div className="min-w-0">
-                  <div style={{ fontSize: 14, color: D2.mutedStrong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {s.product}
-                  </div>
-                  <div style={{ fontSize: 14, fontVariantNumeric: "tabular-nums" }}>
-                    <span style={{ fontWeight: 600 }}>{formatINR(s.revenue)}</span>{" "}
-                    <span style={{ color: D2.muted, fontSize: 13 }}>{s.pct.toFixed(0)}%</span>
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}
