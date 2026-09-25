@@ -1,6 +1,6 @@
 import clientsData from "./clients.json";
 import { PRODUCTS } from "../products";
-import { baseOrderNo } from "../utils";
+import { baseOrderNo, todayISO } from "../utils";
 import type {
   ApprovalState,
   BillingCycle,
@@ -444,3 +444,64 @@ mockOrders.push(
   makeExtraPendingOrder(clients[7], PRODUCTS[4], "OD-P0000145", 8, -50, 234000, "Tech"),
   makeExtraPendingOrder(clients[8], PRODUCTS[2], "OD-P0000146", 9, -75, 275500, "Tech")
 );
+
+// --- One order opened in the real current month -----------------------------
+// "Revenue — Opened vs Projected"'s 2nd bar (Section2OrderAndBilling.tsx)
+// deliberately scopes to the real current calendar month (new Date()), not
+// the fixed REFERENCE_DATE every other mock date is anchored to — so as real
+// time moves further past REFERENCE_DATE (2026-07-21), eventually no seeded
+// order's billingOpenedOn falls in "this month" any more and that bar shows
+// a flat ₹0. Anchoring this one order to the real todayISO() instead (rather
+// than makeDate()) keeps it self-correcting: whenever the app is actually
+// opened, this order's billing window and firstBillingMonth both land in
+// whatever the real current month is.
+const REAL_TODAY = todayISO();
+mockOrders.push({
+  id: "ord-extra-thismonth",
+  orderNo: "OD-P0000147",
+  product: PRODUCTS[0].name,
+  clientId: clients[0].id,
+  client: clients[0].name,
+  bu: clients[0].bu,
+  clientManager: clients[0].clientManager,
+  dateOfSign: addDays(REAL_TODAY, -60),
+  createdOn: addDays(REAL_TODAY, -55),
+  technical: withMeta({ status: "confirmed", date: addDays(REAL_TODAY, -45) }, 10),
+  financial: withMeta({ status: "confirmed", date: addDays(REAL_TODAY, -35) }, 11),
+  lifecycleStatus: "active",
+  cancellationTechnical: { status: "pending", date: null },
+  cancellationFinancial: { status: "pending", date: null },
+  billingCycle: "M",
+  amount: 356000,
+  amended: false,
+  billingStatus: "open",
+  billingOpenedOn: REAL_TODAY,
+  billingClosedOn: null,
+  details: {
+    clientManager: clients[0].clientManager,
+    billingAddress: clients[0].billingAddress,
+    billingState: clients[0].billingState,
+    billingCity: clients[0].billingCity,
+    deliveryAddress: clients[0].deliveryAddress,
+    deliveryState: clients[0].deliveryState,
+    deliveryCity: clients[0].deliveryCity,
+    gstNo: clients[0].gstNo,
+    spocs: clients[0].spocs,
+    product: PRODUCTS[0].name,
+    dateOfSign: addDays(REAL_TODAY, -60),
+    plan: "Prepaid",
+    oneTime: null,
+    gstProcess: "",
+    selectGst: clients[0].gstNo || "NA",
+    ...PRODUCTS[0].mockDetails(12),
+    firstBillingMonth: REAL_TODAY.slice(0, 7),
+    billingCycle: "M",
+    agreement: null,
+    advance: null,
+    tds: null,
+    netAmount: 356000,
+    creditPeriod: null,
+    documents: [],
+    remarks: "",
+  },
+});

@@ -96,7 +96,7 @@ export default function Section3Approvals({ orders, onNavigate }: { orders: Orde
         </div>
       }
     >
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }} className="items-stretch">
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,3fr)", gap: 12 }} className="items-stretch">
         <OrdersStuckAtApprovalPanel orders={orders} />
         <TurnaroundPanel orders={orders} />
       </div>
@@ -149,9 +149,9 @@ function OrdersStuckAtApprovalPanel({ orders }: { orders: OrderRecord[] }) {
       {totalCount === 0 ? (
         <EmptyRow />
       ) : (
-        <div className="flex flex-1 items-center gap-8">
-          <div className="relative shrink-0" style={{ width: 260, height: 260 }}>
-            <svg width="100%" height="100%" viewBox="0 0 260 260">
+        <div className="flex flex-1 items-stretch gap-6">
+          <div className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center">
+            <svg width="100%" height="100%" viewBox="0 0 260 260" style={{ maxWidth: 380, maxHeight: 380 }}>
               {wedges.map(
                 (w) =>
                   w.path && (
@@ -190,12 +190,16 @@ function OrdersStuckAtApprovalPanel({ orders }: { orders: OrderRecord[] }) {
             </svg>
             <ChartTooltip tip={tip} />
           </div>
-          <div className="flex min-w-0 flex-1 flex-col justify-center gap-4">
+          <div className="flex shrink-0 flex-col justify-center gap-4" style={{ width: 140 }}>
             {data.map((d) => (
               <div key={d.key} className="flex items-center gap-2.5">
                 <div style={{ width: 11, height: 11, borderRadius: "50%", background: d.color, flexShrink: 0 }} />
                 <span style={{ fontSize: 14, color: D2.mutedStrong }}>
-                  {STUCK_LABEL[d.key]} <span style={{ color: D2.faint }}>— {d.count} order{d.count === 1 ? "" : "s"}</span>
+                  {STUCK_LABEL[d.key]}
+                  <br />
+                  <span style={{ color: D2.faint, fontSize: 13 }}>
+                    {d.count} order{d.count === 1 ? "" : "s"}
+                  </span>
                 </span>
               </div>
             ))}
