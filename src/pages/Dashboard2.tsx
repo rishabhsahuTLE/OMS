@@ -59,69 +59,70 @@ export default function Dashboard2({ orders, onNavigate }: { orders: OrderRecord
   }
 
   return (
-    <div style={{ fontFamily: D2_FONT, color: D2.text, background: D2.pageBg }} className="-m-6 min-h-full px-6 pt-5 pb-20">
-      <div style={{ position: "sticky", top: 0, zIndex: 20, background: D2.pageBg, paddingBottom: 14 }}>
-        <div style={{ background: D2.panelBg, border: `1px solid ${D2.panelBorder}`, borderRadius: 6, padding: "18px 20px" }}>
-          <div className="flex flex-wrap items-start justify-between gap-5">
-            <div>
-              <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em" }}>Dashboard</div>
-              <div style={{ fontSize: 14, color: D2.muted, marginTop: 2 }}>Overview of orders, approvals, billing and revenue</div>
-            </div>
-            <div className="flex items-center gap-3.5">
-              <div style={{ fontSize: 13, color: D2.muted }}>Last updated {lastUpdated}</div>
-              <button
-                type="button"
-                onClick={() => setLastUpdated(todayISO())}
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: D2.brand,
-                  border: `1px solid #c8d3d9`,
-                  background: "#fff",
-                  borderRadius: 5,
-                  padding: "8px 14px",
-                }}
-              >
-                Refresh
-              </button>
-            </div>
+    <div style={{ fontFamily: D2_FONT, color: D2.text, background: D2.pageBg }} className="-m-6 min-h-full pb-20">
+      <div
+        style={{ position: "sticky", top: 0, zIndex: 20, background: D2.panelBg, borderBottom: `1px solid ${D2.panelBorder}` }}
+        className="px-6 pt-5 pb-4"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div>
+            <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em" }}>Dashboard</div>
+            <div style={{ fontSize: 14, color: D2.muted, marginTop: 2 }}>Overview of orders, approvals, billing and revenue</div>
           </div>
-
-          <div style={{ height: 1, background: D2.rowDivider, margin: "16px 0" }} />
-
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <DateDropdown value={filters.datePreset} onChange={setDatePreset} dateRange={filters.dateRange} onRangeChange={(r) => setFilters((f) => ({ ...f, dateRange: r }))} />
-            <CheckDropdown
-              label="Business Units"
-              options={[...BUSINESS_UNITS]}
-              selected={filters.businessUnits}
-              onToggle={(v) => setFilters((f) => ({ ...f, businessUnits: toggleInSet(f.businessUnits, v) }))}
-            />
-            <CheckDropdown
-              label="Products"
-              options={PRODUCT_NAMES}
-              selected={filters.products}
-              onToggle={(v) => setFilters((f) => ({ ...f, products: toggleInSet(f.products, v) }))}
-            />
-            <CheckDropdown
-              label="Managers"
-              options={managerOptions}
-              selected={filters.managers}
-              onToggle={(v) => setFilters((f) => ({ ...f, managers: toggleInSet(f.managers, v) }))}
-            />
-            <div style={{ flex: 1, minWidth: 20 }} />
-            <div style={{ fontSize: 13, color: D2.muted, fontVariantNumeric: "tabular-nums" }}>
-              {scoped.length} of {orders.length} orders
-            </div>
-            <div style={{ width: 1, height: 18, background: D2.border }} />
-            <button type="button" onClick={clearAll} style={{ fontSize: 13, fontWeight: 600, color: D2.link }}>
-              Clear All
+          <div className="flex items-center gap-3.5">
+            <div style={{ fontSize: 13, color: D2.muted }}>Last updated {lastUpdated}</div>
+            <button
+              type="button"
+              onClick={() => setLastUpdated(todayISO())}
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: D2.brand,
+                border: `1px solid #c8d3d9`,
+                background: "#fff",
+                borderRadius: 5,
+                padding: "8px 14px",
+              }}
+            >
+              Refresh
             </button>
           </div>
         </div>
+
+        <div style={{ height: 1, background: D2.rowDivider, margin: "16px 0" }} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <DateDropdown value={filters.datePreset} onChange={setDatePreset} dateRange={filters.dateRange} onRangeChange={(r) => setFilters((f) => ({ ...f, dateRange: r }))} />
+          <CheckDropdown
+            label="Business Units"
+            options={[...BUSINESS_UNITS]}
+            selected={filters.businessUnits}
+            onToggle={(v) => setFilters((f) => ({ ...f, businessUnits: toggleInSet(f.businessUnits, v) }))}
+          />
+          <CheckDropdown
+            label="Products"
+            options={PRODUCT_NAMES}
+            selected={filters.products}
+            onToggle={(v) => setFilters((f) => ({ ...f, products: toggleInSet(f.products, v) }))}
+          />
+          <CheckDropdown
+            label="Managers"
+            options={managerOptions}
+            selected={filters.managers}
+            onToggle={(v) => setFilters((f) => ({ ...f, managers: toggleInSet(f.managers, v) }))}
+          />
+          <div style={{ flex: 1, minWidth: 20 }} />
+          <div style={{ fontSize: 13, color: D2.muted, fontVariantNumeric: "tabular-nums" }}>
+            {scoped.length} of {orders.length} orders
+          </div>
+          <div style={{ width: 1, height: 18, background: D2.border }} />
+          <button type="button" onClick={clearAll} style={{ fontSize: 13, fontWeight: 600, color: D2.link }}>
+            Clear All
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-col" style={{ gap: 34, paddingTop: 14 }}>
+      <div className="flex flex-col px-6" style={{ gap: 34, paddingTop: 28 }}>
         <Section1StageDistribution orders={scoped} onNavigate={onNavigate} />
         <Section2OrderAndBilling orders={scoped} rawOrders={orders} filters={filters} onNavigate={onNavigate} />
         <Section3Approvals orders={scoped} onNavigate={onNavigate} />
