@@ -5,6 +5,7 @@ import {
   billsInColumn,
   buildFiscalYearColumns,
   daysBetween,
+  formatDDMMYYYY,
   getDisplayStage,
   isBillingOpenInColumn,
   todayISO,
@@ -141,21 +142,22 @@ function OpenedVsProjectedPanel({ orders }: { orders: OrderRecord[] }) {
   const pct = projected > 0 ? Math.min(100, (opened / projected) * 100) : 0;
 
   // How far into the FY "today" actually is, so the second bar can compare
-  // Opened against a time-adjusted slice of the full projection rather than
-  // the whole year — e.g. 3 months into the FY, pace expects ~25% opened,
-  // not 100%.
+  // Opened against a projection scaled down to that same window rather than
+  // the whole year — e.g. 3 months into the FY, only ~25% of the full-year
+  // projection is expected to have opened yet, not 100%.
   const fyStartISO = `${fyColumns[0].year}-04-01`;
   const fyEndExclusiveISO = `${fyColumns[11].year}-04-01`;
   const totalDays = daysBetween(fyStartISO, fyEndExclusiveISO);
-  const elapsedDays = Math.min(totalDays, Math.max(0, daysBetween(fyStartISO, todayISO())));
+  const todayIso = todayISO();
+  const elapsedDays = Math.min(totalDays, Math.max(0, daysBetween(fyStartISO, todayIso)));
   const fraction = totalDays > 0 ? elapsedDays / totalDays : 0;
-  const paceProjected = projected * fraction;
-  const pacePct = paceProjected > 0 ? Math.min(100, (opened / paceProjected) * 100) : 0;
+  const projectedToDate = Math.round(projected * fraction);
+  const pctToDate = projectedToDate > 0 ? Math.min(100, (opened / projectedToDate) * 100) : 0;
 
   return (
     <Panel className="justify-between">
       <PanelHeading
-        title="Revenue — Opened vs Pace"
+        title="Revenue — Opened vs Projected"
         subtitle={`FY ${fyColumns[0].year}–${fyColumns[11].year} · ${Math.round(fraction * 100)}% of year elapsed`}
       />
       <div className="flex flex-1 flex-col justify-center gap-4">
@@ -173,23 +175,23 @@ function OpenedVsProjectedPanel({ orders }: { orders: OrderRecord[] }) {
             color={D2.green}
             height={10}
             tooltipLabel="Opened vs Full-Year Projection"
-            tooltipValue={`${formatINR(opened)} of ${formatINR(projected)} (${pct.toFixed(1)}%)`}
+            tooltipValue={`${formatINR(opened)} of ${formatINR(projected)} (${Math.round(pct)}%)`}
           />
-          <div style={{ fontSize: 12, color: D2.muted, textAlign: "right" }}>{pct.toFixed(1)}% of full year</div>
+          <div style={{ fontSize: 12, color: D2.muted, textAlign: "right" }}>{Math.round(pct)}% of full year</div>
         </div>
         <div className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between gap-3">
-            <span style={{ fontSize: 13, color: D2.mutedStrong }}>vs Pace (time-adjusted)</span>
-            <span style={{ fontSize: 14, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{formatINR(paceProjected)}</span>
+            <span style={{ fontSize: 13, color: D2.mutedStrong }}>vs Projected (till {formatDDMMYYYY(todayIso)})</span>
+            <span style={{ fontSize: 14, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{formatINR(projectedToDate)}</span>
           </div>
           <Bar
-            pct={pacePct}
+            pct={pctToDate}
             color={D2.brand}
             height={10}
-            tooltipLabel="Opened vs Pace"
-            tooltipValue={`${formatINR(opened)} of ${formatINR(paceProjected)} (${pacePct.toFixed(1)}%)`}
+            tooltipLabel="Opened vs Projected (till today)"
+            tooltipValue={`${formatINR(opened)} of ${formatINR(projectedToDate)} (${Math.round(pctToDate)}%)`}
           />
-          <div style={{ fontSize: 12, color: D2.muted, textAlign: "right" }}>{pacePct.toFixed(1)}% on pace</div>
+          <div style={{ fontSize: 12, color: D2.muted, textAlign: "right" }}>{Math.round(pctToDate)}% of projected till today</div>
         </div>
       </div>
     </Panel>
