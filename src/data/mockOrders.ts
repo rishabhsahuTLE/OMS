@@ -505,3 +505,92 @@ mockOrders.push({
     remarks: "",
   },
 });
+
+// --- Two real Cancellation-Technical / Cancellation-Financial pending orders
+// buildStuckData()'s "Orders Stuck at Approval" donut (shared.tsx:180) has an
+// illustrative MOCK_STUCK_FALLBACK for cancellationTechnical/
+// cancellationFinancial, used whenever a stage's real pending count is 0 —
+// which, until now, was always true for cancellationTechnical (the main
+// loop's cancellationInProgress bucket always pre-confirms it at seed time)
+// and was true for cancellationFinancial specifically within the default
+// FY2026-27 view (the only 3 real CF-pending orders all predate that FY).
+// That made the donut show 4 fabricated orders that don't exist anywhere
+// else on the page (not in either Approval Queue, not in Order Ageing, not
+// in the "orders waiting on a decision" count). These two orders are real,
+// fully-activated-then-cancellation-initiated orders within FY2026-27 whose
+// TC/CF genuinely aren't decided yet, so the fallback stops firing.
+function makeCancellationInProgressOrder(
+  client: Client,
+  product: (typeof PRODUCTS)[number],
+  orderNo: string,
+  seed: number,
+  signOffset: number,
+  amount: number,
+  ctDecided: boolean
+): OrderRecord {
+  const dateOfSign = makeDate(signOffset);
+  const createdOn = makeDate(signOffset + 3);
+  const techOffset = signOffset + 13;
+  const finOffset = techOffset + 8;
+  const billingOpenedOffset = finOffset + 3;
+  const effectFromOffset = billingOpenedOffset + 30;
+  const ctOffset = effectFromOffset + 20;
+  return {
+    id: `ord-extra-cip-${seed}`,
+    orderNo,
+    product: product.name,
+    clientId: client.id,
+    client: client.name,
+    bu: client.bu,
+    clientManager: client.clientManager,
+    dateOfSign,
+    createdOn,
+    technical: withMeta({ status: "confirmed", date: makeDate(techOffset) }, seed),
+    financial: withMeta({ status: "confirmed", date: makeDate(finOffset) }, seed + 1),
+    lifecycleStatus: "cancellationInProgress",
+    cancellationTechnical: ctDecided ? withMeta({ status: "confirmed", date: makeDate(ctOffset) }, seed + 2) : { status: "pending", date: null },
+    cancellationFinancial: { status: "pending", date: null },
+    billingCycle: billingCycles[seed % billingCycles.length],
+    amount,
+    amended: false,
+    billingStatus: "open",
+    billingOpenedOn: makeDate(billingOpenedOffset),
+    billingClosedOn: null,
+    cancellationDetails: makeCancellationDetails(seed, amount, effectFromOffset),
+    details: {
+      clientManager: client.clientManager,
+      billingAddress: client.billingAddress,
+      billingState: client.billingState,
+      billingCity: client.billingCity,
+      deliveryAddress: client.deliveryAddress,
+      deliveryState: client.deliveryState,
+      deliveryCity: client.deliveryCity,
+      gstNo: client.gstNo,
+      spocs: client.spocs,
+      product: product.name,
+      dateOfSign,
+      plan: seed % 2 === 0 ? "Prepaid" : "Postpaid",
+      oneTime: null,
+      gstProcess: "",
+      selectGst: client.gstNo || "NA",
+      ...product.mockDetails(seed),
+      firstBillingMonth: createdOn.slice(0, 7),
+      billingCycle: billingCycles[seed % billingCycles.length],
+      agreement: AGREEMENT_MONTHS_CYCLE[seed % AGREEMENT_MONTHS_CYCLE.length],
+      advance: null,
+      tds: null,
+      netAmount: amount,
+      creditPeriod: null,
+      documents: [],
+      remarks: "",
+    },
+  };
+}
+
+mockOrders.push(
+  // Cancellation-Technical genuinely pending (first ever in the dataset).
+  makeCancellationInProgressOrder(clients[2], PRODUCTS[1], "OD-P0000148", 20, -95, 214000, false),
+  // Cancellation-Technical confirmed, Cancellation-Financial genuinely
+  // pending, within FY2026-27 (the 3 existing CF-pending orders all predate it).
+  makeCancellationInProgressOrder(clients[5], PRODUCTS[3], "OD-P0000149", 21, -100, 267500, true)
+);
