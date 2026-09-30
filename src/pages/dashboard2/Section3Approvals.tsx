@@ -121,7 +121,13 @@ export default function Section3Approvals({ orders, onNavigate }: { orders: Orde
 }
 
 function OrdersStuckAtApprovalPanel({ orders }: { orders: OrderRecord[] }) {
-  const data = buildStuckData(orders);
+  // buildStuckData()'s own StuckSlice.color comes from dashboard1's
+  // STAGE_COLOR palette — override it with D2.stage here so this donut and
+  // Turnaround Time (the other widget in this section keyed by the same 4
+  // ApprovalStageKeys) always agree on what color each stage is, instead of
+  // two independently-authored palettes that happened to roughly agree on
+  // Technical/Financial but diverged on the two Cancellation stages.
+  const data = buildStuckData(orders).map((d) => ({ ...d, color: D2.stage[d.key] }));
   const totalCount = data.reduce((sum, d) => sum + d.count, 0);
 
   const GAP_DEG = 2;
