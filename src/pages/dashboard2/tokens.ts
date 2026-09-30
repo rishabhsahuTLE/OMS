@@ -27,18 +27,18 @@ export const D2 = {
   stage: {
     technical: "#3c5f7f",
     financial: "#2f8f72",
-    cancellationFinancial: "#c68a2b",
-    cancellationTechnical: "#7b5ea7",
+    cancellationFinancial: "#15B79E", // Mint teal — Cancellation-Finance closure
+    cancellationTechnical: "#0BA5EC", // Sky — Cancellation-Tech closure
   },
   // Stage Distribution's 5-bucket taxonomy (StageBucketKey) — one color per
   // bucket, reused wherever that bucket's order count is shown so e.g.
   // "Active" is always the same color on the page.
   stageBucket: {
     pending: "#a76a10",
-    active: "#1f7a5c",
+    active: "#669F2A", // Moss — billing opened and live
     agreementOver: "#3c5f7f",
-    cancellationPending: "#c4322d",
-    closed: "#5c7480",
+    cancellationPending: "#EF6820", // Orange — cancellation pending
+    closed: "#16B364", // Green — closed successfully
   } as Record<string, string>,
   bu: {
     "Enterprise CEP": "#2f8f72",

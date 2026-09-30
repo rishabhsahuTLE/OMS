@@ -17,7 +17,7 @@ import {
   type DashboardFilters,
   type DatePreset,
 } from "./dashboard/filters";
-import type { NavigateFn } from "./dashboard/shared";
+import { buildOrderStatusLegend, type NavigateFn } from "./dashboard/shared";
 
 function toggleInSet(set: Set<string>, value: string): Set<string> {
   const next = new Set(set);
@@ -49,6 +49,8 @@ export default function Dashboard2({ orders, onNavigate }: { orders: OrderRecord
       applyStructuralFilters(orders, filters, { includeManager: true }).filter((o) => inDateRange(o.createdOn, filters.dateRange)),
     [orders, filters]
   );
+
+  const statusLegend = useMemo(() => buildOrderStatusLegend(scoped), [scoped]);
 
   function setDatePreset(preset: DatePreset | "all") {
     setFilters((f) => ({ ...f, datePreset: preset, dateRange: computePresetRange(preset) }));
@@ -120,6 +122,18 @@ export default function Dashboard2({ orders, onNavigate }: { orders: OrderRecord
           <div style={{ fontSize: 13, color: D2.muted, fontVariantNumeric: "tabular-nums" }}>
             {scoped.length} of {orders.length} orders
           </div>
+          {statusLegend.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
+              {statusLegend.map((s) => (
+                <div key={s.key} className="flex items-center gap-1.5">
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: D2.mutedStrong, whiteSpace: "nowrap" }}>
+                    {s.label} ({s.count})
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{ width: 1, height: 18, background: D2.border }} />
           <button type="button" onClick={clearAll} style={{ fontSize: 13, fontWeight: 600, color: D2.link }}>
             Clear All

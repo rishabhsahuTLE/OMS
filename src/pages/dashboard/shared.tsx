@@ -6,6 +6,7 @@ import {
   daysBetween,
   getDisplayStage,
   getNextActionableStage,
+  isStuckInRejectedApproval,
   todayISO,
   type ApprovalStageKey,
 } from "../../utils";
@@ -613,4 +614,73 @@ export function buildManagerForecast(orders: OrderRecord[], quarter: ForecastQua
     share: total > 0 ? (v.forecast / total) * 100 : 0,
   }));
   return { rows, total };
+}
+
+// ---------------------------------------------------------------------------
+// Order status legend — a compact, filter-aware "what stage is every
+// visible order actually in" summary for Dashboard 2's sticky bar.
+// ---------------------------------------------------------------------------
+
+export type OrderStatusKey =
+  | "techApproval"
+  | "financialApproval"
+  | "active"
+  | "rejected"
+  | "amendmentFinance"
+  | "created"
+  | "toOpen"
+  | "agreementOver"
+  | "cancelledOrClosed";
+
+const ORDER_STATUS_META: { key: OrderStatusKey; label: string; color: string }[] = [
+  { key: "techApproval", label: "Tech Approval", color: "#7A5AF8" },
+  { key: "financialApproval", label: "Financial Approval", color: "#0E9384" },
+  { key: "active", label: "Active", color: "#2F5BEA" },
+  { key: "rejected", label: "Rejected, awaiting fix", color: "#D92D20" },
+  { key: "amendmentFinance", label: "Amendment at Finance", color: "#F79009" },
+  { key: "created", label: "Created", color: "#98A2B3" },
+  { key: "toOpen", label: "To Open", color: "#84A5F5" },
+  { key: "agreementOver", label: "Agreement Over", color: "#475467" },
+  { key: "cancelledOrClosed", label: "Cancelled or Closed", color: "#D0D5DD" },
+];
+
+// Priority order matters: `incomplete`/rejected/toAmend/toOpen/agreementOver
+// each override what getDisplayStage()+getNextActionableStage() would
+// otherwise suggest, so every order lands in exactly one bucket (or none —
+// a cancellationInProgress order whose TC/FC is still pending, not
+// rejected, isn't one of these 9 categories).
+function classifyOrderStatus(order: OrderRecord): OrderStatusKey | null {
+  if (order.incomplete) return "created";
+  if (isStuckInRejectedApproval(order)) return "rejected";
+  const stage = getDisplayStage(order);
+  if (stage === "toAmend") return "amendmentFinance";
+  if (stage === "toOpen") return "toOpen";
+  if (stage === "agreementOver") return "agreementOver";
+  if (stage === "active") return "active";
+  if (stage === "closed" || order.lifecycleStatus === "cancelled") return "cancelledOrClosed";
+  if (stage === "approvalPending") {
+    const actionable = getNextActionableStage(order);
+    if (actionable?.key === "technical") return "techApproval";
+    if (actionable?.key === "financial") return "financialApproval";
+  }
+  return null;
+}
+
+export interface OrderStatusLegendEntry {
+  key: OrderStatusKey;
+  label: string;
+  color: string;
+  count: number;
+}
+
+// Only as many dots as there are distinct stages actually present among the
+// given (already filter-scoped) orders — an empty bucket is omitted rather
+// than shown at zero.
+export function buildOrderStatusLegend(orders: OrderRecord[]): OrderStatusLegendEntry[] {
+  const counts = new Map<OrderStatusKey, number>();
+  orders.forEach((o) => {
+    const key = classifyOrderStatus(o);
+    if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+  return ORDER_STATUS_META.filter((m) => (counts.get(m.key) ?? 0) > 0).map((m) => ({ ...m, count: counts.get(m.key)! }));
 }
